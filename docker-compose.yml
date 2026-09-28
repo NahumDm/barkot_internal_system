@@ -1,0 +1,13 @@
+# Local development compose stack.
+#
+# Placeholder. No services are defined yet — Docker configuration is out of
+# scope for the current Phase 0 structure.
+#
+# Intended services when implemented:
+#   web  — Next.js
+#   api  — Django + Gunicorn
+#   db   — PostgreSQL 17.x
+#   redis/celery — optional, only when async work becomes real
+#
+# PostgreSQL and Redis/Valkey stay on a private network and are never exposed
+# to the public Internet (spec §20.1).

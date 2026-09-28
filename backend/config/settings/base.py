@@ -25,9 +25,14 @@ _csrf_origins = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_origins.split(",") if origin.strip()]
 
 # ── Applications ───────────────────────────────────────────────────────────
-# The 11 Barkot domain apps (spec §6.2, §25.1). `integrations` is an empty
-# adapter boundary for principle P08; it gains adapters in Phase 6.
+# DRF, filter backends and OpenAPI tooling (spec §7.1, §8.1, §26.2) carry no
+# models, so makemigrations checks stay stable while Phase 0A has no domain
+# models. `integrations` is an empty adapter boundary for principle P08; it
+# gains adapters in Phase 6.
 INSTALLED_APPS = [
+    "rest_framework",
+    "django_filters",
+    "drf_spectacular",
     "apps.core",
     "apps.accounts",
     "apps.users",
@@ -93,6 +98,26 @@ USE_TZ = True
 
 BUSINESS_TIMEZONE = os.environ.get("BUSINESS_TIMEZONE", "Africa/Addis_Ababa")
 BUSINESS_CURRENCY = os.environ.get("BUSINESS_CURRENCY", "ETB")
+
+# ── REST / OpenAPI ─────────────────────────────────────────────────────────
+# Authentication classes are empty until Phase 1 (spec §9.1). The default
+# permission is IsAuthenticated per spec §9.2 (backend permissions are
+# authoritative); DRF enforces it once auth classes land.
+REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
+    "DEFAULT_PARSER_CLASSES": ("rest_framework.parsers.JSONParser",),
+    "DEFAULT_AUTHENTICATION_CLASSES": (),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Barkot Bar & Restaurant API",
+    "DESCRIPTION": "Internal business operations API for Barkot Bar & Restaurant (spec §8.1).",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
 
 # ── Static files ───────────────────────────────────────────────────────────
 STATIC_URL = "static/"

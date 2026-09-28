@@ -1,0 +1,42 @@
+# Barkot backend — Django + Gunicorn (spec §8.3, §18.2).
+# Build context: backend/
+
+FROM python:3.14-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Dependencies are copied before the source so dependency layers cache well.
+COPY requirements/ requirements/
+
+# ── dev target: hot-reload server for docker compose dev ────────────────────
+# Source code arrives via bind mount, so no COPY . . here.
+FROM base AS dev
+
+RUN python -m pip install -r requirements/dev.txt
+
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+
+# ── prod target: Gunicorn, unprivileged user (spec §8.3, §20.2) ─────────────
+FROM base AS prod
+
+RUN python -m pip install -r requirements/prod.txt
+
+COPY . .
+
+RUN useradd --create-home --uid 10001 barkot \
+    && chown -R barkot:barkot /app
+
+USER barkot
+
+EXPOSE 8000
+
+CMD ["gunicorn", "config.wsgi:application", \
+     "--bind=0.0.0.0:8000", \
+     "--workers=2", \
+     "--timeout=60", \
+     "--access-logfile=-"]

@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (Django · Python 3.14)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: barkot
+          POSTGRES_USER: barkot
+          POSTGRES_PASSWORD: barkot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U barkot -d barkot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: testserver
+      DJANGO_DB_NAME: barkot
+      DJANGO_DB_USER: barkot
+      DJANGO_DB_PASSWORD: barkot
+      DJANGO_DB_HOST: 127.0.0.1
+      DJANGO_DB_PORT: "5432"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements/*.txt
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements/dev.txt
+
+      - name: Lint (ruff check) — §22.2
+        run: ruff check .
+
+      - name: Format (ruff format --check) — §22.2
+        run: ruff format --check .
+
+      - name: Type check (mypy) — §22.2
+        run: mypy .
+
+      - name: Tests (pytest) — §22.2
+        run: pytest
+
+      - name: Migrations drift (makemigrations --check) — §22.2
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: OpenAPI gate (drf-spectacular) — §22.2
+        run: |
+          python manage.py spectacular --file /tmp/schema.yml --validate
+          test -s /tmp/schema.yml
+
+  frontend:
+    name: Frontend (Next.js · Node 24)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint (eslint) — §22.2
+        run: npm run lint
+
+      - name: Format (prettier --check) — §22.2
+        run: npm run format:check
+
+      - name: Type check (tsc --noEmit) — §22.2
+        run: npm run typecheck
+
+      - name: Unit tests (vitest) — §22.2
+        run: npm test
+
+      - name: Production build — §22.2
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end smoke (Playwright) — §22.2
+        run: npm run test:e2e

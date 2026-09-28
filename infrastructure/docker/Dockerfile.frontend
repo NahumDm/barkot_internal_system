@@ -1,0 +1,48 @@
+# Barkot frontend — Next.js (spec §18.2).
+# Build context: frontend/
+# Targets: dev, builder, runner.
+
+# ── deps ────────────────────────────────────────────────────────────────────
+FROM node:24-slim AS deps
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# ── dev target: next dev for docker compose dev ─────────────────────────────
+FROM deps AS dev
+
+EXPOSE 3000
+CMD ["npm", "run", "dev"]
+
+# ── builder: production build (standalone output) ───────────────────────────
+FROM deps AS builder
+
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_APP_NAME=Barkot
+ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
+
+RUN npm run build
+
+# ── runner: minimal production image ───────────────────────────────────────
+FROM node:24-slim AS runner
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+
+WORKDIR /app
+
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+CMD ["node", "server.js"]

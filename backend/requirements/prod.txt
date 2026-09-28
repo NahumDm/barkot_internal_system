@@ -1,0 +1,5 @@
+# Barkot backend — production runtime dependencies.
+-r base.txt
+
+gunicorn>=23,<24                  # production WSGI server (spec §8.3, §26.2)
+whitenoise>=6,<7                  # static-file middleware (spec §26.2, optional)

@@ -1,13 +1,73 @@
-# Local development compose stack.
+# Barkot — local development stack (spec §18.2).
 #
-# Placeholder. No services are defined yet — Docker configuration is out of
-# scope for the current Phase 0 structure.
-#
-# Intended services when implemented:
-#   web  — Next.js
-#   api  — Django + Gunicorn
-#   db   — PostgreSQL 17.x
-#   redis/celery — optional, only when async work becomes real
-#
-# PostgreSQL and Redis/Valkey stay on a private network and are never exposed
-# to the public Internet (spec §20.1).
+# Dev workflow: source is bind-mounted, dev servers run with hot reload.
+# For day-to-day development you can also run only the database:
+#   docker compose up -d db
+# and run the two dev servers on the host (see root README).
+
+name: barkot-dev
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DJANGO_DB_NAME:-barkot}
+      POSTGRES_USER: ${DJANGO_DB_USER:-barkot}
+      POSTGRES_PASSWORD: ${DJANGO_DB_PASSWORD:-barkot}
+    ports:
+      # Localhost only, so host tooling (psql, runserver) can reach it.
+      # Never expose the database to the public Internet (spec §20.1).
+      # Host port 5433: several dev machines run their own PostgreSQL on 5432.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DJANGO_DB_USER:-barkot} -d ${DJANGO_DB_NAME:-barkot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/Dockerfile.backend
+      target: dev
+    command: python manage.py runserver 0.0.0.0:8000
+    environment: &api-env
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:3000
+      DJANGO_DB_NAME: ${DJANGO_DB_NAME:-barkot}
+      DJANGO_DB_USER: ${DJANGO_DB_USER:-barkot}
+      DJANGO_DB_PASSWORD: ${DJANGO_DB_PASSWORD:-barkot}
+      DJANGO_DB_HOST: db
+      DJANGO_DB_PORT: "5432"
+      BUSINESS_CURRENCY: ${BUSINESS_CURRENCY:-ETB}
+      BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Africa/Addis_Ababa}
+    volumes:
+      - ./backend:/app
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: ../infrastructure/docker/Dockerfile.frontend
+      target: dev
+    environment:
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Barkot}
+    volumes:
+      - ./frontend:/app
+      # Container-owned node_modules so Windows host node_modules never leaks in.
+      - web_node_modules:/app/node_modules
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  db_data:
+  web_node_modules:

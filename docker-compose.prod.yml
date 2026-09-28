@@ -1,9 +1,69 @@
-# Production compose stack.
+# Barkot — production stack (spec §18.2).
 #
-# Placeholder. No services are defined yet — Docker configuration is out of
-# scope for the current Phase 0 structure.
+# Nginx runs on the host, terminates TLS, and proxies to the API and web
+# containers which publish ONLY on 127.0.0.1. PostgreSQL and any future
+# Redis/Valkey stay on the private Docker network and are never public.
 #
-# Intended shape when implemented: Nginx terminates TLS on the host and routes
-# the public origin to the Next.js container and /api/v1/ to the
-# Django/Gunicorn container. Django and PostgreSQL remain on a private Docker
-# network (spec §8.3, §18.2).
+# Run with: docker compose --env-file .env -f docker-compose.prod.yml up -d
+
+name: barkot-prod
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DJANGO_DB_NAME}
+      POSTGRES_USER: ${DJANGO_DB_USER}
+      POSTGRES_PASSWORD: ${DJANGO_DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DJANGO_DB_USER} -d ${DJANGO_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: ../infrastructure/docker/Dockerfile.backend
+      target: prod
+    restart: unless-stopped
+    environment:
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS}
+      DJANGO_DB_NAME: ${DJANGO_DB_NAME}
+      DJANGO_DB_USER: ${DJANGO_DB_USER}
+      DJANGO_DB_PASSWORD: ${DJANGO_DB_PASSWORD}
+      DJANGO_DB_HOST: db
+      DJANGO_DB_PORT: "5432"
+      DJANGO_SESSION_COOKIE_SECURE: ${DJANGO_SESSION_COOKIE_SECURE:-true}
+      DJANGO_CSRF_COOKIE_SECURE: ${DJANGO_CSRF_COOKIE_SECURE:-true}
+      DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-true}
+      BUSINESS_CURRENCY: ${BUSINESS_CURRENCY:-ETB}
+      BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Africa/Addis_Ababa}
+    ports:
+      # Reachable by host Nginx only (spec §20.1).
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: ../infrastructure/docker/Dockerfile.frontend
+      target: runner
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Barkot}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  db_data:

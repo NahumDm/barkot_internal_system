@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  /* Monochrome operationally-priority palette (UX §2.1, §3.3) */
+  --color-background: #f7f7f7;
+  --color-surface: #ffffff;
+  --color-ink: #111111;
+  --color-ink-secondary: #666666;
+  --color-border: #e5e5e5;
+
+  --color-sidebar: #111111;
+  --color-sidebar-surface: #181818;
+
+  /* Semantic status colors — desaturated for print/grayscale clarity */
+  --color-success: #5b7a5b;
+  --color-warning: #a98d4a;
+  --color-danger: #a04848;
+  --color-info: #4f6d7d;
+}
+
+@layer base {
+  body {
+    margin: 0;
+    background-color: var(--color-background);
+    color: var(--color-ink);
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}

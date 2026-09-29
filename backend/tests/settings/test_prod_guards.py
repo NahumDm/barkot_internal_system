@@ -15,6 +15,7 @@ than importable application code, so it is exercised in a subprocess with
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -30,12 +31,18 @@ BOOT_PROBE = (
 )
 
 
-def _boot(settings_module: str, secret_key: str | None) -> subprocess.CompletedProcess[str]:
+def _boot(
+    settings_module: str,
+    secret_key: str | None,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Import a settings module in a clean subprocess and report what happened.
 
     Args:
         settings_module: Dotted path to the settings module to import.
         secret_key: Value for ``DJANGO_SECRET_KEY``, or ``None`` to leave it unset.
+        extra_env: Additional environment variables, used to prove that a
+            variable which looks like a switch has no effect.
 
     Returns:
         The completed process, whose stderr holds the guard's message on refusal.
@@ -46,6 +53,8 @@ def _boot(settings_module: str, secret_key: str | None) -> subprocess.CompletedP
     env["PYTHONPATH"] = str(BACKEND_DIR)
     if secret_key is not None:
         env["DJANGO_SECRET_KEY"] = secret_key
+    if extra_env:
+        env.update(extra_env)
     return subprocess.run(
         [sys.executable, "-c", BOOT_PROBE],
         capture_output=True,
@@ -151,3 +160,73 @@ class TestProductionHardeningIsStillApplied:
         assert csrf_secure == "True"
         assert int(hsts) > 0
         assert frame == "DENY"
+
+
+DEBUG_PROBE = (
+    "import django; django.setup(); from django.conf import settings; print(settings.DEBUG)"
+)
+
+
+def _debug_of(settings_module: str, extra_env: dict[str, str] | None = None) -> str:
+    """Return the DEBUG value a settings module resolves to in a clean process."""
+    result = subprocess.run(
+        [sys.executable, "-c", DEBUG_PROBE],
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(BACKEND_DIR),
+            "DJANGO_SETTINGS_MODULE": settings_module,
+            "DJANGO_SECRET_KEY": get_random_secret_key(),
+            **(extra_env or {}),
+        },
+        cwd=str(BACKEND_DIR),
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+class TestDebugIsPinnedNotConfigurable:
+    """``DJANGO_DEBUG`` used to be documented in four places and read by none.
+
+    Wiring it up was rejected in favour of removing it: a switch an operator
+    sets and sees nothing happen is worse than no switch, and a production
+    process that can be flipped into debug mode serves tracebacks and settings
+    to whoever asks.
+    """
+
+    def test_production_is_debug_off(self) -> None:
+        assert _debug_of("config.settings.prod") == "False"
+
+    def test_development_is_debug_on(self) -> None:
+        assert _debug_of("config.settings.dev") == "True"
+
+    @pytest.mark.parametrize("value", ["true", "True", "1", "yes"])
+    def test_production_ignores_django_debug_true(self, value: str) -> None:
+        """No environment value can turn debug mode on in production."""
+        assert _debug_of("config.settings.prod", {"DJANGO_DEBUG": value}) == "False"
+
+    def test_development_ignores_django_debug_false(self) -> None:
+        """The same holds in reverse: development is not switchable off by env."""
+        assert _debug_of("config.settings.dev", {"DJANGO_DEBUG": "false"}) == "True"
+
+    def test_the_variable_is_absent_from_the_shipped_configuration(self) -> None:
+        """The dead variable must not reappear in the files operators copy."""
+        repo_root = BACKEND_DIR.parent
+        offenders: list[str] = []
+        candidates = [
+            repo_root / ".env.example",
+            repo_root / "docker-compose.yml",
+            repo_root / "docker-compose.prod.yml",
+            repo_root / ".github" / "workflows" / "ci.yml",
+        ]
+        for candidate in candidates:
+            assert candidate.exists(), f"expected {candidate} to exist"
+            text = candidate.read_text(encoding="utf-8")
+            # Prose explaining why the variable is absent is welcome; a line
+            # that actually sets it is the regression we are guarding against.
+            assigns = re.search(r"^\s*DJANGO_DEBUG\s*[:=]", text, re.MULTILINE)
+            if assigns:
+                offenders.append(candidate.name)
+        assert not offenders, f"DJANGO_DEBUG reappeared in: {offenders}"

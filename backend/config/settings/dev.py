@@ -8,6 +8,8 @@ import os
 
 from .base import *  # noqa: F403
 
+# Pinned on: a developer wants the tracebacks and auto-reload, and the module
+# name (config.settings.dev) is itself the signal that this is not production.
 DEBUG = True
 
 _dev_hosts = os.environ.get("DJANGO_ALLOWED_HOSTS", "")

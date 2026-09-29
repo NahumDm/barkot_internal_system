@@ -18,6 +18,10 @@ from django.core.exceptions import ImproperlyConfigured
 from .base import *  # noqa: F403
 from .base import DEV_INSECURE_SECRET_KEY
 
+# Not configurable. There is deliberately no DJANGO_DEBUG escape hatch: a
+# production process that can be talked into debug mode serves tracebacks,
+# SQL and settings to whoever asks. Removing this needs a code change and a
+# review, which is the point.
 DEBUG = False
 
 

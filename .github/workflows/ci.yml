@@ -31,7 +31,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: testserver
       DJANGO_DB_NAME: barkot
       DJANGO_DB_USER: barkot

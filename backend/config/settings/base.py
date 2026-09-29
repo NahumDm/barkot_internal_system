@@ -27,7 +27,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 DEV_INSECURE_SECRET_KEY = "dev-only-insecure-secret-change-me"
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", DEV_INSECURE_SECRET_KEY)
 
-DEBUG = False
+# DEBUG is not decided here. Each environment module pins it (dev.py True,
+# prod.py False) so that no environment variable can turn debugging on in a
+# production process. DJANGO_DEBUG was previously documented in
+# .env.example, CI and both compose files but read by nothing; it has been
+# removed rather than wired up, because a switch that silently does nothing is
+# a trap. See ADR-0004 and the roadmap task A1.
 
 # Comma-separated in env, e.g. DJANGO_ALLOWED_HOSTS=api.barkotbar.com
 _allowed_hosts = os.environ.get("DJANGO_ALLOWED_HOSTS", "")

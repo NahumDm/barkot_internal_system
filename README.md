@@ -18,10 +18,10 @@ Current state:
 | Area | State |
 | --- | --- |
 | Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied |
-| Tests | 70 passing — domain invariants, permission matrix, production config guards |
-| Static analysis | mypy clean (97 files), ruff clean |
+| Tests | 123 passing — domain invariants, permission matrix, production config guards, error envelope, API base, pagination |
+| Static analysis | mypy clean (113 files), ruff clean |
 | Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired |
-| **API** | **2 health endpoints only. The OpenAPI schema has `paths: {}`.** |
+| **API** | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, and an OpenAPI schema that documents `/api/v1/`. No business endpoints yet.** |
 | **Frontend** | **Shell only. 24 files, no API client, no auth, 7 feature directories empty.** |
 | `reports` app | `apps.py` only |
 | Audit | `AuditLog.record()` called from services; no API to read it |

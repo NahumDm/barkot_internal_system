@@ -180,19 +180,53 @@ AUTH_USER_MODEL = "accounts.User"
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
     "DEFAULT_PARSER_CLASSES": ("rest_framework.parsers.JSONParser",),
-    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework.authentication.SessionAuthentication",),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.core.authentication.BarkotSessionAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.BarkotPagination",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "EXCEPTION_HANDLER": "apps.core.exceptions.domain_exception_handler",
+    "EXCEPTION_HANDLER": "apps.core.exceptions.exception_handler",
+    # The version is in the path, so DRF only has to agree which paths count as
+    # versioned. NamespaceVersioning reads the `namespace` given by the URLconf,
+    # which means /api/v2/ cannot quietly resolve against v1 views: it 404s until
+    # someone adds a real v2. That is the behaviour we want from a version bump.
+    "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.NamespaceVersioning",
+    "DEFAULT_VERSION": "v1",
+    "ALLOWED_VERSIONS": ("v1",),
+    "VERSION_PARAM": "version",
 }
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Barkot Bar & Restaurant API",
-    "DESCRIPTION": "Internal business operations API for Barkot Bar & Restaurant (spec §8.1).",
+    "DESCRIPTION": (
+        "Internal business operations API for Barkot Bar & Restaurant (spec §8.1). "
+        "All business endpoints live under `/api/v1/`. Every error response uses "
+        "the envelope documented on the `ErrorResponse` schema: a stable "
+        "machine-readable `code`, a human `message`, and field-level `details` "
+        "only for validation failures."
+    ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # The schema is the integration contract for an internal system: every app
+    # schema is a source of truth the frontend generates types from, so it is
+    # worth reading, not a debugging extra. It still requires a session - see
+    # SERVE_PERMISSIONS - because it enumerates the whole internal surface.
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAuthenticated"],
+    "SERVE_AUTHENTICATION": ["apps.core.authentication.BarkotSessionAuthentication"],
+    # Paths keep the /api/v1/ prefix in the schema. Trimming it is cosmetically
+    # nicer but only correct if the schema also advertises a server URL, and a
+    # generated client that silently drops the version prefix is the exact
+    # failure that versioning exists to prevent.
+    "SCHEMA_PATH_PREFIX": "/api/v1",
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SORT_OPERATIONS": True,
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True, "displayOperationId": True},
+    # Enum naming is deliberately not configured here. Two of the domain enums
+    # (StockCountStatus and ReceiptStatus) currently carry identical member sets,
+    # so naming them now would mean two names for one generated schema object -
+    # drf-spectacular rejects that as ambiguous, and it is right to. Each enum is
+    # named in the task that first exposes it on an endpoint, where the choice of
+    # name has an actual consumer to answer to.
 }
 
 # ── Static files ───────────────────────────────────────────────────────────

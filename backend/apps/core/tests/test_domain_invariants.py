@@ -17,7 +17,7 @@ from django.contrib.auth.models import AnonymousUser, Permission
 from apps.accounts.models import Role, User
 from apps.core.business_time import business_date, now_utc
 from apps.core.enums import MovementDirection, MovementKind, PaymentMethod
-from apps.core.exceptions import InsufficientStock, domain_exception_handler
+from apps.core.exceptions import InsufficientStock, exception_handler
 from apps.inventory.models import StockMovement
 from apps.inventory.services import (
     ReceiptLineInput,
@@ -296,33 +296,39 @@ def test_role_permissions_do_not_depend_on_group_membership(owner: User):
 
 
 def test_domain_error_keeps_its_error_envelope():
-    response = domain_exception_handler(InsufficientStock("only 2 left"), {})
+    response = exception_handler(InsufficientStock("only 2 left"), {})
     assert response is not None
     # 409: the request was well-formed, it conflicts with current stock.
     assert response.status_code == 409
     assert response.data == {"error": {"code": "insufficient_stock", "message": "only 2 left"}}
 
 
-def test_non_domain_exception_is_delegated_to_drf():
+def test_non_domain_exception_keeps_its_status_in_the_envelope():
     """DRF re-raises when a custom handler returns None, so delegation is required.
 
     Returning None here would turn every ValidationError / PermissionDenied into
-    a 500 with a traceback.
+    a 500 with a traceback. Delegation keeps DRF's chosen status; only the body
+    is replaced, so the frontend sees one shape for every failure.
     """
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
-    denied = domain_exception_handler(PermissionDenied("nope"), {})
+    denied = exception_handler(PermissionDenied("nope"), {})
     assert denied is not None
     assert denied.status_code == 403
+    assert denied.data == {
+        "error": {"code": "permission_denied", "message": "You do not have permission to do that."}
+    }
 
-    invalid = domain_exception_handler(ValidationError("bad input"), {})
+    invalid = exception_handler(ValidationError("bad input"), {})
     assert invalid is not None
     assert invalid.status_code == 400
+    assert invalid.data["error"]["code"] == "validation_error"
+    assert invalid.data["error"]["details"] == {"non_field_errors": ["bad input"]}
 
 
 def test_genuinely_unhandled_exception_is_returned_as_none():
     """A real bug must still surface as a 500, not be dressed up as a 4xx."""
-    assert domain_exception_handler(TypeError("a real bug"), {}) is None
+    assert exception_handler(TypeError("a real bug"), {}) is None
 
 
 # ── 5. A count can be opened and approved ───────────────────────────────────

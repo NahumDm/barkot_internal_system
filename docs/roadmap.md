@@ -38,9 +38,9 @@ Measured, not assumed:
 | --- | --- |
 | Domain models | 9 apps with models, 10 migrations applied |
 | Service/use-case layer | 4 apps with services (sales, inventory, finance, payroll) |
-| Tests | 70 passing — domain invariants, permission matrix, production settings guards |
-| Static analysis | mypy clean over 97 files, ruff clean |
-| **API endpoints** | **2 health endpoints. The OpenAPI schema has `paths: {}`.** |
+| Tests | 123 passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination |
+| Static analysis | mypy clean over 113 files, ruff clean |
+| **API endpoints** | **2 health probes, a versioned API root, and an OpenAPI schema with one documented path (`/api/v1/`). No business endpoints yet — that is A4.** |
 | **Frontend** | **24 files, all shell. No API client, no auth, no data. 7 feature directories empty.** |
 | `reports` app | `apps.py` only |
 | `audit` app | Model and `record()` only; not yet written to by any endpoint |
@@ -105,8 +105,8 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 | # | Task | Gate that proves it |
 | --- | --- | --- |
 | A0 | Run all 7 CI gates against the real code; fix what fails | `mypy .`, `npm run build`, Playwright all green |
-| A1 | Fix `DJANGO_DEBUG` being dead config (`dev.py` and `prod.py` both assign `DEBUG` unconditionally) | `dev` honours the variable; `prod` ignores it |
-| A2 | API base: versioning, error envelope, pagination wiring, OpenAPI integration | Schema `paths:` is no longer empty |
+| A1 | Fix `DJANGO_DEBUG` being dead config (`dev.py` and `prod.py` both assign `DEBUG` unconditionally) | The variable is gone from the repo; `dev` always sets `DEBUG=True` and `prod` always sets `DEBUG=False`, and neither can be overridden by the environment |
+| A2 | API base: versioning, error envelope, pagination wiring, OpenAPI integration | Schema `paths:` is no longer empty; every API failure returns `{"error": {"code", "message"}}`; an oversized `page_size` is capped rather than silently honoured |
 | A3 | **Contract suite skeleton** — parameterised rules every endpoint must satisfy | Fails when a deliberately non-compliant endpoint is added |
 | A4 | `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me` | Login as each of the 4 roles; wrong password returns 400, not 500; logout invalidates the session |
 | A5 | Login and sensitive-endpoint throttling (§9.3) | 6th attempt from one IP returns 429 |

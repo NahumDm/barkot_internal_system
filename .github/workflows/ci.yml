@@ -71,6 +71,10 @@ jobs:
         run: |
           python manage.py spectacular --file /tmp/schema.yml --validate
           test -s /tmp/schema.yml
+          # A non-empty file is not a non-empty API: a schema with no paths still
+          # generates a client that calls nothing, so assert that the document
+          # describes at least one endpoint (roadmap A2 gate).
+          python -c "import sys, yaml; doc = yaml.safe_load(open('/tmp/schema.yml')); paths = doc.get('paths') or {}; sys.exit('OpenAPI schema documents no endpoints.') if not paths else print('OpenAPI documents %d path(s): %s' % (len(paths), ', '.join(sorted(paths))))"
 
   frontend:
     name: Frontend (Next.js · Node 24)

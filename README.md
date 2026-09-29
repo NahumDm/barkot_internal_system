@@ -6,25 +6,52 @@ Primary users: Owner, Manager, Cashier, Barman. Currency: ETB. Business timezone
 
 ## Status
 
-**Phase 0A — structure bootstrap complete.** Repositories for both applications, toolchains,
-health endpoints, Docker images, Nginx and CI are in place and verified green locally. There is
-still no business logic, no database models, no API endpoints, no authentication and no real UI —
-those land in Phase 0B and Phase 1.
+**Domain foundation complete; the API and UI are not.** The backend's models, service layer,
+migrations, role matrix and tests are done for every domain. What is missing is everything that makes
+them reachable: the REST API is not written and the frontend has no data layer. The backend is
+currently exercisable only through the test suite.
 
-Current phase status:
+**The build plan is [`docs/roadmap.md`](docs/roadmap.md).** Read that for what is next and why.
+
+Current state:
 
 | Area | State |
 | --- | --- |
-| Backend (Django 5.2 LTS + DRF) | Scaffold + 11 domain apps, venv `backend/.venv`, locked `requirements.lock` |
-| Frontend (Next.js 16 + React 19.3 + TS 5.9 + Tailwind 4) | Shell with all 17 §7.4 routes, sidebar, testing harness |
-| Health endpoints | `/health/live` and `/health/ready` (L7+RDS, §8.3) |
+| Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied |
+| Tests | 70 passing — domain invariants, permission matrix, production config guards |
+| Static analysis | mypy clean (97 files), ruff clean |
+| Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired |
+| **API** | **2 health endpoints only. The OpenAPI schema has `paths: {}`.** |
+| **Frontend** | **Shell only. 24 files, no API client, no auth, 7 feature directories empty.** |
+| `reports` app | `apps.py` only |
+| Audit | `AuditLog.record()` called from services; no API to read it |
 | Docker / Nginx / Compose | Dev + prod compose, multi-target Dockerfiles, host Nginx config |
 | CI | `.github/workflows/ci.yml` — the 7 §22.2 gates on both stacks |
-| Docs | ADRs recorded — see `docs/architecture/ADR/` |
+| Docs | ADRs 0001–0004, client decisions, roadmap |
 
-Architecture decisions (layout, Python 3.14) are recorded as **ADRs** in `docs/architecture/ADR/`.
-The BARKOT-SAS-001 Word spec is author-maintained; deviations are noted in the ADRs for the next
-(v1.1.0) spec revision.
+### How this maps to spec §28
+
+Spec §28 lays out seven phases as a horizontal, domain-by-domain sequence. The work so far was built
+as one vertical slice instead, so §28 no longer describes the repository literally. The important
+part:
+
+**The backend work of spec Phases 1–4 is complete** — models, business rules and services for auth,
+users, products, sales, inventory, finance and payroll. What remains for those phases is the API, the
+frontend, and hardening. Recorded in
+[ADR-0004](docs/architecture/ADR/ADR-0004-phase-0b-vertical-slice.md).
+
+| Spec §28 phase | State |
+| --- | --- |
+| 0 — Environment + design baseline | Complete |
+| 1 — Auth + users + products | Domain layer complete; API and UI outstanding |
+| 2 — Sales + inventory | Domain layer complete; API and UI outstanding |
+| 3 — Finance | Domain layer complete; API and UI outstanding |
+| 4 — Payroll | Domain layer complete; API and UI outstanding |
+| 5 — Hardening | Not started |
+| 6 — Optional integrations | Not started; blocked on open client questions |
+
+Architecture decisions are recorded as **ADRs** in `docs/architecture/ADR/`. The BARKOT-SAS-001 Word
+spec is author-maintained; deviations are noted in the ADRs for the next (v1.1.0) spec revision.
 
 ## Getting started
 

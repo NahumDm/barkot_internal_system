@@ -9,6 +9,7 @@ Architecturally significant decisions that record a specification deviation, a c
 | ADR-0001 | [Repository layout](ADR-0001-repository-layout.md) — `frontend/ backend/ infrastructure/` vs spec §25 | Accepted |
 | ADR-0002 | [Python runtime 3.14](ADR-0002-python-runtime.md) — deviation from spec §5 | Accepted |
 | ADR-0003 | [Phase 0B scope confirmations](ADR-0003-phase-0b-scope-confirmations.md) — v1.1.0 deviation log for the client answers to spec §30 | Accepted |
+| ADR-0004 | [Phase 0B was a vertical slice](ADR-0004-phase-0b-vertical-slice.md) — spec §28 phases 1–4 backend work is complete; the API and UI are not | Accepted |
 
 ## Conventions
 

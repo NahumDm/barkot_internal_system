@@ -5,4 +5,5 @@ pytest>=8.4,<9                    # backend test runner (spec §23, §26.2)
 pytest-django>=4.10,<5            # pytest + Django integration (spec §26.2)
 ruff>=0.11,<0.12                  # linting and formatting (spec §26.2)
 mypy>=1.16,<2                     # static type checking where adopted (spec §26.2)
-django-stubs>=5.1,<6              # Django type stubs for mypy (spec §26.2)
+django-stubs>=6.1,<7              # Django type stubs for mypy (spec §26.2)
+djangorestframework-stubs>=3.18,<4  # DRF stubs; ModelBackend generics need them

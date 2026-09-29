@@ -1,0 +1,24 @@
+# Normalise line endings in the repository, not in each contributor's checkout.
+#
+# Without this file, `core.autocrlf=true` (the Windows Git default) checks the
+# tree out with CRLF while .editorconfig declares `end_of_line = lf`. Prettier
+# honours .editorconfig, so `npm run format:check` then fails on every single
+# file on Windows even though the content is correct. Declaring the policy here
+# makes the working tree identical on every platform.
+* text=auto eol=lf
+
+# Shell scripts must keep LF or they break under sh with a confusing error.
+*.sh text eol=lf
+Makefile text eol=lf
+
+# Binary assets must never be line-ending translated.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.docx binary
+*.xlsx binary
+*.pdf binary

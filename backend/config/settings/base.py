@@ -1,8 +1,14 @@
 """Base Django settings shared by every environment.
 
-Phase 0A scope: this backend has no auth accounts, no sessions, no admin and
-no models yet. Those middleware/apps are added in Phase 1 (spec §9) rather
-than enabled empty now, so every setting here is used and honest.
+Phase 0B scope: session authentication (spec §9.1) over the custom staff user
+and role model in :mod:`apps.accounts`. There is deliberately no
+``django.contrib.admin``: the specification describes an internal system with a
+separate Next.js frontend, and an unreviewed second UI is a liability rather
+than a convenience.
+
+Password hashing uses Django's PBKDF2 default. Argon2 is the stronger per-hash
+choice but adds a native dependency the spec does not ask for;
+``PASSWORD_HASHERS`` in :mod:`config.settings.prod` is where it would go.
 """
 
 import os
@@ -24,12 +30,16 @@ ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts.split(",") if host.stri
 _csrf_origins = os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_origins.split(",") if origin.strip()]
 
-# ── Applications ───────────────────────────────────────────────────────────
-# DRF, filter backends and OpenAPI tooling (spec §7.1, §8.1, §26.2) carry no
-# models, so makemigrations checks stay stable while Phase 0A has no domain
-# models. `integrations` is an empty adapter boundary for principle P08; it
-# gains adapters in Phase 6.
+# ── Applications ────────────────────────────────────────────────────────────
+# auth/contenttypes/sessions back the session authentication in §9.1. Admin is
+# intentionally absent: the spec has no admin surface.
+#
+# drf_spectacular and django_filters carry no models, so only the relative order
+# of the domain apps below is relevant to makemigrations.
 INSTALLED_APPS = [
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
     "rest_framework",
     "django_filters",
     "drf_spectacular",
@@ -46,12 +56,17 @@ INSTALLED_APPS = [
     "apps.integrations",
 ]
 
-# Middleware without auth/session — session + auth middleware arrive with
-# Phase 1 accounts so nothing references uninstalled contrib apps.
+# SessionMiddleware must precede AuthenticationMiddleware, and
+# CsrfViewMiddleware must follow AuthenticationMiddleware so request.user exists
+# when CSRF is validated (Django check admin.E408). DRF's SessionAuthentication
+# repeats the CSRF check on unsafe methods; this ordering is the
+# security-relevant part.
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -66,6 +81,8 @@ TEMPLATES = [
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
             ],
         },
     },
@@ -99,17 +116,64 @@ USE_TZ = True
 BUSINESS_TIMEZONE = os.environ.get("BUSINESS_TIMEZONE", "Africa/Addis_Ababa")
 BUSINESS_CURRENCY = os.environ.get("BUSINESS_CURRENCY", "ETB")
 
+# ── Authentication / sessions (spec §9.1) ──────────────────────────────────
+# Session cookies with HttpOnly and SameSite=Lax, not a JWT. A token in
+# localStorage is readable by any injected script; an HttpOnly session cookie is
+# not, and the CSRF token below is what protects it from cross-site writes.
+#
+# CSRF_COOKIE_HTTPONLY stays False because the browser client must read the
+# token to send it back. /api/v1/auth/csrf is the sanctioned way to obtain it
+# and is the only reason this setting is not True.
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_NAME = "barkot_sessionid"
+SESSION_SAVE_EVERY_REQUEST = False
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_NAME = "csrftoken"
+CSRF_USE_SESSIONS = False
+
+AUTHENTICATION_BACKENDS = (
+    # Adds the permissions seeded onto Role.permissions_granted to the ones
+    # ModelBackend already sees, so `user.has_perm()` is the single
+    # enforcement point (spec §9.2, P06). ModelBackend stays in the list and
+    # is listed first so password authentication and direct user/group
+    # grants keep working unchanged.
+    "django.contrib.auth.backends.ModelBackend",
+    "apps.accounts.backends.RolePermissionBackend",
+)
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 12},
+    },
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+LOGIN_URL = "/api/v1/auth/login"
+
+# Barkot's own user model, carrying the mandatory business role. This must be set
+# before the first migration: swapping the user model later on a populated
+# database requires a custom migration, so it is not a decision to defer.
+AUTH_USER_MODEL = "accounts.User"
+
 # ── REST / OpenAPI ─────────────────────────────────────────────────────────
-# Authentication classes are empty until Phase 1 (spec §9.1). The default
-# permission is IsAuthenticated per spec §9.2 (backend permissions are
-# authoritative); DRF enforces it once auth classes land.
+# SessionAuthentication enforces CSRF on unsafe methods, so P09 holds by
+# construction rather than by convention. IsAuthenticated is the global default
+# per §9.2: a new endpoint is private until explicitly opened.
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
     "DEFAULT_PARSER_CLASSES": ("rest_framework.parsers.JSONParser",),
-    "DEFAULT_AUTHENTICATION_CLASSES": (),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework.authentication.SessionAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
+    "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.BarkotPagination",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "apps.core.exceptions.domain_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {

@@ -32,7 +32,9 @@ services:
     restart: unless-stopped
     environment:
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      # `:?` makes compose refuse to start with an explanatory message instead of
+      # building an image that crash-loops on Django's own secret-key guard.
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required; see .env.example}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS}
       DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS}
       DJANGO_DB_NAME: ${DJANGO_DB_NAME}

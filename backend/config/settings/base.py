@@ -18,7 +18,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # ── Security basics ────────────────────────────────────────────────────────
 # SECURITY WARNING: keep SECRET_KEY secret in production (spec §20.2).
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-secret-change-me")
+#
+# The fallback exists so `manage.py` runs in development and CI with no
+# configuration. It is a published value, so anything that ships must refuse to
+# boot while it is still in effect: `config.settings.prod` raises
+# ImproperlyConfigured rather than trusting it. Named so the production guard
+# compares against the same string instead of a second copy of it.
+DEV_INSECURE_SECRET_KEY = "dev-only-insecure-secret-change-me"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", DEV_INSECURE_SECRET_KEY)
 
 DEBUG = False
 

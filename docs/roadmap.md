@@ -104,10 +104,10 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 
 | # | Task | Gate that proves it |
 | --- | --- | --- |
-| A0 | Run all 7 CI gates against the real code; fix what fails | `mypy .`, `npm run build`, Playwright all green |
-| A1 | Fix `DJANGO_DEBUG` being dead config (`dev.py` and `prod.py` both assign `DEBUG` unconditionally) | The variable is gone from the repo; `dev` always sets `DEBUG=True` and `prod` always sets `DEBUG=False`, and neither can be overridden by the environment |
-| A2 | API base: versioning, error envelope, pagination wiring, OpenAPI integration | Schema `paths:` is no longer empty; every API failure returns `{"error": {"code", "message"}}`; an oversized `page_size` is capped rather than silently honoured |
-| A3 | **Contract suite skeleton** — parameterised rules every endpoint must satisfy | Fails when a deliberately non-compliant endpoint is added |
+| ~~A0~~ | Run all 7 CI gates against the real code; fix what fails | `mypy .`, `npm run build`, Playwright all green |
+| ~~A1~~ | Fix `DJANGO_DEBUG` being dead config (`dev.py` and `prod.py` both assign `DEBUG` unconditionally) | The variable is gone from the repo; `dev` always sets `DEBUG=True` and `prod` always sets `DEBUG=False`, and neither can be overridden by the environment |
+| ~~A2~~ | API base: versioning, error envelope, pagination wiring, OpenAPI integration | Schema `paths:` is no longer empty; every API failure returns `{"error": {"code", "message"}}`; an oversized `page_size` is capped rather than silently honoured |
+| ~~A3~~ | **Contract suite skeleton** — parameterised rules every endpoint must satisfy | Fails when a deliberately non-compliant endpoint is added |
 | A4 | `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me` | Login as each of the 4 roles; wrong password returns 400, not 500; logout invalidates the session |
 | A5 | Login and sensitive-endpoint throttling (§9.3) | 6th attempt from one IP returns 429 |
 | A6 | Session timeout, forced change for temporary passwords, `last_login_ip` | Expired session returns 403; temporary password forces a change |
@@ -119,12 +119,26 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 **Phase A exit criteria:** a user can log in through HTTP, an unauthorised user receives 401/403
 everywhere, and the OpenAPI schema describes real endpoints.
 
-### Why the contract suite is in Phase A and not Phase C
+### The contract suite, and why it is here rather than in Phase C
 
-Without it, each of the seven domains in Phase C would be an independent exercise in deciding what
-"pagination looks like" and "what a permission failure returns" — and the seventh would be subtly
-different from the first. Those differences surface as bugs during C and get mistaken for domain
-bugs. A parameterised contract suite makes a pattern violation fail everywhere at once, in A.
+Delivered in `backend/tests/api/contract.py`. Every rule is a plain function from an `Endpoint` to a
+problem string, and every rule runs against every endpoint discovered from the live URLconf — so an
+endpoint added in Phase C is checked without anyone remembering to write a test for it. Five rules:
+`private_by_default`, `session_auth_only`, `no_browsable_api`, `project_paginator`, `versioned_path`.
+
+Two decisions keep it from decaying:
+
+- **Rules read class attributes, not responses.** No fixtures, no database rows, no guessing what a
+  call to a resource that does not exist yet should return. The suite runs in well under a second, so
+  nobody is tempted to skip it.
+- **Exemptions are declared and checked for necessity.** `ApiRootView` is public on purpose and the
+  schema views sit outside the version prefix on purpose; both carry a written reason. A test fails if
+  an exemption waives a rule its endpoint would have passed anyway, which is what stops the exemption
+  list from widening until nothing is enforced.
+
+The gate was verified by registering a deliberately non-compliant endpoint in the real URLconf and
+confirming the suite fails, by moving it outside `/api/v1/` and confirming a different rule fires, and
+by widening an exemption and confirming that is caught too.
 
 ## Phase B — Frontend data layer and one vertical
 

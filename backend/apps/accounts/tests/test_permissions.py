@@ -13,7 +13,7 @@ import pytest
 from django.apps import apps as global_apps
 from django.contrib.auth.models import Permission
 
-from apps.accounts.models import Role, User
+from apps.accounts.models import Role, RoleManager, User
 from apps.accounts.permissions import (
     ALL_PERMISSIONS,
     ROLE_MATRIX,
@@ -140,3 +140,35 @@ def test_permission_catalogue_has_no_orphans_in_the_database():
         codename__in=[split_permission(p)[1] for p in ALL_PERMISSIONS]
     )
     assert found.count() >= len(ALL_PERMISSIONS)
+
+
+class TestRoleManagerIsUsable:
+    """``Role.objects`` must actually expose ``RoleQuerySet``'s methods.
+
+    Assigning a QuerySet *instance* to ``objects`` (``objects =
+    RoleQuerySet()``) does not build a manager from it: Django falls back to a
+    plain ``Manager`` over bare ``QuerySet``, so every custom method is silently
+    unreachable and ``Role.objects.for_code(...)`` raises ``AttributeError``.
+    Nothing else in the suite called that method, so the breakage stayed
+    invisible until ``create_owner`` needed it. Asserted here so it cannot
+    regress unnoticed again.
+    """
+
+    def test_objects_is_the_derived_manager(self) -> None:
+        """The fix is ``as_manager()``, which produces ``RoleManager``."""
+        assert isinstance(Role.objects, RoleManager)
+
+    def test_custom_queryset_methods_reach_the_manager(self) -> None:
+        """``for_code`` is the call site that broke, so it is the one to pin."""
+        assert hasattr(Role.objects, "for_code")
+
+    @pytest.mark.django_db
+    def test_for_code_resolves_a_seeded_role(self) -> None:
+        """End to end: the method callers rely on actually returns the role."""
+        assert Role.objects.for_code(Role.Code.OWNER).code == Role.Code.OWNER
+
+    @pytest.mark.django_db
+    def test_for_code_raises_for_an_unknown_code(self) -> None:
+        """A missing role must surface as ``DoesNotExist``, not ``AttributeError``."""
+        with pytest.raises(Role.DoesNotExist):
+            Role.objects.for_code("NOT_A_ROLE")

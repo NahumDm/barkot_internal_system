@@ -41,6 +41,10 @@ class RoleQuerySet(models.QuerySet["Role"]):
         return self.get(code=code)
 
 
+#: Manager for :class:`Role`, carrying :class:`RoleQuerySet`'s methods.
+RoleManager = models.Manager.from_queryset(RoleQuerySet)
+
+
 class Role(models.Model):
     """A business role and the permissions it grants (spec §9.2).
 
@@ -86,7 +90,15 @@ class Role(models.Model):
     created_at = models.DateTimeField(_("created at"), auto_now_add=True)
     updated_at = models.DateTimeField(_("updated at"), auto_now=True)
 
-    objects: ClassVar[RoleQuerySet] = RoleQuerySet()
+    #: Must be a manager built from :class:`RoleQuerySet`, never a bare
+    #: ``RoleQuerySet()`` instance. Assigning a queryset *instance* to
+    #: ``objects`` silently yields a plain ``Manager`` over bare ``QuerySet``,
+    #: so ``Role.objects.for_code(...)`` raises ``AttributeError`` and every
+    #: custom method here becomes unreachable. ``RoleQuerySet.as_manager()``
+    #: would work too, but it builds a *second* manager class instead of
+    #: reusing :data:`RoleManager`, so the alias is instantiated directly and a
+    #: test asserts ``isinstance(Role.objects, RoleManager)``.
+    objects: ClassVar[RoleManager] = RoleManager()
 
     class Meta:
         verbose_name = _("role")
@@ -300,4 +312,12 @@ class SiteSetting(models.Model):
         return obj
 
 
-__all__ = ["PermissionsMixin", "Role", "SiteSetting", "User", "UserManager"]
+__all__ = [
+    "PermissionsMixin",
+    "Role",
+    "RoleManager",
+    "RoleQuerySet",
+    "SiteSetting",
+    "User",
+    "UserManager",
+]

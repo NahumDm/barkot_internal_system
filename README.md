@@ -18,14 +18,15 @@ Current state:
 | Area | State |
 | --- | --- |
 | Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied |
-| Tests | 156 passing — domain invariants, permission matrix, production config guards, error envelope, API base, pagination, endpoint contract rules |
-| Static analysis | mypy clean (115 files), ruff clean |
-| Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired |
+| Tests | 189 passing — domain invariants, permission matrix, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap |
+| Static analysis | mypy clean (117 files), ruff clean |
+| Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired. `manage.py create_owner` creates the first Owner from the role matrix; no `/auth/*` endpoints yet. |
 | **API** | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, and an OpenAPI schema that documents `/api/v1/`. No business endpoints yet.** |
 | **Frontend** | **Shell only. 24 files, no API client, no auth, 7 feature directories empty.** |
 | `reports` app | `apps.py` only |
 | Audit | `AuditLog.record()` called from services; no API to read it |
 | **Contract suite** | **`tests/api/contract.py` — 5 rules every registered endpoint must satisfy, with declared exemptions. A new endpoint is checked automatically.** |
+| **Owner bootstrap** | **`manage.py create_owner <username>` — the password is read from a no-echo prompt or stdin, never an argument. `--generate-password` prints once; `--check` is a bare preflight.** |
 | Docker / Nginx / Compose | Dev + prod compose, multi-target Dockerfiles, host Nginx config |
 | CI | `.github/workflows/ci.yml` — the 7 §22.2 gates on both stacks |
 | Docs | ADRs 0001–0004, client decisions, roadmap |

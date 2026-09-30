@@ -111,7 +111,7 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 | A4 | `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me` | Login as each of the 4 roles; wrong password returns 400, not 500; logout invalidates the session |
 | A5 | Login and sensitive-endpoint throttling (§9.3) | 6th attempt from one IP returns 429 |
 | A6 | Session timeout, forced change for temporary passwords, `last_login_ip` | Expired session returns 403; temporary password forces a change |
-| A7 | `create_owner` management command (mirrors `bootstrap_roles`) | Creates a working Owner; the password is not logged |
+| ~~A7~~ | `create_owner` management command (mirrors `bootstrap_roles`) | Creates a working Owner; the password is not logged |
 | A8 | DRF permission classes bound to `ROLE_MATRIX` | A Cashier cannot approve payroll (spec §23.1) |
 | A9 | Security tests: unauthenticated access and role bypass | 401/403 on every protected route |
 | A10 | `Idempotency-Key` on write endpoints (§10.2, P11); fix the `next_sale_reference()` count-then-insert race | The same key twice creates one sale, not two; concurrent references do not collide |
@@ -139,6 +139,37 @@ Two decisions keep it from decaying:
 The gate was verified by registering a deliberately non-compliant endpoint in the real URLconf and
 confirming the suite fails, by moving it outside `/api/v1/` and confirming a different rule fires, and
 by widening an exemption and confirming that is caught too.
+
+## `create_owner`, and why the Owner is not a superuser
+
+Delivered in `backend/apps/accounts/management/commands/create_owner.py`. The command exists because
+there must be exactly one way to make the first Owner, and `createsuperuser` is the wrong tool three
+times over. `accounts.User.role` is non-null and a superuser is created without one, so every login
+would fail against the foreign key. More importantly, `is_superuser=True` short-circuits `has_perm`
+entirely: the role matrix would stop being the thing that decides what the Owner can do, and a later
+edit to it would not apply. The Owner created here holds the whole catalogue *through the matrix*, so
+P06 stays the single enforcement point.
+
+The password is never an argument. It comes from a no-echo prompt or from `--password-stdin`, because
+an argument is visible in shell history, in `ps` output, and in any process listing for as long as the
+command runs, on a machine several people administer. There is deliberately no `--password` flag and no
+`DJANGO_OWNER_PASSWORD` variable; both are an argument wearing a disguise, and both end up in a CI log.
+`--generate-password` prints once to stdout, which is the only way for a human to learn a secret they
+did not choose, and flags the account temporary so A6 forces a change at first login. The test suite
+asserts on `caplog`, `stderr`, stdout, and the raw database column, since a leak here is invisible in
+normal use — the command works perfectly and the only symptom is a secret sitting in a log.
+
+Two things it refuses by default: a username that already exists, and a *second* Owner without
+`--force`. A second Owner is a grant of full authority over payroll and cash, so it has to be asked
+for deliberately. `--check` runs as a bare preflight (`manage.py create_owner --check`) and exits
+non-zero when an Owner already exists, which is the signal a deployment runbook wants.
+
+Building it surfaced a bug that predates it: `Role.objects` was assigned a bare `RoleQuerySet()`
+instance, which does **not** give you a manager carrying that queryset's methods — Django falls back
+to a plain `Manager`, so `Role.objects.for_code(...)` raised `AttributeError` and the method was
+unreachable. Nothing else called it, so nothing was broken in practice. It is now `RoleManager()`,
+built with `from_queryset`, and `test_permissions.py` asserts the manager type so the mistake cannot
+come back quietly.
 
 ## Phase B — Frontend data layer and one vertical
 

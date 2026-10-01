@@ -240,7 +240,10 @@ class TestSessionTimeout:
         """
         user = make_staff_user(Role.Code.MANAGER)
         http = sign_in(client(), user.username)
-        key = http.cookies.get(SESSION_COOKIE).value
+        # Via the helper rather than reading the cookie directly: the helper asserts
+        # the cookie is present, so a missing one fails with a reason instead of an
+        # AttributeError.
+        key = _server_session(http).session_key
         assert Session.objects.filter(session_key=key).exists()
 
         aged_session(http)

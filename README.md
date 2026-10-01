@@ -19,7 +19,7 @@ Current state:
 | --- | --- |
 | Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied |
 | Tests | 315 passing – domain invariants, permission matrix, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints, login rate limiting, session timeout and forced password change |
-| Static analysis | mypy clean (113 files), ruff clean |
+| Static analysis | mypy clean (129 files, `mypy .`), ruff clean |
 | Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired. `manage.py create_owner` creates the first Owner. Session auth is live: `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me`, `/auth/change-password`. Login is rate limited to 5 attempts a minute per client address, counted in the database so the budget is shared between Gunicorn workers. Sessions idle out after a configurable timeout (default 8 hours, Owner setting) and are answered `403 session_expired`. An account flagged `is_temporary_password` can reach only `/auth/me`, `/auth/logout`, `/auth/csrf` and `/auth/change-password` until it sets a new one; everything else answers `403 password_change_required`. |
 | **API** | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, the five session auth endpoints, rate limiting on login, and an OpenAPI schema that documents every one of them with its security scheme. No business endpoints yet.** |
 | **Frontend** | **Shell only. 24 files, no API client, no auth, 7 feature directories empty.** |
@@ -152,8 +152,9 @@ screen), `csrf` (to POST it), `change-password` (to satisfy it), `logout` (to es
   created a second source of truth that a reset could *not* clear, keeping a restored
   account blocked until its session expired. One source of truth, read fresh.
 - **Remote CI was never verified for this work** - no `gh`, no token, and the repository is
-  private. The evidence is local only: 315 tests, ruff, ruff-format, mypy over 113 files,
-  `manage.py check`, and no missing migrations.
+  private. The evidence is local only: 315 tests, ruff, ruff-format, `mypy .` over
+  129 files, `manage.py check`, and no missing migrations. Run the same commands
+  CI does - `mypy .` covers `tests/`, which `mypy apps config` does not.
 
 ## Getting started
 

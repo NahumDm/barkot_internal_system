@@ -108,7 +108,7 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 | ~~A1~~ | Fix `DJANGO_DEBUG` being dead config (`dev.py` and `prod.py` both assign `DEBUG` unconditionally) | The variable is gone from the repo; `dev` always sets `DEBUG=True` and `prod` always sets `DEBUG=False`, and neither can be overridden by the environment |
 | ~~A2~~ | API base: versioning, error envelope, pagination wiring, OpenAPI integration | Schema `paths:` is no longer empty; every API failure returns `{"error": {"code", "message"}}`; an oversized `page_size` is capped rather than silently honoured |
 | ~~A3~~ | **Contract suite skeleton** — parameterised rules every endpoint must satisfy | Fails when a deliberately non-compliant endpoint is added |
-| A4 | `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me` | Login as each of the 4 roles; wrong password returns 400, not 500; logout invalidates the session |
+| ~~A4~~ | `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me` | Login as each of the 4 roles; wrong password returns 400, not 500; logout invalidates the session |
 | A5 | Login and sensitive-endpoint throttling (§9.3) | 6th attempt from one IP returns 429 |
 | A6 | Session timeout, forced change for temporary passwords, `last_login_ip` | Expired session returns 403; temporary password forces a change |
 | ~~A7~~ | `create_owner` management command (mirrors `bootstrap_roles`) | Creates a working Owner; the password is not logged |

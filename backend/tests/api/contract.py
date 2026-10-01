@@ -110,6 +110,29 @@ EXEMPTIONS: tuple[Exemption, ...] = (
         ),
     ),
     Exemption(
+        view_key="apps.accounts.views.CsrfView",
+        waives=frozenset({"private_by_default"}),
+        reason=(
+            "Hands out the CSRF token the browser client needs before its first "
+            "unsafe request, including before it holds any session. It returns a "
+            "salted hash of the CSRF secret with no user attached, so it discloses "
+            "nothing about any account, and it is unreachable while signed out "
+            "otherwise - which would make login impossible (spec 9.1, ADR-0003 D8)."
+        ),
+    ),
+    Exemption(
+        view_key="apps.accounts.views.LoginView",
+        waives=frozenset({"private_by_default"}),
+        reason=(
+            "Signing in is how a client obtains a session, so it cannot require "
+            "one; the requirement would be circular. It authenticates a username "
+            "and password and returns nothing that is not already known to whoever "
+            "holds those credentials. CSRF is enforced explicitly on it rather "
+            "than by DRF, which skips the check for an unauthenticated request "
+            "(spec 9.1, P09)."
+        ),
+    ),
+    Exemption(
         view_key="drf_spectacular.views.SpectacularAPIView",
         waives=frozenset({"versioned_path"}),
         reason=(

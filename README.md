@@ -18,10 +18,10 @@ Current state:
 | Area | State |
 | --- | --- |
 | Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied |
-| Tests | 189 passing — domain invariants, permission matrix, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap |
-| Static analysis | mypy clean (117 files), ruff clean |
-| Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired. `manage.py create_owner` creates the first Owner from the role matrix; no `/auth/*` endpoints yet. |
-| **API** | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, and an OpenAPI schema that documents `/api/v1/`. No business endpoints yet.** |
+| Tests | 250 passing — domain invariants, permission matrix, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints |
+| Static analysis | mypy clean (123 files), ruff clean |
+| Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired. `manage.py create_owner` creates the first Owner. Session auth is live: `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me`. Throttling, session timeout and temporary-password enforcement are still A5/A6. |
+| **API** | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, the four session auth endpoints, and an OpenAPI schema that documents every one of them with its security scheme. No business endpoints yet.** |
 | **Frontend** | **Shell only. 24 files, no API client, no auth, 7 feature directories empty.** |
 | `reports` app | `apps.py` only |
 | Audit | `AuditLog.record()` called from services; no API to read it |

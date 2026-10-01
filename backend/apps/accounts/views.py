@@ -42,11 +42,11 @@ from __future__ import annotations
 
 import logging
 
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.middleware.csrf import get_token
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -55,10 +55,15 @@ from rest_framework.views import APIView
 from apps.accounts.csrf import enforce_csrf
 from apps.accounts.models import User
 from apps.accounts.schemas import (
+    ChangePasswordRequestSerializer,
+    ChangePasswordResponseSerializer,
     CsrfResponseSerializer,
     LoginRequestSerializer,
     LoginResponseSerializer,
     UserSerializer,
+)
+from apps.accounts.sessions import (
+    touch_session,
 )
 from apps.audit.models import AuditLog
 from apps.core.schemas import ErrorResponseSerializer
@@ -204,15 +209,19 @@ class LoginView(APIView):
             raise ValidationError({"non_field_errors": [str(ACCOUNT_NOT_ENABLED)]})
 
         login(request, user)
+        # Stamped after login() because login() is what creates the session; before
+        # it there is nothing to write the timestamp into.
+        touch_session(request)
         self._record_success(user, request)
         return Response({"user": UserSerializer(user).data})
 
     def _record_success(self, user: User, request: Request) -> None:
-        """Audit a successful sign-in.
+        """Audit a successful sign-in and record the address it came from.
 
-        ``last_login_ip`` is set here rather than in A6 because the value comes
-        from this request and A6's job is enforcing what to do with it, not
-        collecting it.
+        ``last_login_ip`` is what the Owner reads to answer "where was this account
+        signed into when?", so it is written here rather than left to Django's
+        ``last_login`` - which records the timestamp but never the address. It is
+        also what makes a hijacked session visible after the fact.
 
         Args:
             user: The user who just authenticated.
@@ -250,6 +259,96 @@ class LoginView(APIView):
         # Not the password, not the hash, not a truncated credential. The audit
         # log is read by people with database access and is retained for years.
         logger.info("Rejected sign-in attempt for username %r", username)
+
+
+class ChangePasswordView(APIView):
+    """``POST /api/v1/auth/change-password/`` - replace the current password.
+
+    This is the one endpoint a user on a temporary password is allowed to reach,
+    and it is open to anyone else too: an employee who suspects their password is
+    known should be able to change it without the Owner intervening.
+
+    The current password is required as well as the new one. A temporary password
+    is typically one that was generated and handed over, so the person holding the
+    account is not the only one who knows the credential; requiring the current
+    one is what stops an unlocked-but-abandoned session from being turned into
+    permanent access. See
+    :class:`apps.accounts.schemas.ChangePasswordRequestSerializer`.
+
+    The session **key is rotated but the session survives.** Django's
+    ``update_session_auth_hash`` cycles the key and keeps the user signed in,
+    which is what a password change should do: ending the session would read as a
+    bug to whoever triggered it, while rotating the key is what stops a session ID
+    captured before the change from still working after it.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Change the signed-in user's password",
+        description=(
+            "Replaces the signed-in user's password. Requires the current "
+            "password, so an unlocked session cannot be used to take the account "
+            "over. The new password is checked against the configured validators. "
+            "Clears `is_temporary_password`, releasing the user from the "
+            "forced-change restriction. The session key is rotated but the session "
+            "stays valid, so no new sign-in is needed. The CSRF token is unaffected "
+            "by this call: the one already held remains valid."
+        ),
+        request=ChangePasswordRequestSerializer,
+        responses={
+            200: ChangePasswordResponseSerializer,
+            400: None,
+            401: None,
+            403: None,
+        },
+        tags=["auth"],
+    )
+    def post(self, request: Request) -> Response:
+        """Set a new password for the signed-in user.
+
+        Args:
+            request: The incoming request.
+
+        Returns:
+            A 200 with the refreshed user, whose ``is_temporary_password`` is now
+            false.
+
+        Raises:
+            rest_framework.exceptions.ValidationError: If the confirmation does not
+                match, the current password is wrong, or the new password fails the
+                configured validators.
+        """
+        serializer = ChangePasswordRequestSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        # IsAuthenticated already guarantees this at runtime; the narrowing is here
+        # because the type checker cannot see through the permission class, and an
+        # AnonymousUser reaching set_password would be a silent security failure
+        # rather than an obvious one.
+        user = request.user
+        if not isinstance(user, User):
+            raise PermissionDenied(detail="Authentication is required.")
+        user.set_password(serializer.validated_data["new_password"])
+        # The flag is cleared in the same write as the hash. Two saves could leave
+        # an account that authenticates with the new password while still being
+        # blocked, or flagged clear while the old password is the live one.
+        user.is_temporary_password = False
+        user.save(update_fields=["password", "is_temporary_password"])
+
+        # Cycles the session key, keeping the caller signed in.
+        update_session_auth_hash(request, user)
+        AuditLog.record(
+            action=AuditLog.Action.UPDATE,
+            object_type=AUTH_OBJECT_TYPE,
+            object_id=user.pk,
+            actor=user,
+            summary=f"{user.username} changed their password",
+            ip_address=client_ip(request),
+        )
+        return Response({"user": UserSerializer(user).data})
 
 
 class LogoutView(APIView):

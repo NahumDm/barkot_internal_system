@@ -20,6 +20,10 @@ input-only. Nothing in this module can leak a password into a response.
 
 from __future__ import annotations
 
+from typing import Any
+
+from django.contrib.auth import password_validation
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from apps.accounts.models import User
@@ -91,6 +95,97 @@ class LoginRequestSerializer(serializers.Serializer):
 
 class LoginResponseSerializer(serializers.Serializer):
     """The signed-in user, returned by ``/auth/login/`` and ``/auth/me/``."""
+
+    user = UserSerializer()
+
+
+class ChangePasswordRequestSerializer(serializers.Serializer):
+    """Body of ``POST /auth/change-password/`` (spec §9.3).
+
+    Takes the current password as well as the new one. Without it, anyone who
+    reached an unattended but still-unlocked session could set a new password and
+    take the account over; and the case that matters most here is a temporary
+    password, which is exactly the credential most likely to be known to whoever
+    issued it.
+    """
+
+    current_password = serializers.CharField(
+        style={"input_type": "password"},
+        trim_whitespace=False,
+        write_only=True,
+        help_text=(
+            "The password in force right now. Confirmed so that an unlocked "
+            "session cannot be used to take the account over."
+        ),
+    )
+    new_password = serializers.CharField(
+        style={"input_type": "password"},
+        trim_whitespace=False,
+        write_only=True,
+        help_text="The replacement. Checked against the configured password validators.",
+    )
+    new_password_confirm = serializers.CharField(
+        style={"input_type": "password"},
+        trim_whitespace=False,
+        write_only=True,
+        help_text="Must be identical to `new_password`.",
+    )
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Check the confirmation, the current password, then the validators.
+
+        The order is deliberate. The confirmation is checked first because it is
+        free and its answer is unambiguous; the current password next, because a
+        user who got that wrong has nothing else to act on; and the new password
+        last, so someone working through a password policy does not also have to
+        guess whether the rejection was about their old password.
+
+        Args:
+            attrs: Field values after per-field validation.
+
+        Returns:
+            The validated attributes.
+
+        Raises:
+            rest_framework.serializers.ValidationError: If the two new passwords
+                differ, the current password is wrong, or the new one fails the
+                configured validators. Each failure is reported against the field
+                it belongs to, so the client can highlight the right input.
+        """
+        if attrs["new_password"] != attrs["new_password_confirm"]:
+            raise serializers.ValidationError({
+                "new_password_confirm": ["The two passwords do not match."]
+            })
+
+        user = self.context["request"].user
+        if not user.check_password(attrs["current_password"]):
+            raise serializers.ValidationError({
+                "current_password": ["That is not the current password."]
+            })
+
+        # Called with the user so UserAttributeSimilarityValidator can reject a
+        # password containing the username or display name.
+        #
+        # The exception is django.core.exceptions.ValidationError, which is what
+        # validate_password raises; password_validation.PasswordValidationError does
+        # not exist, so naming that would raise AttributeError from inside the except
+        # clause and turn every policy rejection into a 500. Aliased to tell it apart
+        # from the DRF ValidationError raised just above.
+        try:
+            password_validation.validate_password(attrs["new_password"], user=user)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)}) from exc
+
+        return attrs
+
+
+class ChangePasswordResponseSerializer(serializers.Serializer):
+    """Confirmation that the password was changed, plus the refreshed user.
+
+    The user comes back so the client can continue into the application without a
+    second call, and so ``is_temporary_password`` flipping to false is seen
+    through the same contract the login response already returns.
+    """
 
     user = UserSerializer()
 

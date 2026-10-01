@@ -110,7 +110,7 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 | ~~A3~~ | **Contract suite skeleton** — parameterised rules every endpoint must satisfy | Fails when a deliberately non-compliant endpoint is added |
 | ~~A4~~ | `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me` | Login as each of the 4 roles; wrong password returns 400, not 500; logout invalidates the session |
 | ~~A5~~ | Login rate limiting (spec 9.3): 5 attempts a minute per client address, counted in the database so Gunicorn workers share one budget. Login only, since no sensitive business endpoint exists yet; `LoginRateThrottle` is reusable for them | 6th attempt from one IP returns 429 |
-| A6 | Session timeout, forced change for temporary passwords, `last_login_ip` | Expired session returns 403; temporary password forces a change |
+| ~~A6~~ | Session timeout, forced change for temporary passwords, `last_login_ip` | Expired session returns 403; temporary password forces a change |
 | ~~A7~~ | `create_owner` management command (mirrors `bootstrap_roles`) | Creates a working Owner; the password is not logged |
 | A8 | DRF permission classes bound to `ROLE_MATRIX` | A Cashier cannot approve payroll (spec §23.1) |
 | A9 | Security tests: unauthenticated access and role bypass | 401/403 on every protected route |

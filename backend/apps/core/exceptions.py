@@ -41,7 +41,6 @@ from rest_framework.exceptions import (
     ValidationError,
 )
 from rest_framework.response import Response
-from rest_framework.views import exception_handler as drf_exception_handler
 
 
 class BARKOTDomainError(Exception):
@@ -108,6 +107,42 @@ class InconsistentTotals(BARKOTDomainError):
     code = "inconsistent_totals"
     status_code = status.HTTP_400_BAD_REQUEST
     default_message = "The supplied totals do not match the line items."
+
+
+class SessionExpired(BARKOTDomainError):
+    """The session idled past the configured limit and has been ended (spec §9.3).
+
+    403 carrying its own ``code``, not a 401. The A4 contract is that 401 means
+    "no session, sign in again" and 403 means "signed in, not allowed"; Django's
+    own expiry produces the 401 case, because the session row is gone. This is a
+    different situation - the session is intact and the user is known, and Barkot
+    is refusing it deliberately - so it is refused with a code the frontend can
+    switch on, rather than a status that would collapse it into the identical
+    no-session case. See :mod:`apps.accounts.sessions`.
+
+    Declared here rather than beside the session rules because this module is the
+    project's single registry of error codes; a client that has to look in two
+    places to find every code the API can return will eventually miss one.
+    """
+
+    code = "session_expired"
+    status_code = status.HTTP_403_FORBIDDEN
+    default_message = "Your session has expired. Sign in again to continue."
+
+
+class PasswordChangeRequired(BARKOTDomainError):
+    """The account is on a temporary password and must set a new one (spec §9.3).
+
+    Refused on every endpoint except the change endpoint, ``/auth/me`` and
+    ``/auth/logout``. A temporary password exists because it was generated or set
+    by somebody else, so continuing to work under it defeats the point of issuing
+    one. The two read endpoints stay open so a user is not locked out of the screen
+    that tells them what to do, or of the button that ends the session.
+    """
+
+    code = "password_change_required"
+    status_code = status.HTTP_403_FORBIDDEN
+    default_message = "Your password must be changed before you can continue."
 
 
 VALIDATION_MESSAGE = "The submitted data is invalid."
@@ -229,6 +264,15 @@ def exception_handler(exc: Exception, context: dict[str, Any]) -> Response | Non
             {"error": {"code": exc.code, "message": exc.message}},
             status=exc.status_code,
         )
+
+    # Imported here rather than at module scope. rest_framework.views reads
+    # DEFAULT_AUTHENTICATION_CLASSES while it is being imported, which imports
+    # apps.core.authentication, which imports apps.accounts.sessions, which needs
+    # the domain errors declared in this module. Importing at the top made that a
+    # cycle that only surfaced as an ImportError during settings resolution.
+    # By the time any exception reaches this function the app registry is loaded,
+    # so the deferred import always resolves.
+    from rest_framework.views import exception_handler as drf_exception_handler
 
     response = drf_exception_handler(exc, context)
     if response is None:

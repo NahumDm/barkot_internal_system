@@ -55,6 +55,22 @@ frontend, and hardening. Recorded in
 Architecture decisions are recorded as **ADRs** in `docs/architecture/ADR/`. The BARKOT-SAS-001 Word
 spec is author-maintained; deviations are noted in the ADRs for the next (v1.1.0) spec revision.
 
+## Before production
+
+- [ ] **Confirm `DJANGO_TRUSTED_PROXY` is set for the production deploy.** Login rate
+      limiting (5/minute per address) keys on the client address. Behind Nginx that
+      address only reaches Django in `X-Forwarded-For`, so the variable decides whether the
+      limit works or silently collapses. It is off by default because the header is
+      written by whoever sent the request; trusting it unconditionally would let an
+      attacker pick a fresh bucket per attempt and guess a password forever.
+      `docker-compose.prod.yml` defaults it to `true`, which is correct for that stack.
+      If the backend is ever deployed without it - bare `gunicorn`, a different proxy, or
+      any non-Compose path - set it explicitly there. Wrong in the other direction is worse
+      than it looks: the limit still runs, but every client behind the proxy shares the
+      proxy's address as its bucket, so one user's mistyped password locks out everyone.
+      Verify by making several failed logins from two different addresses and confirming
+      each address gets its own 5-attempt budget before real users hit the endpoint.
+
 ## Getting started
 
 Everything below is also available through the root `Makefile` (`make help`) for UNIX-like shells.

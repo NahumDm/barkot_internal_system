@@ -18,7 +18,7 @@ Current state:
 | Area | State |
 | --- | --- |
 | Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied |
-| Tests | 438 passing – domain invariants, permission matrix, permission classes cross-checked against the matrix over every role and permission, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints, login rate limiting, session timeout and forced password change |
+| Tests | 468 passing – domain invariants, permission matrix, permission classes cross-checked against the matrix over every role and permission, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints, login rate limiting, session timeout, forced password change, and a live signed-out access sweep over every registered route |
 | Static analysis | mypy clean (130 files, `mypy .`), ruff clean |
 | Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired. One DRF permission class per capability in `apps/accounts/permissions.py`, each resolving through `user.has_perm()` so the matrix stays the single enforcement point; a view writes `permission_classes = [IsAuthenticated, CanApprovePayrollRun]`. Payroll approval is Owner-only, deliberately withheld from the Manager who generates the run (spec 23.1). `manage.py create_owner` creates the first Owner. Session auth is live: `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me`, `/auth/change-password`. Login is rate limited to 5 attempts a minute per client address, counted in the database so the budget is shared between Gunicorn workers. Sessions idle out after a configurable timeout (default 8 hours, Owner setting) and are answered `403 session_expired`. An account flagged `is_temporary_password` can reach only `/auth/me`, `/auth/logout`, `/auth/csrf` and `/auth/change-password` until it sets a new one; everything else answers `403 password_change_required`. |
 | **API** | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, the five session auth endpoints, rate limiting on login, and an OpenAPI schema that documents every one of them with its security scheme. No business endpoints yet.** |
@@ -152,9 +152,12 @@ screen), `csrf` (to POST it), `change-password` (to satisfy it), `logout` (to es
   created a second source of truth that a reset could *not* clear, keeping a restored
   account blocked until its session expired. One source of truth, read fresh.
 - **Remote CI was never verified for this work** - no `gh`, no token, and the repository is
-  private. The evidence is local only: 438 tests, ruff, ruff-format, `mypy .` over
-  130 files, `manage.py check`, and no missing migrations.
-  CI does - `mypy .` covers `tests/`, which `mypy apps config` does not.
+  private. The evidence is local only: 468 tests, ruff, ruff-format, `mypy .` over
+  131 files, `manage.py check`, and no missing migrations.
+- **`mypy .` is the gate, not `mypy apps config`.** The latter skips `tests/`, which is
+  where the type errors worth catching in a security suite actually live. The roadmap's
+  verification section said `apps config`; CI says `.`. The roadmap was wrong and now
+  matches CI.
 
 ## A8: the permission gate was a test stand-in
 
@@ -224,6 +227,53 @@ permissions, asserting the class verdict equals the matrix grant for every pair.
 coverage tests in both directions – every catalogued permission has a class, and no
 class requires an uncatalogued permission – so a capability added to the matrix and
 shipped without a class fails the build instead of being silently unreachable.
+
+## A9: the 401 gate was never tested, only assumed
+
+The A9 gate is "401/403 on every protected route". Nothing tested it. The contract suite
+does prove every endpoint *declares* `IsAuthenticated` — but by design its rules are pure
+attribute reads (`contract.py:11-15`), which is the right trade for a suite that must stay
+fast. The cost: every 401 in the suite hard-coded one URL, so an endpoint added tomorrow
+with no protection whatsoever would fail nothing at all.
+
+`tests/api/test_access_sweep.py` closes that gap with real requests. It imports
+`discover_endpoints` from the contract engine and derives the public routes from the
+contract's own `EXEMPTIONS` table, so a new endpoint cannot become public by being added
+to a second list here — it would have to be exempted *there*, with a reason, and that
+exemption is reviewed.
+
+### Two real defects the sweep surfaced
+
+Both were found by sending real traffic, and neither was visible to an attribute check:
+
+- **`/api/docs/` escapes the error envelope entirely.** `SpectacularSwaggerView` is a
+  Django template view, so its 401 is a plain `text/html` "401 Unauthorized" page
+  produced outside DRF. There is no `error.code` for a client to branch on, and asking
+  for JSON returns 406. `/api/schema/` goes through the handler but renders the envelope
+  as YAML unless asked for JSON. Both are correctly *protected* — status and
+  `WWW-Authenticate` hold — and both are now asserted on exactly that, with the reason
+  recorded in `NON_JSON_REFUSALS` so a change to either view's rendering shows up as a
+  visible diff rather than a silently dropped assertion.
+- **The login route's throttle reads the database.** The public-route check reached
+  `LoginView`'s throttle before its permission check and died in the cache. The test now
+  carries `django_db`; without it the failure would have been a false one.
+
+### Vacuity and mutation
+
+Every parameterised test would pass having issued zero requests if discovery returned
+nothing, so `TestTheSweepIsNotVacuous` pins the endpoint count, the presence of protected
+routes, and an exact partition of public against protected. The classifier was checked by
+mutation — injecting a waiver for `MeView` flips `_is_public` to `True` and removing it
+flips back — so it is not a constant that would make the whole file green.
+
+### The role dimension is wired, not asserted
+
+No shipped view names a `HasRolePermission` yet; the payroll endpoints come later. That
+emptiness is an explicit assertion with a message explaining what it means, rather than
+a test that silently matches nothing. The Cashier reachability check signs in per
+endpoint (reusing one client would let the first request invalidate the session for the
+rest, and the failure would read like a permission bug) and excludes `LogoutView`, since
+logging out is the refusal it is being asked about.
 
 ## Getting started
 

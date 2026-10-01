@@ -177,6 +177,46 @@ AUTH_USER_MODEL = "accounts.User"
 # SessionAuthentication enforces CSRF on unsafe methods, so P09 holds by
 # construction rather than by convention. IsAuthenticated is the global default
 # per §9.2: a new endpoint is private until explicitly opened.
+# - Rate limiting (spec 9.3, A5) -
+# DRF throttles count in django.core.cache. Gunicorn runs two workers, so the
+# backend has to be shared between processes or each worker grants its own budget
+# and the documented limit becomes twice as generous as it reads. DatabaseCache is
+# that shared store; apps.core.migrations creates the table, so `migrate` is enough
+# and no separate createcachetable step can be forgotten.
+#
+# Redis is the right answer once there is real asynchronous workload. It is not in
+# this stack yet, so the database - already the system of record, already backed up
+# - holds a handful of integers per client address instead.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        # Any unused table name. The default would be "cache_table", which reads as
+        # generic enough to collide with something else in the database.
+        "LOCATION": "barket_throttle_cache",
+        # A throttle entry only has to outlive its own window, so a long default
+        # would just keep dead counters around.
+        "TIMEOUT": 300,
+    }
+}
+
+# Whether a proxy in front of Django is trusted to set X-Forwarded-For.
+#
+# Default is False, and it has to be: the header is written by whoever sent the
+# request, so believing it unconditionally lets any caller choose a fresh throttle
+# bucket per attempt and brute force a password forever. apps.core.throttling reads
+# REMOTE_ADDR unless this is on.
+#
+# Behind the Nginx in infrastructure/nginx - which sets X-Forwarded-For itself -
+# set DJANGO_TRUSTED_PROXY=true. Leaving it off there is not merely conservative:
+# every client then shares the proxy's budget, so one user's bad password locks out
+# everyone. That is why this is an explicit switch rather than a guess.
+TRUSTED_PROXY = os.environ.get("DJANGO_TRUSTED_PROXY", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",),
     "DEFAULT_PARSER_CLASSES": ("rest_framework.parsers.JSONParser",),
@@ -186,6 +226,13 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.BarkotPagination",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.core.exceptions.exception_handler",
+    # 5/m is the A5 gate - "6th attempt from one IP returns 429" - expressed in the
+    # same per-minute shape nginx.conf uses for its own zones. Nothing is listed in
+    # DEFAULT_THROTTLE_CLASSES on purpose: this is the rate an endpoint gets if it
+    # asks for one, and nothing asks automatically. Login opts in explicitly
+    # (apps.accounts.views.LoginView), so a new endpoint cannot acquire a limit by
+    # being added to a list nobody read.
+    "DEFAULT_THROTTLE_RATES": {"login": "5/m"},
     # The version is in the path, so DRF only has to agree which paths count as
     # versioned. NamespaceVersioning reads the `namespace` given by the URLconf,
     # which means /api/v2/ cannot quietly resolve against v1 views: it 404s until

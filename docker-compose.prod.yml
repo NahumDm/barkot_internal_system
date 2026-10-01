@@ -44,6 +44,11 @@ services:
       DJANGO_SESSION_COOKIE_SECURE: ${DJANGO_SESSION_COOKIE_SECURE:-true}
       DJANGO_CSRF_COOKIE_SECURE: ${DJANGO_CSRF_COOKIE_SECURE:-true}
       DJANGO_SECURE_SSL_REDIRECT: ${DJANGO_SECURE_SSL_REDIRECT:-true}
+      # Nginx terminates the connection and sets X-Forwarded-For, so the backend
+      # must trust it to see the real client address for login rate limiting
+      # (spec 9.3, A5). Leaving this false would give every client the proxy's
+      # address as its throttle key, so one bad password locks out everyone.
+      DJANGO_TRUSTED_PROXY: ${DJANGO_TRUSTED_PROXY:-true}
       BUSINESS_CURRENCY: ${BUSINESS_CURRENCY:-ETB}
       BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Africa/Addis_Ababa}
     ports:

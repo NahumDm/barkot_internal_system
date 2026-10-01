@@ -61,6 +61,8 @@ from apps.accounts.schemas import (
     UserSerializer,
 )
 from apps.audit.models import AuditLog
+from apps.core.schemas import ErrorResponseSerializer
+from apps.core.throttling import LoginRateThrottle, client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +131,14 @@ class LoginView(APIView):
 
     permission_classes = [AllowAny]
 
+    #: Five attempts a minute per client address (spec 9.3, A5). Declared here
+    #: rather than in ``DEFAULT_THROTTLE_CLASSES`` so a limit is something a view
+    #: opts into on purpose: login is the only endpoint an unauthenticated caller
+    #: can reach, and future endpoints should not silently inherit a rate nobody
+    #: chose. See :mod:`apps.core.throttling` for why the counter is in the
+    #: database and why the proxy header is not trusted by default.
+    throttle_classes = [LoginRateThrottle]
+
     @extend_schema(
         summary="Sign in and start a session",
         description=(
@@ -138,12 +148,16 @@ class LoginView(APIView):
             "400 with code `validation_error`; it does not distinguish an unknown "
             "username from a wrong password. Requires a CSRF token: obtain one "
             "from `/auth/csrf/` first. Django rotates the token on sign-in, so "
-            "fetch a fresh one before the next unsafe request."
+            "fetch a fresh one before the next unsafe request. Attempts are rate "
+            "limited per client address: the sixth request within a minute returns "
+            "429 with code `throttled` and a `Retry-After` header. Successful "
+            "sign-ins count towards the limit too."
         ),
         request=LoginRequestSerializer,
         responses={
             200: LoginResponseSerializer,
             400: None,
+            429: ErrorResponseSerializer,
         },
         tags=["auth"],
         auth=[],
@@ -161,6 +175,9 @@ class LoginView(APIView):
         Raises:
             rest_framework.exceptions.PermissionDenied: If the request carries no
                 valid CSRF token. See :func:`enforce_csrf`.
+            rest_framework.exceptions.Throttled: If the client address has already
+                made five attempts in the last minute. See
+                :class:`apps.core.throttling.LoginRateThrottle`.
             rest_framework.exceptions.ValidationError: If the body is malformed,
                 or the credentials are rejected.
         """
@@ -201,7 +218,7 @@ class LoginView(APIView):
             user: The user who just authenticated.
             request: The request the sign-in arrived on, for the IP address.
         """
-        user.last_login_ip = _client_ip(request)
+        user.last_login_ip = client_ip(request)
         user.save(update_fields=["last_login_ip"])
         AuditLog.record(
             action=AuditLog.Action.LOGIN,
@@ -209,7 +226,7 @@ class LoginView(APIView):
             object_id=user.pk,
             actor=user,
             summary=f"{user.username} signed in",
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
         )
 
     def _record_failure(self, username: str, request: Request) -> None:
@@ -228,7 +245,7 @@ class LoginView(APIView):
             action=AuditLog.Action.FAILED_LOGIN,
             object_type=AUTH_OBJECT_TYPE,
             summary=f"Failed sign-in for {username!r}",
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
         )
         # Not the password, not the hash, not a truncated credential. The audit
         # log is read by people with database access and is retained for years.
@@ -283,7 +300,7 @@ class LogoutView(APIView):
             object_id=user.pk,
             actor=user,
             summary=f"{user.username} signed out",
-            ip_address=_client_ip(request),
+            ip_address=client_ip(request),
         )
         return Response(status=204)
 
@@ -319,26 +336,3 @@ class MeView(APIView):
         """
         user: User = request.user  # type: ignore[assignment]
         return Response({"user": UserSerializer(user).data})
-
-
-def _client_ip(request: Request) -> str | None:
-    """Return the client IP for an audit entry.
-
-    ``X-Forwarded-For`` is consulted because the production deployment runs
-    behind Nginx, and the address that reached Django is the proxy's unless the
-    header is read. The leftmost entry is the originating client. This is only
-    ever used for the audit log and ``last_login_ip``; it is not an authorisation
-    input, so an untrusted header cannot grant anything - A5 throttling is where a
-    spoofed address would actually matter, and that is left to its own task to
-    decide.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        The client address, or None when it cannot be determined.
-    """
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
-    if forwarded:
-        return forwarded.split(",")[0].strip() or None
-    return request.META.get("REMOTE_ADDR")

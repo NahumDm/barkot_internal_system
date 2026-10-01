@@ -38,8 +38,8 @@ Measured, not assumed:
 | --- | --- |
 | Domain models | 9 apps with models, 10 migrations applied |
 | Service/use-case layer | 4 apps with services (sales, inventory, finance, payroll) |
-| Tests | 123 passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination |
-| Static analysis | mypy clean over 113 files, ruff clean |
+| Tests | 266 passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination |
+| Static analysis | mypy clean over 126 files, ruff clean |
 | **API endpoints** | **2 health probes, a versioned API root, and an OpenAPI schema with one documented path (`/api/v1/`). No business endpoints yet — that is A4.** |
 | **Frontend** | **24 files, all shell. No API client, no auth, no data. 7 feature directories empty.** |
 | `reports` app | `apps.py` only |
@@ -109,7 +109,7 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 | ~~A2~~ | API base: versioning, error envelope, pagination wiring, OpenAPI integration | Schema `paths:` is no longer empty; every API failure returns `{"error": {"code", "message"}}`; an oversized `page_size` is capped rather than silently honoured |
 | ~~A3~~ | **Contract suite skeleton** — parameterised rules every endpoint must satisfy | Fails when a deliberately non-compliant endpoint is added |
 | ~~A4~~ | `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me` | Login as each of the 4 roles; wrong password returns 400, not 500; logout invalidates the session |
-| A5 | Login and sensitive-endpoint throttling (§9.3) | 6th attempt from one IP returns 429 |
+| ~~A5~~ | Login rate limiting (spec 9.3): 5 attempts a minute per client address, counted in the database so Gunicorn workers share one budget. Login only, since no sensitive business endpoint exists yet; `LoginRateThrottle` is reusable for them | 6th attempt from one IP returns 429 |
 | A6 | Session timeout, forced change for temporary passwords, `last_login_ip` | Expired session returns 403; temporary password forces a change |
 | ~~A7~~ | `create_owner` management command (mirrors `bootstrap_roles`) | Creates a working Owner; the password is not logged |
 | A8 | DRF permission classes bound to `ROLE_MATRIX` | A Cashier cannot approve payroll (spec §23.1) |

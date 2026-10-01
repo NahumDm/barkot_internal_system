@@ -11,10 +11,14 @@ is declared as data so that:
 - the seed migration and the test both read the same constant, so they cannot
   disagree.
 
-Call sites must enforce with :meth:`django.contrib.auth.models.User.has_perm`
-using the ``"app_label.codename"`` form. Checking ``user.role.code == "OWNER"``
-inline is a bug waiting to happen: it bypasses the matrix the moment a capability
-is reassigned.
+Call sites enforce with the :class:`HasRolePermission` subclasses below, which ask
+:meth:`django.contrib.auth.models.User.has_perm` for the ``"app_label.codename"`` the
+capability needs. A view therefore reads
+``permission_classes = [IsAuthenticated, CanApprovePayrollRun]``.
+
+Checking ``user.role.code == "OWNER"`` inline is a bug waiting to happen: it bypasses
+the matrix the moment a capability is reassigned. So is calling ``has_perm`` by hand -
+the classes below do exactly that, in one place, so every view decides the same way.
 
 Which permissions a domain exposes is owned by that domain's model, declared via
 ``Meta.permissions``. This module only says who gets them.
@@ -22,10 +26,12 @@ Which permissions a domain exposes is owned by that domain's model, declared via
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Any, Final
 
 from django.contrib.auth.models import Permission
 from django.db.models import Q, QuerySet
+from rest_framework.permissions import BasePermission
+from rest_framework.request import Request
 
 from apps.accounts.models import Role
 
@@ -198,3 +204,258 @@ def filter_existing(permissions: tuple[str, ...]) -> QuerySet[Permission]:
         app_label, codename = split_permission(permission)
         query |= Q(content_type__app_label=app_label, codename=codename)
     return Permission.objects.filter(query).distinct()
+
+
+class HasRolePermission(BasePermission):
+    """Requires one permission, resolved through the role matrix (spec §9.2, P06).
+
+    One line of logic, on purpose. ``has_perm`` reaches
+    :class:`apps.accounts.backends.RolePermissionBackend`, which unions the grants on
+    the user's role with Django's own user and group permissions, so a view using this
+    class and a view calling ``user.has_perm`` by hand cannot disagree about the answer.
+
+    The cases that look like they need handling here are answered upstream, and a
+    second copy of any of them would be a branch that can never change a verdict:
+
+    - **Signed out.** ``AnonymousUser.has_perm`` is False. A view wanting 401 rather
+      than 403 lists DRF's ``IsAuthenticated`` first, which raises before this class
+      is consulted.
+    - **Deactivated mid-session.** ``BarketSessionAuthentication`` refuses an inactive
+      user as 401, and ``RolePermissionBackend`` returns an empty set for one
+      regardless, so the grant never reaches here.
+    - **No role.** ``User.role`` is non-nullable, so the database refuses to store such
+      a user. The backend treats a role that cannot be resolved as no permissions
+      rather than propagating, which is the one case it does defend.
+
+    Subclasses set :attr:`required_permission`. It is a class attribute rather than a
+    constructor argument because DRF instantiates every entry in
+    ``permission_classes`` with no arguments, leaving nowhere to pass one.
+
+    There is deliberately no ``message``. ``apps.core.exceptions`` renders every
+    ``PermissionDenied`` as a single fixed string, which is the better outcome here: a
+    refusal naming the missing permission would tell a Cashier precisely which grants
+    they lack.
+    """
+
+    #: ``"app_label.codename"`` this class requires. Empty on the base class, which
+    #: therefore denies everything: a base class that granted access by accident would
+    #: be worse than one that is merely unusable.
+    required_permission: str = ""
+
+    def has_permission(self, request: Request, view: Any) -> bool:
+        """Return whether the requesting user's role grants :attr:`required_permission`.
+
+        Args:
+            request: The incoming request, carrying the authenticated user.
+            view: The view being called. Unused; DRF passes it for signature
+                compatibility.
+
+        Returns:
+            True when the user's role grants the permission.
+        """
+        return bool(request.user.has_perm(self.required_permission))
+
+
+class CanViewInventory(HasRolePermission):
+    """See stock on hand and how it moved."""
+
+    required_permission = "inventory.view_inventory"
+
+
+class CanReceiveStock(HasRolePermission):
+    """Book goods arriving from a supplier."""
+
+    required_permission = "inventory.receive_stock"
+
+
+class CanRecordBreakage(HasRolePermission):
+    """Write stock off as broken, spilled or expired."""
+
+    required_permission = "inventory.record_breakage"
+
+
+class CanCompleteStockCount(HasRolePermission):
+    """Enter a counted quantity against an expected one."""
+
+    required_permission = "inventory.complete_stock_count"
+
+
+class CanApproveAdjustment(HasRolePermission):
+    """Accept a variance that needs a second pair of eyes."""
+
+    required_permission = "inventory.approve_adjustment"
+
+
+class CanViewSales(HasRolePermission):
+    """Read the sales ledger."""
+
+    required_permission = "sales.view_sales"
+
+
+class CanCreateSale(HasRolePermission):
+    """Ring up a sale."""
+
+    required_permission = "sales.create_sale"
+
+
+class CanVoidSale(HasRolePermission):
+    """Reverse a completed sale, which needs an open till."""
+
+    required_permission = "sales.void_sale"
+
+
+class CanViewProducts(HasRolePermission):
+    """Read the product catalogue."""
+
+    required_permission = "products.view_products"
+
+
+class CanManageCategories(HasRolePermission):
+    """Create and reorganise product categories."""
+
+    required_permission = "products.manage_categories"
+
+
+class CanManageProducts(HasRolePermission):
+    """Create, edit and retire products."""
+
+    required_permission = "products.manage_products"
+
+
+class CanChangePrices(HasRolePermission):
+    """Move a price. Tracked as its own grant because it is the most abusable one."""
+
+    required_permission = "products.change_prices"
+
+
+class CanViewReports(HasRolePermission):
+    """Read the reporting summaries."""
+
+    required_permission = "finance.view_reports"
+
+
+class CanCreateExpense(HasRolePermission):
+    """Submit an expense for approval."""
+
+    required_permission = "finance.create_expense"
+
+
+class CanApproveExpense(HasRolePermission):
+    """Accept a submitted expense."""
+
+    required_permission = "finance.approve_expense"
+
+
+class CanManageExpenseCategories(HasRolePermission):
+    """Define the categories expenses are filed under."""
+
+    required_permission = "finance.manage_expense_categories"
+
+
+class CanViewPayroll(HasRolePermission):
+    """Read payroll runs and payslips."""
+
+    required_permission = "payroll.view_payroll"
+
+
+class CanGeneratePayrollRun(HasRolePermission):
+    """Produce a draft run. A Manager generates; an Owner approves."""
+
+    required_permission = "payroll.generate_run"
+
+
+class CanApprovePayrollRun(HasRolePermission):
+    """Approve a run so it can be paid.
+
+    The A8 gate. Deliberately not granted to a Manager: the role descriptions say a
+    Manager generates but does not approve, and payroll is the one place where whoever
+    computes the figure must not also be whoever signs it off.
+    """
+
+    required_permission = "payroll.approve_run"
+
+
+class CanMarkPayrollPaid(HasRolePermission):
+    """Record that an approved run has been disbursed."""
+
+    required_permission = "payroll.mark_paid"
+
+
+class CanCreateDeduction(HasRolePermission):
+    """Add a deduction against an employee."""
+
+    required_permission = "payroll.create_deduction"
+
+
+class CanManagePayrollEmployees(HasRolePermission):
+    """Add employees to a run and set their pay."""
+
+    required_permission = "payroll.manage_payroll_employees"
+
+
+class CanManageEmployees(HasRolePermission):
+    """Create staff accounts and change what roles they hold."""
+
+    required_permission = "users.manage_employees"
+
+
+class CanViewAuditLog(HasRolePermission):
+    """Read the audit trail."""
+
+    required_permission = "audit.view_audit_log"
+
+
+class CanManageUsers(HasRolePermission):
+    """Owner-only account administration."""
+
+    required_permission = "accounts.manage_users"
+
+
+class CanManageRoles(HasRolePermission):
+    """Owner-only role administration."""
+
+    required_permission = "accounts.manage_roles"
+
+
+class CanManageSettings(HasRolePermission):
+    """Owner-only system settings."""
+
+    required_permission = "accounts.manage_settings"
+
+
+#: Every permission class, keyed by the permission it requires. Built from the classes
+#: themselves rather than hand-listed, so the coverage test below can compare this
+#: mapping against the matrix and find a permission that shipped a class without being
+#: registered here.
+PERMISSION_CLASSES: dict[str, type[HasRolePermission]] = {
+    cls.required_permission: cls
+    for cls in (
+        CanViewInventory,
+        CanReceiveStock,
+        CanRecordBreakage,
+        CanCompleteStockCount,
+        CanApproveAdjustment,
+        CanViewSales,
+        CanCreateSale,
+        CanVoidSale,
+        CanViewProducts,
+        CanManageCategories,
+        CanManageProducts,
+        CanChangePrices,
+        CanViewReports,
+        CanCreateExpense,
+        CanApproveExpense,
+        CanManageExpenseCategories,
+        CanViewPayroll,
+        CanGeneratePayrollRun,
+        CanApprovePayrollRun,
+        CanMarkPayrollPaid,
+        CanCreateDeduction,
+        CanManagePayrollEmployees,
+        CanManageEmployees,
+        CanViewAuditLog,
+        CanManageUsers,
+        CanManageRoles,
+        CanManageSettings,
+    )
+}

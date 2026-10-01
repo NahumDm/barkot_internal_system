@@ -9,48 +9,24 @@ routes live here instead of in ``config/urls.py``.
 They are deliberately not part of the shipped API. A placeholder protected
 endpoint in the real URLconf would exist only to be tested, and the first real
 domain endpoint in Phase B would have to delete it.
+
+The permission they enforce is *not* local to this file. Earlier versions defined
+``HasPermission`` here, which meant the "a Cashier cannot approve payroll" gate
+was asserting against the test's own copy of the rule rather than against the code
+the application ships: nothing in ``apps/`` consulted ``ROLE_MATRIX`` at request
+time. The classes now come from :mod:`apps.accounts.permissions`, so the same
+gate fails if the shipped enforcement drifts from the matrix.
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 from django.urls import path
-from rest_framework.permissions import BasePermission, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-#: A real catalogue permission, so the 403 test proves the role matrix is
-#: reached through the session rather than that a hard-coded check fired.
-APPROVE_PAYROLL = "payroll.approve_run"
-
-
-class HasPermission(BasePermission):
-    """Requires one permission from the role matrix, checked the normal way.
-
-    ``user.has_perm`` is the single enforcement point for Barkot (spec §9.2,
-    P06): the permissions come from ``Role.permissions_granted`` via
-    ``RolePermissionBackend``. Using it here means the test exercises that
-    chain instead of asserting against a stand-in.
-
-    The required permission is a class attribute rather than a constructor
-    argument because DRF instantiates each entry in ``permission_classes`` with
-    no arguments, so ``partial``-style configuration is not available.
-    """
-
-    permission: str = ""
-
-    def has_permission(self, request: Request, view: Any) -> bool:
-        """Return whether the requesting user holds the required permission."""
-        user = request.user
-        return bool(user and user.is_authenticated and user.has_perm(self.permission))
-
-
-class HasApprovePayrollPermission(HasPermission):
-    """Approving payroll is a Manager and Owner capability, not a Cashier's."""
-
-    permission = APPROVE_PAYROLL
+from apps.accounts.permissions import CanApprovePayrollRun
 
 
 class ProtectedView(APIView):
@@ -62,9 +38,18 @@ class ProtectedView(APIView):
 
 
 class ApprovePayrollView(ProtectedView):
-    """Owner and Manager only. Used to test that a Cashier is refused."""
+    """Owner only. Used to test that a Cashier is refused.
 
-    permission_classes = [IsAuthenticated, HasApprovePayrollPermission]
+    Both entries are shipped classes. ``IsAuthenticated`` is listed first so a
+    signed-out request is answered 401 and the caller can redirect to login,
+    rather than 403, which would read as "you are signed in, but not allowed".
+
+    The real payroll endpoints arrive in a later phase and inherit this
+    behaviour; until then this view is how the refusal is observed over real
+    HTTP without a placeholder living in the shipped URLconf.
+    """
+
+    permission_classes = [IsAuthenticated, CanApprovePayrollRun]
 
 
 urlpatterns = [

@@ -18,9 +18,9 @@ Current state:
 | Area | State |
 | --- | --- |
 | Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied |
-| Tests | 315 passing – domain invariants, permission matrix, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints, login rate limiting, session timeout and forced password change |
-| Static analysis | mypy clean (129 files, `mypy .`), ruff clean |
-| Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired. `manage.py create_owner` creates the first Owner. Session auth is live: `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me`, `/auth/change-password`. Login is rate limited to 5 attempts a minute per client address, counted in the database so the budget is shared between Gunicorn workers. Sessions idle out after a configurable timeout (default 8 hours, Owner setting) and are answered `403 session_expired`. An account flagged `is_temporary_password` can reach only `/auth/me`, `/auth/logout`, `/auth/csrf` and `/auth/change-password` until it sets a new one; everything else answers `403 password_change_required`. |
+| Tests | 438 passing – domain invariants, permission matrix, permission classes cross-checked against the matrix over every role and permission, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints, login rate limiting, session timeout and forced password change |
+| Static analysis | mypy clean (130 files, `mypy .`), ruff clean |
+| Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired. One DRF permission class per capability in `apps/accounts/permissions.py`, each resolving through `user.has_perm()` so the matrix stays the single enforcement point; a view writes `permission_classes = [IsAuthenticated, CanApprovePayrollRun]`. Payroll approval is Owner-only, deliberately withheld from the Manager who generates the run (spec 23.1). `manage.py create_owner` creates the first Owner. Session auth is live: `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me`, `/auth/change-password`. Login is rate limited to 5 attempts a minute per client address, counted in the database so the budget is shared between Gunicorn workers. Sessions idle out after a configurable timeout (default 8 hours, Owner setting) and are answered `403 session_expired`. An account flagged `is_temporary_password` can reach only `/auth/me`, `/auth/logout`, `/auth/csrf` and `/auth/change-password` until it sets a new one; everything else answers `403 password_change_required`. |
 | **API** | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, the five session auth endpoints, rate limiting on login, and an OpenAPI schema that documents every one of them with its security scheme. No business endpoints yet.** |
 | **Frontend** | **Shell only. 24 files, no API client, no auth, 7 feature directories empty.** |
 | `reports` app | `apps.py` only |
@@ -152,9 +152,78 @@ screen), `csrf` (to POST it), `change-password` (to satisfy it), `logout` (to es
   created a second source of truth that a reset could *not* clear, keeping a restored
   account blocked until its session expired. One source of truth, read fresh.
 - **Remote CI was never verified for this work** - no `gh`, no token, and the repository is
-  private. The evidence is local only: 315 tests, ruff, ruff-format, `mypy .` over
-  129 files, `manage.py check`, and no missing migrations. Run the same commands
+  private. The evidence is local only: 438 tests, ruff, ruff-format, `mypy .` over
+  130 files, `manage.py check`, and no missing migrations.
   CI does - `mypy .` covers `tests/`, which `mypy apps config` does not.
+
+## A8: the permission gate was a test stand-in
+
+The A8 gate is "a Cashier cannot approve payroll". Before this phase that sentence was
+true of a *test file*, not of the application: `tests/api/urls_for_tests.py` defined its
+own `HasPermission` and `HasApprovePayrollPermission`, and its two assertions passed
+happily because nothing in `apps/` ever consulted `ROLE_MATRIX` at request time. The
+matrix was declared, the seed migration applied it, `RolePermissionBackend` served it
+– and no shipped code asked. The probe was testing the probe.
+
+### What shipped
+
+`apps/accounts/permissions.py` now carries `HasRolePermission` and one subclass per
+capability (`CanApprovePayrollRun`, `CanVoidSale`, `CanManageSettings`, ...), registered
+in `PERMISSION_CLASSES`. The test URLconf imports `CanApprovePayrollRun` instead of
+defining its own, so the same assertions now exercise shipped enforcement.
+
+Each class is one line:
+
+```python
+def has_permission(self, request: Request, view: Any) -> bool:
+    return bool(request.user.has_perm(self.required_permission))
+```
+
+It does not read `ROLE_MATRIX` at request time, and that is deliberate. The matrix is
+applied to `auth_permission` rows by the seed migration; a request-time lookup of the
+constant would be a *second* source of truth which could disagree with the rows actually
+granted, and the disagreement would surface as a 403 in production with nothing in the
+codebase able to explain it. Going through `has_perm` means the answer is always the
+matrix the Owner reviews.
+
+### Three things that turned out to be unnecessary
+
+Each was written, then deleted after checking how the surrounding layers actually
+behave. Recorded because the instinct to add them is reasonable and the code would have
+been dead:
+
+- **A custom `message()` naming the missing permission.** DRF passes
+  `getattr(permission, "message", None)` to `permission_denied` *without calling it*
+  (`rest_framework/views.py`), and `apps/core/exceptions.py` maps every
+  `PermissionDenied` to one fixed string regardless. Had anything used it, the response
+  would have contained a bound-method repr. The fixed string is also the better answer:
+  a refusal naming the permission hands a Cashier a map of the grants they lack.
+- **An explicit `is_active` check.** `RolePermissionBackend` returns an empty set for an
+  inactive user, and `BarketSessionAuthentication` refuses one as 401 before any
+  permission class runs. Verified directly, including with a Django-native grant added.
+  The third check could never change a verdict, and would have gone stale the moment
+  either layer moved.
+- **Tests for roleless users and deleted role rows.** `User.role` is non-nullable with
+  `on_delete=PROTECT`, so the database refuses to store either state; a test would have
+  had to mock the model into something the schema forbids.
+
+### The Manager case
+
+The gate is checked for BarMan, Cashier **and** Manager. Manager is the one that
+matters: it holds `payroll.generate_run`, so it has legitimate payroll access, but
+`payroll.approve_run` is withheld. That is the only place the matrix encodes separation
+of duties rather than a capability gradient – whoever computes the payroll figure
+must not sign it off. A test using only a Cashier would have passed even if that
+separation had been quietly dropped, so the matrix entry and the class behaviour are
+each pinned separately.
+
+### Coverage
+
+`test_permission_classes_agree_with_the_matrix` is the full cross-product: 4 roles x 27
+permissions, asserting the class verdict equals the matrix grant for every pair. Plus
+coverage tests in both directions – every catalogued permission has a class, and no
+class requires an uncatalogued permission – so a capability added to the matrix and
+shipped without a class fails the build instead of being silently unreachable.
 
 ## Getting started
 

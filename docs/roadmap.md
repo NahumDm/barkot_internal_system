@@ -112,7 +112,7 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 | ~~A5~~ | Login rate limiting (spec 9.3): 5 attempts a minute per client address, counted in the database so Gunicorn workers share one budget. Login only, since no sensitive business endpoint exists yet; `LoginRateThrottle` is reusable for them | 6th attempt from one IP returns 429 |
 | ~~A6~~ | Session timeout, forced change for temporary passwords, `last_login_ip` | Expired session returns 403; temporary password forces a change |
 | ~~A7~~ | `create_owner` management command (mirrors `bootstrap_roles`) | Creates a working Owner; the password is not logged |
-| A8 | DRF permission classes bound to `ROLE_MATRIX` | A Cashier cannot approve payroll (spec §23.1) |
+| ~~A8~~ | DRF permission classes bound to `ROLE_MATRIX` | A Cashier cannot approve payroll (spec §23.1) |
 | A9 | Security tests: unauthenticated access and role bypass | 401/403 on every protected route |
 | A10 | `Idempotency-Key` on write endpoints (§10.2, P11); fix the `next_sale_reference()` count-then-insert race | The same key twice creates one sale, not two; concurrent references do not collide |
 

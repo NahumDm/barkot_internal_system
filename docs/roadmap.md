@@ -36,10 +36,10 @@ Measured, not assumed:
 
 | Layer | State |
 | --- | --- |
-| Domain models | 9 apps with models, 10 migrations applied |
+| Domain models | 9 apps with models, 11 migrations applied |
 | Service/use-case layer | 4 apps with services (sales, inventory, finance, payroll) |
-| Tests | 468 passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep |
-| Static analysis | mypy clean over 131 files, ruff clean |
+| Tests | 508 passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, idempotency keys and receipt allocation under real thread contention |
+| Static analysis | mypy clean over 135 files, ruff clean |
 | **API endpoints** | **2 health probes, a versioned API root, and an OpenAPI schema with one documented path (`/api/v1/`). No business endpoints yet — that is A4.** |
 | **Frontend** | **24 files, all shell. No API client, no auth, no data. 7 feature directories empty.** |
 | `reports` app | `apps.py` only |
@@ -114,10 +114,17 @@ provider. `DJANGO_SECRET_KEY` is generated locally and is already guarded in
 | ~~A7~~ | `create_owner` management command (mirrors `bootstrap_roles`) | Creates a working Owner; the password is not logged |
 | ~~A8~~ | DRF permission classes bound to `ROLE_MATRIX` | A Cashier cannot approve payroll (spec §23.1) |
 | ~~A9~~ | Security tests: unauthenticated access and role bypass — a live sweep that discovers every route from the contract engine and derives public ones from its exemptions, so an endpoint added without protection fails | Every protected route answers a sessionless request with 401 and a challenge header; the role dimension is wired and fires automatically once a business endpoint declares one |
-| A10 | `Idempotency-Key` on write endpoints (§10.2, P11); fix the `next_sale_reference()` count-then-insert race | The same key twice creates one sale, not two; concurrent references do not collide |
+| A10 | ~~`Idempotency-Key` on write endpoints~~ — delivered at the **service** layer instead, since Phase A has no business endpoint to carry a header and inventing one would contradict A2–A4; ~~fix the `next_sale_reference()` count-then-insert race~~ — the count is now taken under a transaction-scoped `pg_advisory_xact_lock` | The same key twice creates one sale, not two; concurrent references do not collide. Both proved by tests that fail with the mechanism removed, not only by green tests |
 
 **Phase A exit criteria:** a user can log in through HTTP, an unauthorised user receives 401/403
 everywhere, and the OpenAPI schema describes real endpoints.
+
+**Phase A is otherwise complete, and the third criterion cannot be met from here.** The first two
+hold and are tested (A4, A9). The third is not yet true: the schema describes the six auth and root
+paths, and there is no business endpoint to describe. It becomes satisfiable the moment Phase B adds
+one, and it cannot be made true inside Phase A without inventing a route purely so that the schema
+has something to describe — which is the A2–A4 pattern this roadmap was written to end. Treat
+Phase A as complete with that one criterion carried forward, not as a phase still ahead.
 
 ### The contract suite, and why it is here rather than in Phase C
 

@@ -145,6 +145,38 @@ class PasswordChangeRequired(BARKOTDomainError):
     default_message = "Your password must be changed before you can continue."
 
 
+class IdempotencyKeyReuse(BARKOTDomainError):
+    """One idempotency key was presented with two different request bodies (spec §10.2).
+
+    The key is a promise that "this exact request has already been handled". When a
+    client reuses a key for a *different* body, one of two things has happened: the
+    client generated its keys wrongly, or two callers collided. Neither is safe to
+    serve, and silently returning the first result would be the worst answer of all -
+    the caller would believe their second, different request had been applied.
+
+    Refusing is also what makes the mechanism trustworthy: a key is a claim about
+    *content*, not merely a de-duplication token.
+    """
+
+    code = "idempotency_key_reuse"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "That idempotency key was already used for a different request."
+
+
+class IdempotencyInFlight(BARKOTDomainError):
+    """A concurrent request holds the same idempotency key and has not finished.
+
+    Distinct from :class:`IdempotencyKeyReuse` on purpose: nothing is wrong with the
+    caller here, the request simply arrived while the first attempt was still
+    running. A client that sees this should retry the same key shortly rather than
+    minting a new one, which is what makes a double-click harmless.
+    """
+
+    code = "idempotency_in_flight"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "An identical request is still being processed. Retry shortly."
+
+
 VALIDATION_MESSAGE = "The submitted data is invalid."
 NON_FIELD_ERRORS = "non_field_errors"
 

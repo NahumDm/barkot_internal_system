@@ -18,7 +18,7 @@ Current state:
 | Area | State |
 | --- | --- |
 | Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied |
-| Tests | 468 passing – domain invariants, permission matrix, permission classes cross-checked against the matrix over every role and permission, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints, login rate limiting, session timeout, forced password change, and a live signed-out access sweep over every registered route |
+| Tests | 508 passing – domain invariants, permission matrix, permission classes cross-checked against the matrix over every role and permission, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints, login rate limiting, session timeout, forced password change, a live signed-out access sweep over every registered route, and idempotency keys and receipt allocation under real thread contention |
 | Static analysis | mypy clean (130 files, `mypy .`), ruff clean |
 | Authentication | Custom user, 4-role permission matrix, session/CSRF settings wired. One DRF permission class per capability in `apps/accounts/permissions.py`, each resolving through `user.has_perm()` so the matrix stays the single enforcement point; a view writes `permission_classes = [IsAuthenticated, CanApprovePayrollRun]`. Payroll approval is Owner-only, deliberately withheld from the Manager who generates the run (spec 23.1). `manage.py create_owner` creates the first Owner. Session auth is live: `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me`, `/auth/change-password`. Login is rate limited to 5 attempts a minute per client address, counted in the database so the budget is shared between Gunicorn workers. Sessions idle out after a configurable timeout (default 8 hours, Owner setting) and are answered `403 session_expired`. An account flagged `is_temporary_password` can reach only `/auth/me`, `/auth/logout`, `/auth/csrf` and `/auth/change-password` until it sets a new one; everything else answers `403 password_change_required`. |
 | **API** | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, the five session auth endpoints, rate limiting on login, and an OpenAPI schema that documents every one of them with its security scheme. No business endpoints yet.** |
@@ -152,8 +152,8 @@ screen), `csrf` (to POST it), `change-password` (to satisfy it), `logout` (to es
   created a second source of truth that a reset could *not* clear, keeping a restored
   account blocked until its session expired. One source of truth, read fresh.
 - **Remote CI was never verified for this work** - no `gh`, no token, and the repository is
-  private. The evidence is local only: 468 tests, ruff, ruff-format, `mypy .` over
-  131 files, `manage.py check`, and no missing migrations.
+  private. The evidence is local only: 508 tests, ruff, ruff-format, `mypy .` over
+  135 files, `manage.py check`, and no missing migrations.
 - **`mypy .` is the gate, not `mypy apps config`.** The latter skips `tests/`, which is
   where the type errors worth catching in a security suite actually live. The roadmap's
   verification section said `apps config`; CI says `.`. The roadmap was wrong and now
@@ -274,6 +274,72 @@ a test that silently matches nothing. The Cashier reachability check signs in pe
 endpoint (reusing one client would let the first request invalidate the session for the
 rest, and the failure would read like a permission bug) and excludes `LogoutView`, since
 logging out is the refusal it is being asked about.
+
+## A10: a duplicate sale is unrecoverable, so the retry had to be impossible
+
+The A10 gate is "the same key twice creates one sale, not two". Two things stood in the way of
+proving it, and one of them was worse than a missing feature.
+
+**The roadmap said "on write endpoints". There are no write endpoints.** Phase A is auth, and A2–A4
+exist precisely to stop the API being grown by inventing routes. So the guarantee is delivered where
+it lives — the service layer, where the key arrives as a keyword argument. The same guarantee then
+covers a management command or a scheduled job that never touches HTTP, and the endpoint that later
+reads the header becomes a thin adapter rather than the place the logic is. `IDEMPOTENCY_HEADER`
+is defined next to the mechanism so the two cannot drift.
+
+**`next_sale_reference()` was already racy, and the unique constraint was hiding it.** The number
+is derived from `COUNT()` of the day's sales, which is what makes the no-skipped-numbers promise
+possible — and two concurrent sales both read "3 used" and both return `S-20260929-0004`. The
+`unique` on `Sale.reference` then let exactly one commit and turned the other into an
+`IntegrityError`: a 500 for a cashier who did nothing wrong, on a number burned by a sale that never
+landed. The count is now taken under a transaction-scoped `pg_advisory_xact_lock`, so it is
+trustworthy, with the constraint left in place as the final authority. No counter table: that would
+need its row to exist before the first sale of the day, which is a race of its own in a second
+place, and it would take the single source of truth away from the sales table.
+
+### The fingerprint was where the real risk was
+
+A claim row makes the *mechanism* correct. What it cannot do is decide that two payloads are the
+same request, and getting that wrong fails in one of two ways, both bad. Hash too loosely and a
+retry is refused as a reused key — a cashier who pressed the button twice sees a 409 for a sale that
+already exists. Hash too tightly and a genuinely different request is answered with the first sale —
+the caller believes its second, different basket was recorded.
+
+Two bugs here were found by writing the tests, not by reading the code:
+
+- **The fingerprint hashed the resolved `sold_at`, not the caller's.** `moment = sold_at or
+  now_utc()` means an ordinary client that never sends `sold_at` got a fresh timestamp per attempt,
+  so no two attempts could ever match. The double-click the mechanism exists to absorb would have
+  come back as a key-reuse error — the mechanism present and useless. The gate test failed on this
+  before it was fixed, which is the only reason it was caught.
+- **Amounts were stringified before being hashed**, which quietly defeated the `Decimal`
+  normalisation `canonical` exists to perform. `Decimal("2.00")` and `Decimal("2")` are the same
+  quantity, but `"2.00" != "2"` as text. Handing the `Decimal` over to be normalised is the whole
+  point of having it (§10.3).
+
+`canonical` also had a third gap: its docstring promised that `1` and `1.0` hash alike and the code
+did not do it, so `int`, `float` and `Decimal` now share one tag. `bool` is checked first, because
+it is an `int` subclass and `True` must not hash as `1`. A float artefact like `0.1 + 0.2` stays
+*visible* rather than being rounded onto the value a human probably meant — silently guessing about
+money is worse than showing the caller something odd.
+
+### The concurrency tests are marked `transaction=True`, and are checked by mutation
+
+Under the default `django_db` the test runs inside a transaction that is rolled back, so a worker
+thread on its own connection would not see the fixtures at all — the threads would race over an
+empty database and pass without anything having been allocated. `transaction=True` commits the
+setup so the workers genuinely contend for the same rows.
+
+Both concurrency tests were verified by mutation rather than by being green:
+
+- Removing the advisory lock fails `test_concurrent_receipt_numbers_are_distinct_and_leave_no_gap`
+  with `IntegrityError: duplicate key value violates unique constraint
+  "sales_sale_reference_key"` — the exact production symptom the docstring predicts.
+- Making `claim_key` not write its claim fails the double-click test with two sales, pk 1 and pk 2,
+  from one key.
+
+A concurrency test that cannot fail is worth nothing, so both were made to fail on purpose before
+being allowed to pass.
 
 ## Getting started
 

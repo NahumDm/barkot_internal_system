@@ -14,12 +14,13 @@ auditor can see both what happened and why it was undone.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import Sum
 
 from apps.audit.models import AuditLog
@@ -31,7 +32,13 @@ from apps.core.enums import (
     PaymentStatus,
     SaleStatus,
 )
-from apps.core.exceptions import InconsistentTotals, InsufficientStock, InvalidStateTransition
+from apps.core.exceptions import (
+    IdempotencyInFlight,
+    InconsistentTotals,
+    InsufficientStock,
+    InvalidStateTransition,
+)
+from apps.core.idempotency import SALE_SCOPE, claim_key, replayed_object
 from apps.core.money import quantize_money, quantize_quantity, sum_money
 from apps.inventory.models import StockMovement
 from apps.products.models import Product, ProductPrice
@@ -56,6 +63,24 @@ class SaleLineInput:
     unit_price: Decimal | None = None
 
 
+def advisory_lock_key(prefix: str) -> int:
+    """Return the 64-bit advisory-lock key for a reference prefix.
+
+    Hashing the prefix rather than passing the date's ordinal keeps the key stable if
+    the reference format ever changes, and keeps it away from the small integers where
+    another subsystem's hand-picked key is most likely to collide. Signed, because
+    ``bigint`` is what ``pg_advisory_xact_lock`` takes.
+
+    Args:
+        prefix: The reference prefix, e.g. ``"S-20260929-"``.
+
+    Returns:
+        A 64-bit key derived from the prefix.
+    """
+    digest = hashlib.sha256(prefix.encode("utf-8")).digest()[:8]
+    return int.from_bytes(digest, byteorder="big", signed=True)
+
+
 def next_sale_reference(*, on: date | None = None) -> str:
     """Return the next receipt reference for a business-local day.
 
@@ -63,15 +88,49 @@ def next_sale_reference(*, on: date | None = None) -> str:
     sales rather than a sequence, so a reference is never skipped and the number
     a customer quotes on the phone can be found by date alone.
 
+    Deriving from a ``COUNT()`` is what makes the no-skipped-numbers promise
+    possible, and it is also what made this racy. Two concurrent sales both read
+    "3 used" and both return ``S-20260929-0004``; the ``unique`` constraint on
+    :attr:`~apps.sales.models.Sale.reference` then lets exactly one commit and
+    turns the other into an ``IntegrityError`` - a 500 for a cashier who did nothing
+    wrong, and a number burned on a sale that never landed.
+
+    So the count is taken under a lock that serialises allocation for the day, and
+    the uniqueness of the row stays the final authority. The lock is what makes the
+    count trustworthy; the constraint is what makes the guarantee true even if this
+    is bypassed.
+
+    **Why an advisory lock and not a counter table.** A daily counter row is the
+    more familiar pattern. It also needs the row to exist before the first sale of
+    the day, which turns "create the row" into a race of its own and needs the same
+    retry logic this function now has, in a second place. Deriving the number from
+    the sales that already exist keeps the single source of truth in the sales table,
+    which is also what lets a reference be recovered from the sales alone after a
+    restore or an audit.
+
+    **The lock is released at commit, not at return.** It is transaction-scoped, so a
+    caller that allocates and then fails rolls the whole thing back and leaves no gap.
+    That is the behaviour the original docstring promised, and it only holds because
+    the lock lives inside the caller's transaction.
+
+    ``pg_advisory_xact_lock`` is PostgreSQL-specific. The project is PostgreSQL-only
+    by decision (spec P02; every settings branch refuses SQLite), so a portable
+    fallback would be an untested second path rather than insurance.
+
     Args:
         on: The business-local day. Defaults to today.
 
     Returns:
-        A reference not yet used.
+        A reference not yet used by any sale, voided ones included: a voided sale
+        keeps its number, because the receipt was already printed.
     """
     day = on or business_date(now_utc())
     prefix = f"S-{day:%Y%m%d}-"
-    used = Sale.all_rows.filter(reference__startswith=prefix).count()
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s)", (advisory_lock_key(prefix),))
+        used = Sale.all_rows.filter(reference__startswith=prefix).count()
+
     return f"{prefix}{used + 1:04d}"
 
 
@@ -83,6 +142,7 @@ def complete_sale(
     actor: User | None = None,
     sold_at: datetime | None = None,
     note: str = "",
+    idempotency_key: str | None = None,
 ) -> Sale:
     """Record a completed individual sale and draw down stock (spec §13.1).
 
@@ -93,9 +153,16 @@ def complete_sale(
         actor: The cashier (permission ``sales.create_sale``).
         sold_at: When the sale happened. Defaults to now.
         note: Optional note printed on the receipt.
+        idempotency_key: Client-supplied key making the call safe to retry (spec
+            §10.2). A repeat with the same key returns the first sale instead of
+            creating a second one. ``None`` performs no de-duplication, which is
+            correct for a caller that has no retry story - a management command
+            running once does not need it, and refusing to record a sale because
+            no key was supplied would be worse than the duplicate it prevents.
 
     Returns:
-        The saved :class:`Sale` with items and payments loaded.
+        The saved :class:`Sale` with items and payments loaded, or on an idempotent
+        replay the sale the first call created.
 
     Raises:
         ValueError: If ``lines`` or ``payments`` is empty, a product repeats, a
@@ -105,6 +172,9 @@ def complete_sale(
             Stock is checked for *every* line before anything is written, so a
             failed sale leaves no partial stock movement behind.
         InconsistentTotals: If the payments do not equal the computed total.
+        IdempotencyKeyReuse: If the key was already used for a different sale.
+        IdempotencyInFlight: If an identical sale is still being recorded under
+            the same key.
     """
     if not lines:
         raise ValueError("A sale must have at least one line.")
@@ -112,6 +182,26 @@ def complete_sale(
         raise ValueError("A sale must have at least one payment.")
 
     moment = sold_at or now_utc()
+
+    claim = claim_key(
+        scope=SALE_SCOPE,
+        key=idempotency_key,
+        # Fingerprints the caller's ``sold_at``, not ``moment``. Hashing the resolved
+        # value would make every retry that omitted it a *different* request, because
+        # ``now_utc()`` returns a different instant each time - the double-click this
+        # mechanism exists to absorb would come back as a key-reuse error.
+        body=_sale_fingerprint_body(lines=lines, payments=payments, sold_at=sold_at, note=note),
+    )
+    if claim.replayed:
+        existing = replayed_object(claim, Sale)
+        if existing is not None:
+            return existing
+        # The claim points at a sale that no longer exists. Continuing would create a
+        # sale nobody asked for, so the key stays spent and the caller is told why.
+        raise IdempotencyInFlight(
+            f"Idempotency key {idempotency_key!r} refers to a sale that no longer "
+            f"exists. Record the sale under a new key."
+        )
 
     # ---- validate everything before writing anything -----------------------
     seen: set[int] = set()
@@ -216,6 +306,9 @@ def complete_sale(
         actor=actor,
         summary=f"Sale {sale.reference} for {subtotal}",
     )
+    # Inside the same transaction as the sale, so the claim and the thing it claims
+    # to describe can never disagree.
+    claim.produced(sale)
     return sale
 
 
@@ -291,6 +384,50 @@ def void_sale(*, sale: Sale, reason: str, actor: User | None = None) -> Sale:
     return sale
 
 
+def _sale_fingerprint_body(
+    *,
+    lines: list[SaleLineInput],
+    payments: list[tuple[PaymentMethod, Decimal]],
+    sold_at: datetime | None,
+    note: str,
+) -> dict[str, object]:
+    """Return the request body an idempotency key is fingerprinted over.
+
+    Deliberately *not* the resolved arguments. The fields that decide what gets
+    written are the lines and the payments; ``sold_at`` and ``note`` are included
+    because a retry that omitted them would produce a different receipt. The actor
+    is excluded, because a retry arriving after a re-authentication is still the
+    same sale, and a cashier's own pk changing would refuse an honest retry.
+
+    Two choices here are load-bearing.
+
+    ``sold_at`` is hashed as the caller passed it, ``None`` included, and *not* as
+    the ``moment`` the sale ends up with. Otherwise a client that never sends
+    ``sold_at`` - the normal case - fingerprints a fresh timestamp on every attempt
+    and can never replay its own first attempt.
+
+    Amounts are handed over as ``Decimal`` objects rather than strings, because
+    :func:`~apps.core.idempotency.canonical` normalises ``Decimal("2")`` and
+    ``Decimal("2.00")`` to the same thing. Stringifying them here first would
+    defeat that, and a POS that sends ``2.00`` on one attempt and ``2`` on the next
+    would be told its own retry was a different sale (§10.3 - never compare money as
+    float).
+    """
+    return {
+        "lines": [
+            {
+                "sku": line.product.sku,
+                "quantity": line.quantity,
+                "unit_price": line.unit_price,
+            }
+            for line in lines
+        ],
+        "payments": [[method, amount] for method, amount in payments],
+        "sold_at": sold_at,
+        "note": note,
+    }
+
+
 def sales_totals(*, start: datetime, end: datetime) -> dict[PaymentMethod | str, Decimal]:
     """Return income by payment method over a UTC instant range (spec §13.1).
 
@@ -324,6 +461,7 @@ def sales_totals(*, start: datetime, end: datetime) -> dict[PaymentMethod | str,
 
 __all__ = [
     "SaleLineInput",
+    "advisory_lock_key",
     "complete_sale",
     "next_sale_reference",
     "sales_totals",

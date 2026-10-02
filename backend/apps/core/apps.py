@@ -10,14 +10,21 @@ class CoreConfig(AppConfig):
     name = "apps.core"
 
     def ready(self) -> None:
-        """Register the OpenAPI extension for the session authenticator.
+        """Import the modules the app registry needs but nothing imports for it.
 
-        The extension is only found if this module is imported, so this is where
-        that import belongs.
+        Two, and both are invisible to a reader who goes looking for them:
+
+        - :mod:`apps.core.schema` registers the OpenAPI extension for the session
+          authenticator. It is only found if this module is imported.
+        - :mod:`apps.core.idempotency` defines :class:`IdempotencyRecord`, a concrete
+          model rather than an abstract base. Django discovers models by importing
+          ``<app>.models``, so a model declared in a sibling module is invisible until
+          something imports it. Leaving it unregistered would mean ``migrate`` created
+          no table and the mechanism failed at its first insert rather than at setup.
 
         Raises:
-            ImportError: Propagated from the imported module, which would mean
-                the schema extension could not load and generation would fail
-                loudly rather than silently omit the security scheme.
+            ImportError: Propagated from either import, which would mean a module
+                could not load and setup should fail loudly rather than silently
+                omit a security scheme or a table.
         """
-        from apps.core import schema  # noqa: F401
+        from apps.core import idempotency, schema  # noqa: F401

@@ -19,7 +19,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import {
-  isNotAuthenticated,
+  isSessionEnded,
   type AuthUser,
   type LoginInput,
   currentUser,
@@ -36,6 +36,12 @@ export interface AuthContextValue {
   problem: string | null;
   /** Adopt a signed-in user without a second round trip. */
   signIn: (input: LoginInput) => Promise<AuthUser>;
+  /**
+   * Adopt a user the API has already returned, e.g. after a password change
+   * flipped `is_temporary_password`. Re-reading `/auth/me/` would also work, but
+   * it makes the UI wait on a round trip whose answer is already in hand.
+   */
+  adoptUser: (user: AuthUser) => void;
   /** End the session and drop the user. Nothing is stored locally to clear. */
   signOut: () => Promise<void>;
   /** Re-ask `/auth/me/`, used by the retry button. */
@@ -57,7 +63,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
   const rejectSession = useCallback((error: unknown) => {
     setUser(null);
-    if (isNotAuthenticated(error)) {
+    if (isSessionEnded(error)) {
       setProblem(null);
       setStatus("anonymous");
       return;
@@ -117,8 +123,8 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, problem, signIn, signOut, refresh }),
-    [status, user, problem, signIn, signOut, refresh],
+    () => ({ status, user, problem, signIn, adoptUser: acceptUser, signOut, refresh }),
+    [status, user, problem, signIn, acceptUser, signOut, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -188,7 +188,7 @@ everything after it.
 | ~~B0~~ | Frontend build and Playwright baseline green before any change | `npm run build` and `npm run test:e2e` pass |
 | ~~B1~~ | Typed API client and CSRF handling | A test asserts nothing is written to `localStorage` |
 | ~~B2~~ | Auth context and protected route guard | An unauthenticated visit to `/sales` redirects to `/login` |
-| B3 | `/login` page | E2E: enter credentials, land on the dashboard |
+| ~~B3~~ | `/login` page | E2E: enter credentials, land on the dashboard |
 | B4 | **Golden vertical** — product list and create | E2E plus the full contract suite; this is the reference implementation |
 | B5 | Sales → inventory vertical | E2E §23.1: a Cashier records a sale, stock decreases exactly once, income increases |
 | B6 | `docs/ADDING_AN_ENDPOINT.md`, written from what B4 and B5 actually did | A new domain can be built by following it without asking |

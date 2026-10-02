@@ -1,18 +1,98 @@
 /**
- * The redirect target for `RequireAuth`, and the only page reachable without a
- * session.
+ * The sign-in screen (spec §9.1, roadmap B3).
  *
- * The sign-in form itself is B3. This page exists now because B2's gate is that
- * an unauthenticated visit to `/sales` redirects to `/login` — a redirect to a
- * 404 is not a gate, it is a different bug — and because a protected page is
- * useless to a user who cannot reach the one thing that lets them in.
+ * A user on a temporary password is sent straight to `/change-password` rather
+ * than to wherever they were going. The API refuses every other endpoint with
+ * `password_change_required`, so letting them through would mean a dashboard
+ * where every action fails for a reason the UI cannot explain.
  *
- * It deliberately does not read the `next` parameter yet. Wiring the return
- * journey before the form exists would be code with nothing to return from.
+ * `useSearchParams` needs a Suspense boundary because this route is prerendered
+ * and the query string is not known at build time. The form is therefore the
+ * inner component, and the fallback is a static shell rather than a spinner -
+ * a blank frame where the sign-in box belongs looks broken on a slow connection.
  */
 
-import PagePlaceholder from "@/components/page-placeholder";
+"use client";
+
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
+
+import { useAuth } from "@/features/auth/auth-provider";
+import { Field, FormError, FormShell } from "@/features/auth/form-parts";
+import { safeNextPath } from "@/features/auth/next-path";
+import { type ApiError } from "@/lib/api";
+
+function SignInForm() {
+  const { signIn } = useAuth();
+  const router = useRouter();
+  const requested = useSearchParams().get("next");
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<ApiError | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const user = await signIn({ username, password });
+      const destination = user.is_temporary_password ? "/change-password" : safeNextPath(requested);
+      router.replace(destination);
+    } catch (caught) {
+      setError(caught as ApiError);
+      setBusy(false);
+    }
+  }
+
+  const fieldErrors = error?.details ?? {};
+
+  return (
+    <FormShell title="Sign in" subtitle="Barkot Bar & Restaurant internal operations.">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <FormError error={error} />
+        <Field
+          label="Username"
+          type="text"
+          value={username}
+          onChange={setUsername}
+          errors={fieldErrors["username"] ?? []}
+          autoComplete="username"
+          autoFocus
+          disabled={busy}
+        />
+        <Field
+          label="Password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          errors={fieldErrors["password"] ?? []}
+          autoComplete="current-password"
+          disabled={busy}
+        />
+        <button
+          type="submit"
+          disabled={busy}
+          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface disabled:opacity-60"
+        >
+          {busy ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+    </FormShell>
+  );
+}
 
 export default function LoginPage() {
-  return <PagePlaceholder title="Sign in" />;
+  return (
+    <Suspense
+      fallback={
+        <FormShell title="Sign in" subtitle="Barkot Bar & Restaurant internal operations." />
+      }
+    >
+      <SignInForm />
+    </Suspense>
+  );
 }

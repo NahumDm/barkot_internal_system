@@ -34,11 +34,7 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 const RAW_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
-/**
- * Same-origin in production, where Nginx serves `/api/v1/`. Development sets
- * `NEXT_PUBLIC_API_BASE_URL` to the absolute API origin, because dev runs the
- * app on :3000 and DRF on :8000 with no proxy between them.
- */
+/**\n * Same-origin in production (Nginx serves `/api/v1/`) and in development\n * (next.config.ts dev proxy forwards `/api/v1/` to the Django dev server).\n * The browser never makes cross-origin API requests, so no CORS headers\n * are required and the CSRF/Session cookies work identically in dev and prod.\n */
 export const API_BASE_URL = RAW_BASE_URL.replace(/\/+$/, "");
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

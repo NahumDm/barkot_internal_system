@@ -185,8 +185,8 @@ everything after it.
 
 | # | Task | Gate that proves it |
 | --- | --- | --- |
-| B0 | Frontend build and Playwright baseline green before any change | `npm run build` and `npm run test:e2e` pass |
-| B1 | Typed API client and CSRF handling | A test asserts nothing is written to `localStorage` |
+| ~~B0~~ | Frontend build and Playwright baseline green before any change | `npm run build` and `npm run test:e2e` pass |
+| ~~B1~~ | Typed API client and CSRF handling | A test asserts nothing is written to `localStorage` |
 | B2 | Auth context and protected route guard | An unauthenticated visit to `/sales` redirects to `/login` |
 | B3 | `/login` page | E2E: enter credentials, land on the dashboard |
 | B4 | **Golden vertical** — product list and create | E2E plus the full contract suite; this is the reference implementation |
@@ -196,6 +196,23 @@ everything after it.
 B4 is deliberately the *first* domain rather than the most important one. It is small enough to
 finish quickly, which makes it the cheapest possible place to discover that the underlying pattern is
 wrong.
+
+### B1: the CSRF token is read from the cookie, not from the response body
+
+`CsrfResponseSerializer` returns the token in the response body, and its `help_text` suggests a client
+may keep it in memory and never read the cookie. That is the wrong choice here, for a reason that only
+shows up once someone logs in: `django.contrib.auth.login()` calls `rotate_token()`, so the token a
+client cached before signing in is stale the instant it does, and its next write is refused with 403.
+The same happens on logout. The browser's copy of the cookie is the one thing Django itself rewrites,
+so `client.ts` reads `document.cookie` at send time on every unsafe request and caches nothing. A test
+asserts that a rotated cookie is picked up, and a second one that a cold client bootstraps a token by
+calling `/auth/csrf/` first.
+
+Two smaller decisions in the same file are recorded in its header comment, and both exist because the
+alternative is a bug rather than a style question: unsafe requests always carry a JSON body, because
+Django's CSRF check parses the body for a form token and rejects `multipart/form-data` with 415; and a
+response that is not the error envelope still becomes a typed `ApiError`, because A9 found the browsable
+API serving an HTML login page for an unauthenticated request.
 
 ## Phase C — Remaining domains
 

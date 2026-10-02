@@ -187,7 +187,7 @@ everything after it.
 | --- | --- | --- |
 | ~~B0~~ | Frontend build and Playwright baseline green before any change | `npm run build` and `npm run test:e2e` pass |
 | ~~B1~~ | Typed API client and CSRF handling | A test asserts nothing is written to `localStorage` |
-| B2 | Auth context and protected route guard | An unauthenticated visit to `/sales` redirects to `/login` |
+| ~~B2~~ | Auth context and protected route guard | An unauthenticated visit to `/sales` redirects to `/login` |
 | B3 | `/login` page | E2E: enter credentials, land on the dashboard |
 | B4 | **Golden vertical** — product list and create | E2E plus the full contract suite; this is the reference implementation |
 | B5 | Sales → inventory vertical | E2E §23.1: a Cashier records a sale, stock decreases exactly once, income increases |
@@ -213,6 +213,44 @@ alternative is a bug rather than a style question: unsafe requests always carry 
 Django's CSRF check parses the body for a form token and rejects `multipart/form-data` with 415; and a
 response that is not the error envelope still becomes a typed `ApiError`, because A9 found the browsable
 API serving an HTML login page for an unauthenticated request.
+
+### B2: protection is a place a page lives, not a check a page remembers
+
+The 17 application routes moved into an `(app)` route group and `/login` sits in `(public)`. Route
+groups do not appear in URLs, so every `href` in `nav.ts` is unchanged — but the consequence is the
+point. A page is protected by being *in* the application group, so the next person to add a screen
+gets a guard by placing it in the directory that already means "signed in". The alternative, a guard
+each page opts into, is the A2–A4 pattern again: protection that has to be remembered is protection
+that will be forgotten.
+
+The guard renders nothing at all until the session is known, rather than rendering and redirecting
+once the answer arrives. A cashier who is not signed in would otherwise see a frame of the screen
+they are not allowed to open — ugly, and a small disclosure of what exists.
+
+There are four states, not two, and the fourth is the one that matters: `unavailable` is not
+`anonymous`. A 500 or a dead network must not be reported as "your session has expired, please sign
+in", because signing in again will not fix it and the user leaves believing their password is the
+problem. Only `not_authenticated` — the code the API reserves for exactly that — means signed out, and
+everything else gets a retry button instead of a redirect. Both directions are asserted in E2E
+against a stubbed 502, because the quiet version of this bug is a support call.
+
+### B2 found that `npm start` was serving no JavaScript
+
+`next build --output standalone` emits a self-contained server but deliberately excludes the client
+bundle; `Dockerfile.frontend` copies `.next/static` into the image. `npm start`, and the Playwright
+`webServer` that borrowed its command, ran `node .next/standalone/server.js` on a tree with no
+`.next/standalone/.next/static` in it — so every page loaded its HTML and nothing else. No hydration,
+no client component, no fetch.
+
+This was invisible for as long as the E2E tests asserted only server-rendered HTML, which is all they
+did at B0: a redirect, a title, a link count, a heading. Those pass against a page that cannot
+execute a line of script, so the suite read as browser coverage while covering a static file. B2's
+gate failed on arrival for exactly this reason — the guard was mounted correctly and simply never ran.
+
+`scripts/prepare-standalone.mjs` now performs the copy the Dockerfile already performed, and both
+`npm start` and Playwright go through it, so the thing under test is the same artifact production
+runs. Worth stating plainly: before this, three green Playwright tests were measuring far less than
+they appeared to.
 
 ## Phase C — Remaining domains
 

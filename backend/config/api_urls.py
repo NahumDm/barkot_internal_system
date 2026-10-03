@@ -21,6 +21,7 @@ urlpatterns = [
     path("", ApiRootView.as_view(), name="root"),
     path("auth/", include("apps.accounts.auth_urls")),
     path("products/", include("apps.products.urls")),
+    path("sales/", include("apps.sales.urls")),
 ]
 
 #: Wired in ``config/urls.py``. The schema is mounted beside the version rather

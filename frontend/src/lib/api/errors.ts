@@ -79,3 +79,28 @@ export function isSessionEnded(error: unknown): error is ApiError {
     (error.code === ErrorCode.NotAuthenticated || error.code === ErrorCode.SessionExpired)
   );
 }
+
+/** True when the failure was a permission denied error. */
+export function isPermissionDenied(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === ErrorCode.PermissionDenied;
+}
+
+/** True when the failure was a not found error. */
+export function isNotFound(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === ErrorCode.NotFound;
+}
+
+/** True when the failure was an inconsistent totals error. */
+export function isInconsistentTotals(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === ErrorCode.Validation && (error.details?.["non_field_errors"]?.includes("totals") ?? false);
+}
+
+/** True when the failure was an insufficient stock error. */
+export function isInsufficientStock(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === ErrorCode.Validation && (error.details?.["non_field_errors"]?.includes("stock") ?? false);
+}
+
+/** True when the failure was an invalid state transition error. */
+export function isInvalidStateTransition(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === ErrorCode.Validation && (error.details?.["non_field_errors"]?.includes("state") ?? false);
+}

@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from rest_framework.permissions import AllowAny
+from rest_framework.viewsets import ViewSetMixin
 
 from apps.accounts.models import Role
 from apps.accounts.permissions import HasRolePermission
@@ -89,10 +90,56 @@ def _is_public(endpoint: Endpoint) -> bool:
 
 def _role_gated(endpoint: Endpoint) -> bool:
     """Return whether this view names a :class:`HasRolePermission`."""
+    declared = getattr(endpoint.view, "permission_classes", []) or []
+    if any(issubclass(permission, HasRolePermission) for permission in declared):
+        return True
+
+    if not issubclass(endpoint.view, ViewSetMixin):
+        return False
+
+    action = _viewset_action(endpoint)
+    if action is None:
+        return False
+
+    view = endpoint.view()
+    view.action = action
     return any(
-        issubclass(p, HasRolePermission)
-        for p in (getattr(endpoint.view, "permission_classes", []) or [])
+        isinstance(permission, HasRolePermission) for permission in view.get_permissions()
     )
+
+
+def _viewset_action(endpoint: Endpoint) -> str | None:
+    """Infer the ViewSet action name for one discovered endpoint."""
+    method = endpoint.method.lower()
+    segments = [segment for segment in endpoint.path.strip("/").split("/") if segment]
+    has_lookup = "{pk}" in segments
+
+    suffix: list[str] = []
+    if has_lookup:
+        suffix = segments[segments.index("{pk}") + 1 :]
+
+    if not suffix:
+        if has_lookup:
+            return {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }.get(method)
+        return {"get": "list", "post": "create"}.get(method)
+
+    for extra in endpoint.view.get_extra_actions():
+        if bool(getattr(extra, "detail", False)) != has_lookup:
+            continue
+        url_path = (getattr(extra, "url_path", None) or extra.__name__.replace("_", "-")).strip(
+            "/"
+        )
+        if [segment for segment in url_path.split("/") if segment] != suffix:
+            continue
+        mapping = getattr(extra, "mapping", {})
+        if method in mapping:
+            return mapping[method]
+    return None
 
 
 PROTECTED: list[Endpoint] = [e for e in ENDPOINTS if not _is_public(e)]
@@ -322,10 +369,8 @@ class TestRoleBypass:
 
     ``me``, ``logout`` and ``change-password`` require a session, not a rank, so a
     Cashier using them is correct behaviour and there is nothing to assert. The check
-    applies to whichever views actually name a :class:`HasRolePermission`, which today
-    is none of the shipped ones - the payroll endpoints arrive in a later phase. The
-    selection below is therefore expected to be empty for now, and that emptiness is
-    guarded rather than left to look like a pass.
+    applies to whichever endpoints resolve to a :class:`HasRolePermission`, including
+    ViewSets that choose permissions dynamically per action.
 
     A8 already covers role bypass for a shipped permission class end-to-end through
     ``tests/api/urls_for_tests.py``, which is where a 403 is observable while no business
@@ -335,17 +380,13 @@ class TestRoleBypass:
 
     ROLE_GATED: list[Endpoint] = [e for e in ENDPOINTS if _role_gated(e)]
 
-    def test_no_shipped_endpoint_has_a_role_gate_yet(self) -> None:
-        """No shipped view names a role permission class yet.
+    def test_some_endpoints_have_role_gates(self) -> None:
+        """The sweep discovers role-gated endpoints when they exist.
 
-        Documented as an assertion rather than left implicit so that when this starts
-        failing, the message explains that the payroll endpoints have landed and the
-        parametrised tests below have just gained real work to do.
+        Without this, the parameterised session-only checks below could silently widen
+        to include endpoints whose `get_permissions()` resolves role checks per action.
         """
-        assert self.ROLE_GATED == [], (
-            "these shipped views now declare a role gate, so the role-bypass tests "
-            f"below apply to them: {[e.label for e in self.ROLE_GATED]}"
-        )
+        assert self.ROLE_GATED, "expected at least one endpoint to resolve a role gate"
 
     @pytest.mark.django_db
     @pytest.mark.parametrize(

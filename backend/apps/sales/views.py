@@ -63,9 +63,8 @@ from apps.sales.services import void_sale as svc_void_sale
 class SaleViewSet(viewsets.ModelViewSet):
     """CRUD for sales (list, retrieve, create, void)."""
 
-    queryset = (
-        Sale.objects.prefetch_related("items__product", "payments")
-        .order_by("-sold_at", "-id")
+    queryset = Sale.objects.prefetch_related("items__product", "payments").order_by(
+        "-sold_at", "-id"
     )
     pagination_class = BarkotPagination
     paginator = BarkotPagination()
@@ -145,10 +144,7 @@ class SaleViewSet(viewsets.ModelViewSet):
             # serializer.instance is guaranteed to exist after perform_create
             instance = serializer.instance
             assert instance is not None
-            sale = (
-                Sale.objects.prefetch_related("items__product", "payments")
-                .get(pk=instance.pk)
-            )
+            sale = Sale.objects.prefetch_related("items__product", "payments").get(pk=instance.pk)
         return Response(SaleSerializer(sale).data, status=status.HTTP_201_CREATED)
 
     @extend_schema(

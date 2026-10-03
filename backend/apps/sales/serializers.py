@@ -72,9 +72,7 @@ class SaleSerializer(serializers.ModelSerializer):
 
     items = SaleItemSerializer(many=True, read_only=True)
     payments = PaymentSerializer(many=True, read_only=True)
-    status_display = serializers.CharField(
-        source="get_status_display", read_only=True
-    )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
     payment_status_display = serializers.CharField(
         source="get_payment_status_display", read_only=True
     )
@@ -131,10 +129,12 @@ class SaleItemInputSerializer(serializers.Serializer):
 class PaymentInputSerializer(serializers.Serializer):
     """One payment input for creating a sale."""
 
-    method = serializers.ChoiceField(choices=[
-        ("CASH", "Cash"),
-        ("MOBILE_BANKING", "Mobile Banking"),
-    ])
+    method = serializers.ChoiceField(
+        choices=[
+            ("CASH", "Cash"),
+            ("MOBILE_BANKING", "Mobile Banking"),
+        ]
+    )
     amount = serializers.DecimalField(max_digits=14, decimal_places=2)
 
     def validate_amount(self, value: Decimal) -> Decimal:
@@ -157,13 +157,11 @@ class SaleCreateSerializer(serializers.Serializer):
         payments = attrs.get("payments", [])
 
         if not lines:
-            raise serializers.ValidationError(
-                {"lines": ["A sale must have at least one line."]}
-            )
+            raise serializers.ValidationError({"lines": ["A sale must have at least one line."]})
         if not payments:
-            raise serializers.ValidationError(
-                {"payments": ["A sale must have at least one payment."]}
-            )
+            raise serializers.ValidationError({
+                "payments": ["A sale must have at least one payment."]
+            })
 
         # Check for duplicate products in lines
         seen = set()
@@ -181,9 +179,7 @@ class SaleCreateSerializer(serializers.Serializer):
 class SaleListSerializer(serializers.ModelSerializer):
     """Lightweight sale representation for list views."""
 
-    status_display = serializers.CharField(
-        source="get_status_display", read_only=True
-    )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
     payment_status_display = serializers.CharField(
         source="get_payment_status_display", read_only=True
     )

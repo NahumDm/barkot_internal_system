@@ -77,9 +77,7 @@ class PriceCreateInput:
 
 def products_queryset() -> QuerySet[Product]:
     """Return all products ordered by category display order then name."""
-    return Product.objects.select_related("category").order_by(
-        "category__display_order", "name"
-    )
+    return Product.objects.select_related("category").order_by("category__display_order", "name")
 
 
 def sellable_products_queryset() -> QuerySet[Product]:
@@ -128,17 +126,13 @@ def create_product(
             within the category, or the category is inactive.
     """
     if not category.is_active:
-        raise BARKOTDomainError(
-            f"Cannot create product in inactive category {category.name!r}."
-        )
+        raise BARKOTDomainError(f"Cannot create product in inactive category {category.name!r}.")
 
     if Product.objects.filter(sku__iexact=sku).exists():
         raise BARKOTDomainError(f"SKU {sku!r} is already in use.")
 
     if Product.objects.filter(category=category, name__iexact=name).exists():
-        raise BARKOTDomainError(
-            f"Product {name!r} already exists in category {category.name!r}."
-        )
+        raise BARKOTDomainError(f"Product {name!r} already exists in category {category.name!r}.")
 
     product = Product.objects.create(
         category=category,

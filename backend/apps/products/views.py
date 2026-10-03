@@ -63,8 +63,7 @@ from apps.products.services import (
     create=extend_schema(
         summary="Create a category",
         description=(
-            "Create a new product category. "
-            "Requires ``products.manage_categories`` (Owner)."
+            "Create a new product category. Requires ``products.manage_categories`` (Owner)."
         ),
         tags=["products"],
     ),
@@ -161,8 +160,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     create=extend_schema(
         summary="Create a product",
         description=(
-            "Create a new sellable product. "
-            "Requires ``products.manage_products`` (Manager, Owner)."
+            "Create a new sellable product. Requires ``products.manage_products`` (Manager, Owner)."
         ),
         tags=["products"],
     ),
@@ -189,9 +187,8 @@ class ProductViewSet(viewsets.ModelViewSet):
     Price actions: ``CanChangePrices`` (Manager, Owner).
     """
 
-    queryset = (
-        Product.objects.select_related("category")
-        .order_by("category__display_order", "name")
+    queryset = Product.objects.select_related("category").order_by(
+        "category__display_order", "name"
     )
     pagination_class = BarkotPagination
     paginator = BarkotPagination()
@@ -225,9 +222,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             qs = qs.filter(is_stock_tracked=stock_tracked.lower() == "true")
         search = self.request.query_params.get("search")
         if search:
-            qs = qs.filter(
-                name__icontains=search
-            ) | qs.filter(sku__icontains=search) | qs.filter(description__icontains=search)
+            qs = (
+                qs.filter(name__icontains=search)
+                | qs.filter(sku__icontains=search)
+                | qs.filter(description__icontains=search)
+            )
         return qs
 
     def perform_create(self, serializer):

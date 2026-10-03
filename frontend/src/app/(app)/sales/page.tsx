@@ -3,12 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import {
-  listSales,
-  voidSale,
-  type SaleListItem,
-  type PaginatedResponse,
-} from "@/lib/api/sales";
+import { listSales, voidSale, type SaleListItem, type PaginatedResponse } from "@/lib/api/sales";
 import { type ApiError, isValidationError, isPermissionDenied, isNotFound } from "@/lib/api/errors";
 import { Field, FormError } from "@/features/auth/form-parts";
 
@@ -25,17 +20,11 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function StatusBadge({
-  status,
-}: {
-  status: "COMPLETED" | "VOIDED";
-}) {
+function StatusBadge({ status }: { status: "COMPLETED" | "VOIDED" }) {
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-        status === "COMPLETED"
-          ? "bg-green-100 text-green-800"
-          : "bg-red-100 text-red-800"
+        status === "COMPLETED" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
       }`}
     >
       {status}
@@ -43,19 +32,15 @@ function StatusBadge({
   );
 }
 
-function PaymentStatusBadge({
-  status,
-}: {
-  status: string;
-}) {
+function PaymentStatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
         status === "PAID"
           ? "bg-green-100 text-green-800"
           : status === "PARTIAL"
-          ? "bg-yellow-100 text-yellow-800"
-          : "bg-slate-100 text-slate-800"
+            ? "bg-yellow-100 text-yellow-800"
+            : "bg-slate-100 text-slate-800"
       }`}
     >
       {status}
@@ -63,21 +48,19 @@ function PaymentStatusBadge({
   );
 }
 
-function SaleRow({
-  sale,
-  onVoid,
-}: {
-  sale: SaleListItem;
-  onVoid: (id: number) => void;
-}) {
+function SaleRow({ sale, onVoid }: { sale: SaleListItem; onVoid: (id: number) => void }) {
   return (
     <tr className="border-b border-border hover:bg-surface/50">
       <td className="px-3 py-2 text-sm text-ink font-mono">{sale.reference}</td>
       <td className="px-3 py-2 text-sm text-ink">{formatDate(sale.sold_at)}</td>
       <td className="px-3 py-2 text-sm text-ink">{formatMoney(sale.total, sale.currency)}</td>
       <td className="px-3 py-2 text-sm text-ink">{sale.item_count}</td>
-      <td className="px-3 py-2 text-sm"><StatusBadge status={sale.status} /></td>
-      <td className="px-3 py-2 text-sm"><PaymentStatusBadge status={sale.payment_status} /></td>
+      <td className="px-3 py-2 text-sm">
+        <StatusBadge status={sale.status} />
+      </td>
+      <td className="px-3 py-2 text-sm">
+        <PaymentStatusBadge status={sale.payment_status} />
+      </td>
       <td className="px-3 py-2 text-sm">
         {sale.status === "COMPLETED" && (
           <button
@@ -92,19 +75,9 @@ function SaleRow({
   );
 }
 
-function SalesTable({
-  sales,
-  onVoid,
-}: {
-  sales: SaleListItem[];
-  onVoid: (id: number) => void;
-}) {
+function SalesTable({ sales, onVoid }: { sales: SaleListItem[]; onVoid: (id: number) => void }) {
   if (sales.length === 0) {
-    return (
-      <div className="text-center py-8 text-ink-secondary">
-        No sales found.
-      </div>
-    );
+    return <div className="text-center py-8 text-ink-secondary">No sales found.</div>;
   }
 
   return (
@@ -166,7 +139,9 @@ function PaginationControls({
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-3 py-3 text-sm text-ink-secondary">
       <div className="flex items-center gap-2">
-        <span>Showing {start}–{end} of {count}</span>
+        <span>
+          Showing {start}–{end} of {count}
+        </span>
         <select
           value={pageSize}
           onChange={(e: ChangeEvent<HTMLSelectElement>) => onPageSizeChange(Number(e.target.value))}
@@ -356,9 +331,7 @@ export default function SalesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-ink">Sales</h1>
-          <p className="text-sm text-ink-secondary">
-            View and manage sales transactions.
-          </p>
+          <p className="text-sm text-ink-secondary">View and manage sales transactions.</p>
         </div>
         <button
           onClick={handleCreateClick}

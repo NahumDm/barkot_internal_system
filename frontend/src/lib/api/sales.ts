@@ -154,12 +154,16 @@ export function voidSale(
 
 /** Check if an error is a validation error (field-level). */
 export function isValidationError(error: unknown): error is ApiError {
-  return error instanceof Error && "code" in error && (error as ApiError).code === "validation_error";
+  return (
+    error instanceof Error && "code" in error && (error as ApiError).code === "validation_error"
+  );
 }
 
 /** Check if an error is a permission denied error. */
 export function isPermissionDenied(error: unknown): error is ApiError {
-  return error instanceof Error && "code" in error && (error as ApiError).code === "permission_denied";
+  return (
+    error instanceof Error && "code" in error && (error as ApiError).code === "permission_denied"
+  );
 }
 
 /** Check if an error is a not found error. */
@@ -169,15 +173,23 @@ export function isNotFound(error: unknown): error is ApiError {
 
 /** Check if an error is an inconsistent totals error. */
 export function isInconsistentTotals(error: unknown): error is ApiError {
-  return error instanceof Error && "code" in error && (error as ApiError).code === "inconsistent_totals";
+  return (
+    error instanceof Error && "code" in error && (error as ApiError).code === "inconsistent_totals"
+  );
 }
 
 /** Check if an error is an insufficient stock error. */
 export function isInsufficientStock(error: unknown): error is ApiError {
-  return error instanceof Error && "code" in error && (error as ApiError).code === "insufficient_stock";
+  return (
+    error instanceof Error && "code" in error && (error as ApiError).code === "insufficient_stock"
+  );
 }
 
 /** Check if an error is an invalid state transition error. */
 export function isInvalidStateTransition(error: unknown): error is ApiError {
-  return error instanceof Error && "code" in error && (error as ApiError).code === "invalid_state_transition";
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as ApiError).code === "invalid_state_transition"
+  );
 }

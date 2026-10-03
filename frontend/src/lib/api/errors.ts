@@ -92,15 +92,27 @@ export function isNotFound(error: unknown): error is ApiError {
 
 /** True when the failure was an inconsistent totals error. */
 export function isInconsistentTotals(error: unknown): error is ApiError {
-  return error instanceof ApiError && error.code === ErrorCode.Validation && (error.details?.["non_field_errors"]?.includes("totals") ?? false);
+  return (
+    error instanceof ApiError &&
+    error.code === ErrorCode.Validation &&
+    (error.details?.["non_field_errors"]?.includes("totals") ?? false)
+  );
 }
 
 /** True when the failure was an insufficient stock error. */
 export function isInsufficientStock(error: unknown): error is ApiError {
-  return error instanceof ApiError && error.code === ErrorCode.Validation && (error.details?.["non_field_errors"]?.includes("stock") ?? false);
+  return (
+    error instanceof ApiError &&
+    error.code === ErrorCode.Validation &&
+    (error.details?.["non_field_errors"]?.includes("stock") ?? false)
+  );
 }
 
 /** True when the failure was an invalid state transition error. */
 export function isInvalidStateTransition(error: unknown): error is ApiError {
-  return error instanceof ApiError && error.code === ErrorCode.Validation && (error.details?.["non_field_errors"]?.includes("state") ?? false);
+  return (
+    error instanceof ApiError &&
+    error.code === ErrorCode.Validation &&
+    (error.details?.["non_field_errors"]?.includes("state") ?? false)
+  );
 }

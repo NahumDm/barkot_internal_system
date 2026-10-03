@@ -52,9 +52,7 @@ class CategoryCreateSerializer(serializers.ModelSerializer):
 class ProductPriceSerializer(serializers.ModelSerializer):
     """One price of a product, effective from a point in time."""
 
-    unit_price = serializers.DecimalField(
-        max_digits=14, decimal_places=2, read_only=True
-    )
+    unit_price = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     currency = serializers.CharField(max_length=3, read_only=True)
 
     class Meta:
@@ -76,9 +74,7 @@ class ProductPriceCreateSerializer(serializers.Serializer):
     unit_price = serializers.DecimalField(
         max_digits=14, decimal_places=2, help_text="Price per unit (>= 0)."
     )
-    currency = serializers.CharField(
-        max_length=3, help_text="3-letter ISO currency code."
-    )
+    currency = serializers.CharField(max_length=3, help_text="3-letter ISO currency code.")
     effective_from = serializers.DateTimeField(
         required=False,
         help_text="When this price takes effect (UTC). Defaults to now.",
@@ -134,6 +130,7 @@ class ProductSerializer(serializers.ModelSerializer):
             return None
         # Import here to avoid circular import
         from apps.inventory.services import current_stock
+
         return str(current_stock(obj))
 
 
@@ -189,9 +186,11 @@ class ProductCreateSerializer(serializers.Serializer):
         """Cross-field validation: name unique within category."""
         category = attrs.get("category")
         name = attrs.get("name")
-        if category and name and Product.objects.filter(
-            category=category, name__iexact=name.strip()
-        ).exists():
+        if (
+            category
+            and name
+            and Product.objects.filter(category=category, name__iexact=name.strip()).exists()
+        ):
             raise serializers.ValidationError({
                 "name": f"A product named {name!r} already exists in category {category.name!r}."
             })
@@ -211,9 +210,9 @@ class ProductUpdateSerializer(serializers.Serializer):
         value = value.strip()
         if (
             self.instance
-            and Product.objects.filter(
-                category=self.instance.category, name__iexact=value
-            ).exclude(pk=self.instance.pk).exists()
+            and Product.objects.filter(category=self.instance.category, name__iexact=value)
+            .exclude(pk=self.instance.pk)
+            .exists()
         ):
             raise serializers.ValidationError(
                 f"A product named {value!r} already exists in this category."
@@ -231,9 +230,10 @@ class CategoryUpdateSerializer(serializers.Serializer):
 
     def validate_name(self, value: str) -> str:
         value = value.strip()
-        if self.instance and Category.objects.filter(name__iexact=value).exclude(
-            pk=self.instance.pk
-        ).exists():
+        if (
+            self.instance
+            and Category.objects.filter(name__iexact=value).exclude(pk=self.instance.pk).exists()
+        ):
             raise serializers.ValidationError(f"A category named {value!r} already exists.")
         return value
 

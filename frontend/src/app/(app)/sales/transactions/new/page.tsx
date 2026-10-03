@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 
 import { listProducts, type ProductListItem } from "@/lib/api/products";
 import { createSale, type SaleLineInput, type PaymentInput } from "@/lib/api/sales";
-import { type ApiError, type ErrorDetails, isValidationError, ApiError as ApiErrorClass } from "@/lib/api/errors";
+import {
+  type ApiError,
+  type ErrorDetails,
+  isValidationError,
+  ApiError as ApiErrorClass,
+} from "@/lib/api/errors";
 import { Field, FormError, FormShell } from "@/features/auth/form-parts";
 
 interface GroupedProduct {
@@ -25,9 +30,7 @@ export default function NewSalePage() {
   const [lines, setLines] = useState<SaleLineInput[]>([
     { product: 0, quantity: "", unit_price: undefined },
   ]);
-  const [payments, setPayments] = useState<PaymentInput[]>([
-    { method: "CASH", amount: "" },
-  ]);
+  const [payments, setPayments] = useState<PaymentInput[]>([{ method: "CASH", amount: "" }]);
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -50,7 +53,9 @@ export default function NewSalePage() {
           }
           grouped[p.category].products.push(p);
         }
-        setGroupedProducts(Object.values(grouped).sort((a, b) => a.categoryName.localeCompare(b.categoryName)));
+        setGroupedProducts(
+          Object.values(grouped).sort((a, b) => a.categoryName.localeCompare(b.categoryName)),
+        );
         setProductsLoading(false);
       })
       .catch(() => {
@@ -145,9 +150,7 @@ export default function NewSalePage() {
   if (productsLoading) {
     return (
       <FormShell title="New Sale" subtitle="Loading products…">
-        <div className="flex items-center justify-center py-8 text-ink-secondary">
-          Loading…
-        </div>
+        <div className="flex items-center justify-center py-8 text-ink-secondary">Loading…</div>
       </FormShell>
     );
   }
@@ -155,7 +158,13 @@ export default function NewSalePage() {
   return (
     <FormShell title="New Sale" subtitle="Record a sale with lines and payments.">
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        <FormError error={formError ? new ApiErrorClass(0, { code: "form_error", message: formError, details: null }) : null} />
+        <FormError
+          error={
+            formError
+              ? new ApiErrorClass(0, { code: "form_error", message: formError, details: null })
+              : null
+          }
+        />
 
         <section>
           <h2 className="text-lg font-semibold text-ink mb-4">Lines</h2>
@@ -177,14 +186,19 @@ export default function NewSalePage() {
                         <optgroup key={group.categoryId} label={group.categoryName}>
                           {group.products.map((p) => (
                             <option key={p.id} value={String(p.id)}>
-                              {p.name} ({p.sku}) — {p.current_price ? `${p.current_price.unit_price} ${p.current_price.currency}` : "no price"}
+                              {p.name} ({p.sku}) —{" "}
+                              {p.current_price
+                                ? `${p.current_price.unit_price} ${p.current_price.currency}`
+                                : "no price"}
                             </option>
                           ))}
                         </optgroup>
                       ))}
                     </select>
                     {fieldErrors[`lines.${index}.product`].map((message) => (
-                      <p key={message} className="text-xs text-danger">{message}</p>
+                      <p key={message} className="text-xs text-danger">
+                        {message}
+                      </p>
                     ))}
                   </div>
                 </div>
@@ -248,7 +262,9 @@ export default function NewSalePage() {
                       <option value="MOBILE_BANKING">Mobile Banking</option>
                     </select>
                     {fieldErrors[`payments.${index}.method`].map((message) => (
-                      <p key={message} className="text-xs text-danger">{message}</p>
+                      <p key={message} className="text-xs text-danger">
+                        {message}
+                      </p>
                     ))}
                   </div>
                 </div>
@@ -283,7 +299,13 @@ export default function NewSalePage() {
           </button>
         </section>
 
-        <FormError error={formError ? new ApiErrorClass(0, { code: "form_error", message: formError, details: null }) : null} />
+        <FormError
+          error={
+            formError
+              ? new ApiErrorClass(0, { code: "form_error", message: formError, details: null })
+              : null
+          }
+        />
 
         <button
           type="submit"

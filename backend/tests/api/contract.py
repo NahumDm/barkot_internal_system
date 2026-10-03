@@ -310,9 +310,11 @@ def project_paginator(endpoint: Endpoint) -> str | None:
     paginator = getattr(endpoint.view, "paginator", None)
     if paginator is None:
         return None
-    if not (isinstance(paginator, type) and issubclass(paginator, BarkotPagination)):
+    # Handle both class (pagination_class) and instance (paginator) patterns
+    paginator_class = paginator if isinstance(paginator, type) else type(paginator)
+    if not issubclass(paginator_class, BarkotPagination):
         return (
-            f"paginates with {paginator.__name__}; use {BarkotPagination.__name__} so the "
+            f"paginates with {paginator_class.__name__}; use {BarkotPagination.__name__} so the "
             "response envelope matches every other list endpoint"
         )
     return None

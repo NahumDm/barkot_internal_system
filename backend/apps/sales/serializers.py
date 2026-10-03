@@ -198,6 +198,7 @@ class SaleListSerializer(serializers.ModelSerializer):
             "total",
             "currency",
             "payment_status",
+            "payment_status_display",
             "item_count",
             "created_at",
         ]

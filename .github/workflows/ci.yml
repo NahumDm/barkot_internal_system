@@ -152,7 +152,12 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      # Both projects, in one invocation so the production build happens once.
+      # Both projects. `npm run test:e2e` runs them as two separate Playwright
+      # invocations, and that is deliberate rather than incidental: `page.route`
+      # intercepts the browser only, so an (app) page's server-side render still
+      # asks the real origin for /auth/me/, and four workers doing that against a
+      # live Django at once pushed redirect assertions past their timeout. Split
+      # them and each result is separately attributable.
       #
       # `stubbed` proves the frontend behaves correctly against network stubs,
       # including states no real server will produce on demand: a dead backend, a

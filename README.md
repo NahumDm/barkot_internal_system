@@ -358,6 +358,36 @@ Windows without `make`: use the commands directly as shown.
 > CI pipeline. On Windows run `make` from a POSIX-style shell (Git Bash/WSL), or run each app's
 > commands directly.
 
+### Tests
+
+The Playwright suite has two halves, and they are not interchangeable.
+
+| Command | Needs | What it proves |
+| --- | --- | --- |
+| `npm run test:e2e:stubbed` | Node only | The frontend handles states no real server will produce on demand: a dead backend, a 502, a forced password change. |
+| `npm run test:e2e:live` | Python, the backend deps, Postgres | The frontend and backend actually agree: a real session, a real CSRF token, a real 403, real rows in a real database. |
+| `npm run test:e2e` | both of the above | What CI runs. Both projects, one production build. |
+
+The stubbed half answers the question "does this screen behave?", and it cannot answer
+"do these two halves still fit together?" — a stub is written from the author's idea of
+the backend, so it keeps agreeing with a frontend that drifted. The live half is the one
+that catches drift, and it is why the stubbed specs are kept alongside it rather than
+replaced by it.
+
+The live half starts its own Django on port 8010 — deliberately not 8000, because a
+developer usually has a server running there against their working database — and points
+it at a disposable `barket_e2e` database that it flushes and reseeds on every run.
+Creating that database once is the only manual step:
+
+```bash
+docker compose exec db createdb -U barkot barkot_e2e
+```
+
+Override the connection with `E2E_DB_NAME`, `E2E_DB_USER`, `E2E_DB_PASSWORD`,
+`E2E_DB_HOST` and `E2E_DB_PORT`; the defaults match the compose database above.
+`seed_e2e --reset` refuses to flush any database whose name does not end in `_e2e`, so a
+mistyped `E2E_DB_NAME` fails loudly instead of erasing anything real.
+
 ## Architecture at a glance
 
 | Layer | Stack |

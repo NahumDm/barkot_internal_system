@@ -1,17 +1,35 @@
 /**
  * Network stubs that stand in for the API during E2E (roadmap B2).
  *
- * The Playwright server runs `next start` alone; there is no Django behind it,
- * and starting one per test run would couple the frontend suite to the backend
- * stack. So `/auth/me/` is answered at the network layer instead.
+ * The `chromium` project runs `next start` with no Django behind it, and
+ * `/auth/me/` is answered at the network layer instead. `npm run test:e2e` runs
+ * this project and the `live` one as two separate Playwright invocations
+ * precisely so that stays true; see `playwright.config.ts` for how the backend is
+ * left out when `live` is not selected.
  *
- * The stubs copy the real contract rather than a convenient one. A request with
- * no session at all is answered 401 `not_authenticated`, because the backend's
- * authenticator returns a challenge header and so makes DRF pick 401 over 403
- * (see `backend/apps/core/authentication.py`); 403 is reserved for a request that
- * was authenticated but not allowed. Answering 403 here would let the guard pass
- * on a pairing the real API never sends, and would turn "signed out" into
- * "signed in but forbidden" for any response that failed to parse as the envelope.
+ * The separation is not tidiness. These stubs are installed with `page.route`,
+ * which intercepts the *browser's* requests and nothing else, so a server-side
+ * render of an `(app)` page still fetches `/auth/me/` from the real origin. With no
+ * Django that request fails immediately and the client-side guard handles it, which
+ * is the path these specs are about. With a Django running, that same render waits
+ * on a real database round trip per navigation, and four workers doing it at once
+ * is enough to push a redirect assertion past its timeout - a failure caused by the
+ * harness, not by the app, and the worst kind to chase.
+ *
+ * The live project (`tests/live/`) is the half that installs no stubs at all. It
+ * exists because a stub can only prove the frontend behaves as its author imagined
+ * the backend would, which is how a route that resolved to the wrong endpoint
+ * shipped green. What follows copies the real contract rather than a convenient
+ * one, because that is the whole value of these stubs once the real thing exists
+ * for comparison.
+ *
+ * A request with no session at all is answered 401 `not_authenticated`, because the
+ * backend's authenticator returns a challenge header and so makes DRF pick 401
+ * over 403 (see `backend/apps/core/authentication.py`); 403 is reserved for a
+ * request that was authenticated but not allowed. Answering 403 here would let the
+ * guard pass on a pairing the real API never sends, and would turn "signed out"
+ * into "signed in but forbidden" for any response that failed to parse as the
+ * envelope.
  *
  * The other 403s are real and mean something different: `session_expired` is
  * raised after a session that did exist idled out, and `password_change_required`

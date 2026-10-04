@@ -190,7 +190,7 @@ everything after it.
 | ~~B2~~ | Auth context and protected route guard | An unauthenticated visit to `/sales` redirects to `/login` |
 | ~~B3~~ | `/login` page | E2E: enter credentials, land on the dashboard |
 | B4 | **Golden vertical** — product list and create | E2E plus the full contract suite; this is the reference implementation |
-| B5 | Sales → inventory vertical | E2E §23.1: a Cashier records a sale, stock decreases exactly once, income increases |
+| ~~B5~~ | Sales → inventory vertical | E2E §23.1: a Cashier records a sale, stock decreases exactly once, income increases |
 | B6 | `docs/ADDING_AN_ENDPOINT.md`, written from what B4 and B5 actually did | A new domain can be built by following it without asking |
 
 B4 is deliberately the *first* domain rather than the most important one. It is small enough to
@@ -251,6 +251,87 @@ gate failed on arrival for exactly this reason — the guard was mounted correct
 `npm start` and Playwright go through it, so the thing under test is the same artifact production
 runs. Worth stating plainly: before this, three green Playwright tests were measuring far less than
 they appeared to.
+
+### B5: the sale screen had never been opened by a test
+
+The gate for B5 is a Cashier's browser, this Django and this Postgres. It took until this task for
+that sentence to mean anything, because until now every Playwright spec answered the API itself.
+
+The first run of a real browser against the real backend found a defect that 16 stubbed specs, 57
+vitest tests and 714 backend tests had all passed without noticing: **the New Sale screen crashed on
+load, for every user, every time.** `fieldErrors` is a sparse record — it starts as `{}` and only
+gains keys when the API answers with field-level errors — and four places in
+`frontend/src/app/(app)/sales/transactions/new/page.tsx` read `fieldErrors[key].length` directly
+instead of through the `?? []` the rest of that file already used. First render, before anyone had
+typed anything, so React threw and the error boundary took over.
+
+Nothing caught it because the stubbed suite had never visited the page, and no unit test covered it.
+A stub cannot catch this class of thing at all: it was not the frontend disagreeing with the
+backend, it was the frontend disagreeing with itself.
+
+The live specs now cover one story in order, because each step depends on the last:
+
+1. a wrong password, refused by Django's own authenticator, arriving as a serializer
+   `ValidationError` under `non_field_errors` — the same shape the stub asserts, except Django
+   produced it;
+2. a Cashier signs in with a real session, sees an empty till, records a three-unit sale, and the
+   stock ledger moves **exactly once** — read back over HTTP with the cashier's own cookie, because
+   a screen agreeing with itself is not evidence;
+3. that Cashier's void is a real `403` from a real permission and the sale still stands, and then a
+   Manager's void is a real `204` and the stock is back to 40.
+
+That "exactly once" is checked by mutation, not by inspection: recording the outbound
+`StockMovement` a second time makes the browser spec fail with 34 units on the shelf instead of 37,
+and makes three backend vertical tests fail. The same check on the seed command's reset guard — the
+thing standing between a mistyped `DJANGO_DB_NAME` and an emptied working database — fails four
+tests when the guard is disabled.
+
+**Three harness decisions, each of which cost something to get wrong.**
+
+*A port of its own.* Django runs on 8010, not 8000, because a developer usually has a server on 8000
+pointed at their working database and Playwright reuses an existing server outside CI. Reusing that
+would sell the business's real books during a test run.
+
+*A database of its own, and a seed command rather than a fixture.* pytest builds a test database and
+tears it down; a browser, a `runserver` and a Next proxy all need one database alive at the same
+time, outside pytest's lifecycle. So `backend/apps/core/management/commands/seed_e2e.py` creates it
+and refuses to `flush` anything whose name does not end in `_e2e`. The fixtures address everything by
+constant and print those constants as JSON, so the ids and passwords the specs use live in exactly
+one place instead of being copied into TypeScript and left to drift.
+
+*One origin.* The browser stays on `127.0.0.1:3000` and Next forwards `/api/v1/` to Django, exactly
+as Nginx does in production, so the session and CSRF cookies behave as deployed and no CORS
+configuration was needed. This required `next.config.ts` to grow an opt-in for production builds:
+the proxy used to be development-only, and `next start` is a production build. `API_PROXY_ENABLED=1`
+is now that ask, so a deployment that has not asked for a proxy still has none.
+
+**A finding this phase did not fix.** The sales screen offers a `Voided` status filter, and
+`StatusBadge` knows how to render `VOIDED`. Neither can ever appear: `SaleViewSet`'s queryset is
+`Sale.objects`, and `VoidableManager` excludes voided rows from the default queryset by design — so
+`?status=VOIDED` returns nothing, always. The design is deliberate and documented, and a voided sale
+correctly leaves the list a cashier reconciles against. But a filter that cannot match is a control
+that lies to the user, and a Manager who needs to see what was voided last week currently cannot.
+Deciding whether the API should list voided sales on request is a product question — "a void is a
+reversal, not a sale" and "an audit record a manager can inspect" are both defensible — so it is
+recorded here rather than quietly changed.
+
+### The stubs stayed, and they are not the weaker half
+
+Worth being explicit, because replacing them would have been the obvious move and the wrong one. A
+real server cannot be asked to produce a dead backend, a `502`, a throttled sign-in or a forced
+password change on demand, and those are exactly the states where the frontend's behaviour matters
+most — a `502` that reads as "session expired" sends a cashier to a login screen where the correct
+password also fails, and they conclude they are locked out. So `tests/e2e/` keeps its stubs and
+`tests/live/` adds the half that installs none.
+
+One thing that split taught me, and it is not obvious: **`page.route` intercepts the browser's
+requests and nothing else.** An `(app)` page's server-side render still asks the real origin for
+`/auth/me/`. Running both projects in a single Playwright invocation meant every stubbed navigation
+paid a real database round trip, and four workers doing that at once pushed four redirect assertions
+past their timeout — a failure caused by the harness and reported as a behavioural one, which is the
+more expensive mistake of the two. `npm run test:e2e` now runs the projects as two invocations. It
+costs an extra production build and buys back three things: the stubbed suite is honest about having
+no backend, it needs neither Postgres nor Python, and CI gets two separately attributable results.
 
 ## Phase C — Remaining domains
 

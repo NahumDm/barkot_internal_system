@@ -32,6 +32,16 @@ export default function NewSalePage() {
   ]);
   const [payments, setPayments] = useState<PaymentInput[]>([{ method: "CASH", amount: "" }]);
 
+  /**
+   * Validation messages keyed by API field path, e.g. `lines.0.quantity`.
+   *
+   * Starts empty, and stays that way until the API answers with details, so it
+   * is a sparse map: reading a key that has no entry gives `undefined`, not an
+   * empty array. Every read below therefore goes through `?? []` or `?.length`.
+   * Reading one directly (`fieldErrors[key].length`) crashes the screen on first
+   * render, before the cashier has typed anything, which is exactly what happened
+   * until the live E2E suite visited this page for the first time.
+   */
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -179,7 +189,7 @@ export default function NewSalePage() {
                       onChange={(e) => handleLineChange(index, "product", Number(e.target.value))}
                       autoComplete="off"
                       className={selectClasses}
-                      aria-invalid={fieldErrors[`lines.${index}.product`].length > 0}
+                      aria-invalid={(fieldErrors[`lines.${index}.product`] ?? []).length > 0}
                     >
                       <option value="0">Select a product</option>
                       {groupedProducts.map((group) => (
@@ -195,7 +205,7 @@ export default function NewSalePage() {
                         </optgroup>
                       ))}
                     </select>
-                    {fieldErrors[`lines.${index}.product`].map((message) => (
+                    {(fieldErrors[`lines.${index}.product`] ?? []).map((message) => (
                       <p key={message} className="text-xs text-danger">
                         {message}
                       </p>
@@ -256,12 +266,12 @@ export default function NewSalePage() {
                       value={payment.method}
                       onChange={(e) => handlePaymentChange(index, "method", e.target.value)}
                       className={selectClasses}
-                      aria-invalid={fieldErrors[`payments.${index}.method`].length > 0}
+                      aria-invalid={(fieldErrors[`payments.${index}.method`] ?? []).length > 0}
                     >
                       <option value="CASH">Cash</option>
                       <option value="MOBILE_BANKING">Mobile Banking</option>
                     </select>
-                    {fieldErrors[`payments.${index}.method`].map((message) => (
+                    {(fieldErrors[`payments.${index}.method`] ?? []).map((message) => (
                       <p key={message} className="text-xs text-danger">
                         {message}
                       </p>

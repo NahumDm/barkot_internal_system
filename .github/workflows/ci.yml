@@ -79,6 +79,30 @@ jobs:
   frontend:
     name: Frontend (Next.js · Node 24)
     runs-on: ubuntu-latest
+    services:
+      # Only the live Playwright project talks to it, and only to `barket_e2e`.
+      # The stubbed project installs its own routes and never opens a socket to
+      # this. The name is the contract: `seed_e2e --reset` refuses to flush any
+      # database whose name does not end in `_e2e`.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: barkot_e2e
+          POSTGRES_USER: barkot
+          POSTGRES_PASSWORD: barkot
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U barkot -d barkot_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      E2E_DB_NAME: barkot_e2e
+      E2E_DB_USER: barkot
+      E2E_DB_PASSWORD: barkot
+      E2E_DB_HOST: 127.0.0.1
+      E2E_DB_PORT: "5433"
     defaults:
       run:
         working-directory: frontend
@@ -93,6 +117,22 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+
+      # The live specs start a real Django, so this job needs one. `dev.txt`
+      # rather than `runtime.txt` on purpose: the point of these specs is to
+      # check the frontend against the same Django, DRF and psycopg versions the
+      # backend suite and the deployed service run, and one requirements file is
+      # the cheapest way to guarantee that instead of maintaining two lists meant
+      # to agree.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements/*.txt
+
+      - name: Install backend dependencies (for the live E2E server)
+        working-directory: backend
+        run: python -m pip install --upgrade pip && pip install -r requirements/dev.txt
 
       - name: Lint (eslint) — §22.2
         run: npm run lint
@@ -112,5 +152,14 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: End-to-end smoke (Playwright) — §22.2
+      # Both projects, in one invocation so the production build happens once.
+      #
+      # `stubbed` proves the frontend behaves correctly against network stubs,
+      # including states no real server will produce on demand: a dead backend, a
+      # forced password change, a 502. `live` proves it against the thing itself
+      # — Django on :8010, Postgres, a real session, a real CSRF token, a real
+      # 403 when a Cashier tries to void. The second is the one that catches a
+      # frontend and backend that have quietly stopped agreeing, which is the
+      # failure the stubbed project structurally cannot see (roadmap B5).
+      - name: "End-to-end, stubbed + live Django (Playwright) — §22.2 / B5"
         run: npm run test:e2e

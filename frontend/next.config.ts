@@ -25,41 +25,47 @@ const apiTarget = process.env.API_PROXY_TARGET ?? "http://127.0.0.1:8000";
  *
  * Proxying instead keeps the browser on one origin, which means no CORS
  * headers are needed, the session and CSRF cookies behave the way they do in
- * production, and the client code is identical in dev and prod. Production is
- * unaffected: Nginx already proxies this same prefix
- * (`infrastructure/nginx/conf.d/barkot.conf`), so that is why this is scoped to
- * development rather than left on.
+ * production, and the client code is identical in dev and prod.
+ *
+ * For a production build this is Nginx's job instead
+ * (`infrastructure/nginx/conf.d/barket.conf`), so the proxy stays off unless
+ * something asks for it. `API_PROXY_ENABLED=1` is that ask, and it exists for the
+ * Playwright suite: `next start` is a production build, and driving a real
+ * browser against a real Django needs the same one-origin arrangement dev gets
+ * for free. Opt-in means a deployment that has not asked for a proxy still has
+ * none, and the deployed Nginx keeps serving `/api/v1/` exactly as before.
  */
-const devApiProxy =
-  process.env.NODE_ENV === "production"
-    ? {}
-    : {
-        /**
-         * Stop Next redirecting `/api/v1/thing/` to `/api/v1/thing` before the
-         * rewrite below gets a look at it.
-         *
-         * Found by requesting `/api/v1/auth/csrf/` through the proxy and getting
-         * `308 Permanent Redirect, location: /api/v1/auth/csrf`. Trailing-slash
-         * normalisation runs ahead of `afterFiles` rewrites, so the slash DRF
-         * needs was gone before the proxy was consulted. Left alone, Django's
-         * `APPEND_SLASH` answers the stripped path with a 301 back to the slashed
-         * one, the browser follows it, Next strips the slash again, and the sign-in
-         * form spins on redirects that never end. The request has to reach Django
-         * byte-for-byte as the client wrote it.
-         *
-         * Application routes are unaffected: they are slash-less and stay so, so
-         * there was nothing for this redirect to normalise in the first place.
-         */
-        skipTrailingSlashRedirect: true,
-        async rewrites() {
-          return [
-            {
-              source: "/api/v1/:path*",
-              destination: `${apiTarget.replace(/\/+$/, "")}/api/v1/:path*/`,
-            },
-          ];
-        },
-      };
+const proxyEnabled = process.env.API_PROXY_ENABLED === "1" || process.env.NODE_ENV !== "production";
+
+const devApiProxy = proxyEnabled
+  ? {
+      /**
+       * Stop Next redirecting `/api/v1/thing/` to `/api/v1/thing` before the
+       * rewrite below gets a look at it.
+       *
+       * Found by requesting `/api/v1/auth/csrf/` through the proxy and getting
+       * `308 Permanent Redirect, location: /api/v1/auth/csrf`. Trailing-slash
+       * normalisation runs ahead of `afterFiles` rewrites, so the slash DRF
+       * needs was gone before the proxy was consulted. Left alone, Django's
+       * `APPEND_SLASH` answers the stripped path with a 301 back to the slashed
+       * one, the browser follows it, Next strips the slash again, and the sign-in
+       * form spins on redirects that never end. The request has to reach Django
+       * byte-for-byte as the client wrote it.
+       *
+       * Application routes are unaffected: they are slash-less and stay so, so
+       * there was nothing for this redirect to normalise in the first place.
+       */
+      skipTrailingSlashRedirect: true,
+      async rewrites() {
+        return [
+          {
+            source: "/api/v1/:path*",
+            destination: `${apiTarget.replace(/\/+$/, "")}/api/v1/:path*/`,
+          },
+        ];
+      },
+    }
+  : {};
 
 const nextConfig: NextConfig = {
   output: "standalone",

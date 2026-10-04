@@ -191,7 +191,7 @@ export function getPriceHistory(
     created_at: string;
   }>
 > {
-  return apiFetch(`/products/${productId}/prices/`, options);
+  return apiFetch(`/products/${productId}/prices/history/`, options);
 }
 
 /** List categories. */

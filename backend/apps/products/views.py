@@ -185,6 +185,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     List/retrieve: ``CanViewProducts`` (all staff roles).
     Write: ``CanManageProducts`` (Manager, Owner).
     Price actions: ``CanChangePrices`` (Manager, Owner).
+
+    The two price actions answer on separate paths - ``prices`` to add one,
+    ``prices/history`` to read them back - because a router turns each action into
+    its own route and Django resolves by path alone, never by method. Two actions
+    sharing ``url_path="prices"`` produce two identical routes, the second is
+    unreachable, and the one that is reachable answers 405 for the other's method.
     """
 
     queryset = Product.objects.select_related("category").order_by(
@@ -300,7 +306,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         responses={200: ProductPriceSerializer(many=True)},
         tags=["products"],
     )
-    @action(detail=True, methods=["get"], url_path="prices")
+    @action(detail=True, methods=["get"], url_path="prices/history")
     def price_history(self, request: Request, pk: int | None = None) -> Response:
         """Return all price rows for this product."""
         product = self.get_object()

@@ -190,7 +190,7 @@ everything after it.
 | ~~B2~~ | Auth context and protected route guard | An unauthenticated visit to `/sales` redirects to `/login` |
 | ~~B3~~ | `/login` page | E2E: enter credentials, land on the dashboard |
 | B4 | **Golden vertical** — product list and create | E2E plus the full contract suite; this is the reference implementation |
-| ~~B5~~ | Sales → inventory vertical | E2E §23.1: a Cashier records a sale, stock decreases exactly once, income increases |
+| B5 | Sales → inventory vertical | E2E §23.1: a Cashier records a sale, stock decreases exactly once, income increases |
 | B6 | `docs/ADDING_AN_ENDPOINT.md`, written from what B4 and B5 actually did | A new domain can be built by following it without asking |
 
 B4 is deliberately the *first* domain rather than the most important one. It is small enough to
@@ -254,6 +254,9 @@ they appeared to.
 
 ### B5: the sale screen had never been opened by a test
 
+**B5 stays open.** Two of its three claims are now proven in a real browser; the third cannot be,
+and closing that gap is a decision rather than a task. The detail is below.
+
 The gate for B5 is a Cashier's browser, this Django and this Postgres. It took until this task for
 that sentence to mean anything, because until now every Playwright spec answered the API itself.
 
@@ -304,6 +307,32 @@ as Nginx does in production, so the session and CSRF cookies behave as deployed 
 configuration was needed. This required `next.config.ts` to grow an opt-in for production builds:
 the proxy used to be development-only, and `next start` is a production build. `API_PROXY_ENABLED=1`
 is now that ask, so a deployment that has not asked for a proxy still has none.
+
+**The third claim is not reachable from a browser yet, which is why B5 is not struck.**
+"E2E §23.1: a Cashier records a sale, stock decreases exactly once, income increases" — the first
+two are asserted in `tests/live/b5-sale.spec.ts` against a real session and a real database. The
+third is not, and not because it was overlooked: **there is no API from which a browser could read
+income.** The finance app has models and services and no viewset; `config/api_urls.py` routes auth,
+products and sales only. The dashboard, which the specs land on after signing in, fetches nothing.
+
+The claim is not unproven so much as unobservable *in a browser*. It is asserted over HTTP in
+`backend/apps/sales/tests/test_sale_vertical.py`, which reads `finance.services.income_by_method`
+and checks it is `0.00` before a sale, the exact total after one, back to `0.00` after a refused sale,
+and back to `0.00` after a void — the same service any future endpoint would call. That is real
+evidence about income, and it is not E2E.
+
+Two honest ways to close this, and the choice is not mine to make:
+
+1. **Add a read-only income endpoint and assert it in the browser.** Small, and it makes the gate
+   literally true. But it is new public API surface, and the roadmap already assigns finance reads to
+   **C1** and displayed figures to **C6**. Doing it here means doing a slice of C1 inside B5.
+2. **Accept that "income increases" is proven at the HTTP-and-service layer, not the browser layer**,
+   and record that as the gate's wording. Defensible — the vertical's own E2E story is about the
+   sale, the stock ledger and the permission, none of which income is — but it *is* a weakening, so it
+   should be said out loud rather than done quietly.
+
+Until one of those is chosen, B5 stays unmarked. Marking it complete on two of three claims would be
+the exact failure this gate exists to prevent.
 
 **A finding this phase did not fix.** The sales screen offers a `Voided` status filter, and
 `StatusBadge` knows how to render `VOIDED`. Neither can ever appear: `SaleViewSet`'s queryset is

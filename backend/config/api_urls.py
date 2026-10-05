@@ -23,6 +23,7 @@ urlpatterns = [
     path("products/", include("apps.products.urls")),
     path("sales/", include("apps.sales.urls")),
     path("finance/", include("apps.finance.urls")),
+    path("inventory/", include("apps.inventory.urls")),
 ]
 
 #: Wired in ``config/urls.py``. The schema is mounted beside the version rather

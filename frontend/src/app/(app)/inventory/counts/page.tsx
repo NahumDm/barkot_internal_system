@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import InventoryForm from "@/features/inventory/inventory-forms";
 
 export default function InventoryCountsPage() {
-  return <PagePlaceholder title="Stock Count" />;
+  return <InventoryForm mode="count" />;
 }

@@ -53,6 +53,7 @@ export interface ProductListItem {
   is_stock_tracked: boolean;
   is_active: boolean;
   current_price: ProductPrice | null;
+  current_stock: string | null;
 }
 
 export interface PaginatedResponse<T> {

@@ -139,6 +139,7 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     category_name = serializers.CharField(source="category.name", read_only=True)
     current_price = serializers.SerializerMethodField()
+    current_stock = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
@@ -152,6 +153,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             "is_stock_tracked",
             "is_active",
             "current_price",
+            "current_stock",
         ]
 
     def get_current_price(self, obj: Product) -> dict | None:
@@ -159,6 +161,13 @@ class ProductListSerializer(serializers.ModelSerializer):
         if price is None:
             return None
         return ProductPriceSerializer(price).data
+
+    def get_current_stock(self, obj: Product) -> str | None:
+        if not obj.is_stock_tracked:
+            return None
+        from apps.inventory.services import current_stock
+
+        return str(current_stock(obj))
 
 
 class ProductCreateSerializer(serializers.Serializer):

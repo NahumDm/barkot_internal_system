@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import MovementList from "@/features/inventory/movement-list";
 
 export default function InventoryMovementsPage() {
-  return <PagePlaceholder title="Stock Movements" />;
+  return <MovementList />;
 }

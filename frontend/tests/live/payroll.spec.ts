@@ -41,12 +41,19 @@ async function signIn(page: Page, user: SeededUser): Promise<void> {
 }
 
 /**
- * The status chip in the run's summary box. A bare `getByText("Paid")` would
- * also match the KPI label of that name, so the chip is located as the span
- * whose text is exactly the status.
+ * The status chip in the run's summary box.
+ *
+ * A bare `getByText("Paid")` would also match the KPI label of that name, and a
+ * `span`-only filter would also match the payslip rows' status chips, which carry
+ * the same "Approved"/"Paid" text once the run moves. The summary box is the one
+ * place on screen that always shows the audit trail, so the chip is found as the
+ * sibling of the "Generated on ..." line - which only a run, never a row, has.
  */
-function chip(page: Page, status: string) {
-  return page.locator("span").filter({ hasText: new RegExp(`^${status}$`) });
+function runStatus(page: Page, status: string) {
+  return page
+    .getByText(/^Generated on/)
+    .locator("..")
+    .getByText(status, { exact: true });
 }
 
 /** The generated run for this calendar month, read back over HTTP. */
@@ -75,12 +82,12 @@ test("a Manager generates the month and cannot approve it", async ({ page }) => 
 
   // Nothing for this month yet - only the generation form.
   await expect(page.getByText(/Generate payroll for/)).toBeVisible();
-  await expect(chip(page, "Generated")).toHaveCount(0);
+  await expect(runStatus(page, "Generated")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Generate run" }).click();
 
   // The run appears with a single payslip at the seeded wage.
-  await expect(chip(page, "Generated")).toBeVisible();
+  await expect(runStatus(page, "Generated")).toBeVisible();
   const employeeRow = page.getByRole("row").filter({ hasText: seed.payroll.full_name });
   await expect(employeeRow).toHaveCount(1);
   await expect(employeeRow).toContainText("12,000.00 ETB");
@@ -116,12 +123,12 @@ test("the Owner signs off a month Django really generated", async ({ page }) => 
 
   // The Manager's work from the previous step is still standing; the screen
   // defaults to the current month, which is the generated one.
-  await expect(chip(page, "Generated")).toBeVisible();
+  await expect(runStatus(page, "Generated")).toBeVisible();
 
   await page.getByRole("button", { name: "Approve run" }).click();
 
-  await expect(chip(page, "Approved")).toBeVisible();
-  await expect(chip(page, "Generated")).toHaveCount(0);
+  await expect(runStatus(page, "Approved")).toBeVisible();
+  await expect(runStatus(page, "Generated")).toHaveCount(0);
   await expect(page.getByText(/Approved by e2e-owner/)).toBeVisible();
 
   const approved = await readRun(page);
@@ -131,7 +138,7 @@ test("the Owner signs off a month Django really generated", async ({ page }) => 
   // The approved month is now the screen's business to hand over the money.
   await page.getByRole("button", { name: "Mark as paid" }).click();
 
-  await expect(chip(page, "Paid")).toBeVisible();
+  await expect(runStatus(page, "Paid")).toBeVisible();
   await expect(page.getByText("Nothing left to do for this month.")).toBeVisible();
 
   const paid = await readRun(page);

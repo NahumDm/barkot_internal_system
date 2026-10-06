@@ -11,3 +11,4 @@ export * from "./client";
 export * from "./auth";
 export * from "./finance";
 export * from "./inventory";
+export * from "./payroll";

@@ -29,7 +29,11 @@ from django.db.models import Max
 
 from apps.audit.models import AuditLog
 from apps.core.enums import PayrollDeductionType, PayrollItemStatus, PayrollRunStatus
-from apps.core.exceptions import InvalidStateTransition
+from apps.core.exceptions import (
+    ExcessiveDeduction,
+    InvalidDeductionAmount,
+    InvalidStateTransition,
+)
 from apps.core.money import ZERO_MONEY, quantize_money
 from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, PayrollRun
 
@@ -135,9 +139,12 @@ def add_deduction(
         The created :class:`PayrollDeduction`.
 
     Raises:
-        InvalidStateTransition: If the run is already approved or paid. A
-            signed payslip is not edited; the correction goes in the next run.
-        ValueError: If the deduction would exceed gross pay.
+        InvalidStateTransition: If the run is already approved or paid. A signed
+            payslip is not edited; the correction goes in the next run.
+        InvalidDeductionAmount: If ``amount`` is zero or negative.
+        ExcessiveDeduction: If the deduction would exceed gross pay. A negative
+            payslip is always a data-entry error, and storing it would quietly
+            flow into the finance balance.
     """
     if payroll_item.run.status != PayrollRunStatus.GENERATED:
         raise InvalidStateTransition(
@@ -147,11 +154,11 @@ def add_deduction(
 
     amount = quantize_money(amount, field="amount")
     if amount <= 0:
-        raise ValueError("A deduction amount must be greater than zero.")
+        raise InvalidDeductionAmount
 
     new_total = quantize_money(payroll_item.total_deductions + amount, field="total_deductions")
     if new_total > payroll_item.gross_amount:
-        raise ValueError(
+        raise ExcessiveDeduction(
             f"Deductions ({new_total}) would exceed gross pay ({payroll_item.gross_amount}) "
             f"for {payroll_item.employee.full_name}."
         )

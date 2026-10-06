@@ -35,7 +35,7 @@ Usage::
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, TypedDict
 
@@ -47,9 +47,12 @@ from django.utils import timezone
 
 from apps.accounts.models import Role, User
 from apps.accounts.role_seeding import seed_roles
+from apps.core.enums import EmployeeStatus
 from apps.inventory.models import StockMovement
 from apps.inventory.services import ReceiptLineInput, receive_stock
+from apps.payroll.models import Employee as PayrollEmployee
 from apps.products.models import Category, Product, ProductPrice
+from apps.users.models import EmployeeProfile
 
 #: Database-name suffix without which ``--reset`` refuses to erase anything.
 #: See the module docstring.
@@ -61,6 +64,7 @@ E2E_PASSWORD = "e2e-cashier-pw"
 
 CASHIER_USERNAME = "e2e-cashier"
 MANAGER_USERNAME = "e2e-manager"
+OWNER_USERNAME = "e2e-owner"
 
 CATEGORY_NAME = "E2E Drinks"
 PRODUCT_NAME = "E2E Coffee"
@@ -69,6 +73,15 @@ PRODUCT_SKU = "E2E-COFFEE"
 UNIT_PRICE = Decimal("25.00")
 UNIT_COST = Decimal("18.00")
 OPENING_STOCK = Decimal("40.000")
+
+#: The one staff member the payroll specs pay. A single employee keeps the
+#: browser story readable - the gross, deduction and net figures on screen and
+#: over HTTP all come from this one row.
+PROFILE_FULL_NAME = "Seble Worku"
+PROFILE_POSITION = "Waitstaff"
+PROFILE_PHONE = "+251911220033"
+PROFILE_START_DATE = date(2024, 1, 15)
+PAYROLL_MONTHLY_WAGE = Decimal("12000.00")
 
 
 class SeededUserSummary(TypedDict):
@@ -98,6 +111,16 @@ class SeededProductSummary(TypedDict):
     opening_stock: str
 
 
+class SeededPayrollSummary(TypedDict):
+    """The one staff member the payroll specs generate, approve and pay."""
+
+    profile_id: int
+    employee_id: int
+    full_name: str
+    #: A string for the same reason ``SeededProductSummary.unit_price`` is.
+    monthly_wage: str
+
+
 class SeedSummary(TypedDict):
     """The whole ``--json`` payload.
 
@@ -110,14 +133,19 @@ class SeedSummary(TypedDict):
     database: str
     cashier: SeededUserSummary
     manager: SeededUserSummary
+    owner: SeededUserSummary
     category: SeededCategorySummary
     product: SeededProductSummary
+    payroll: SeededPayrollSummary
 
 
 class Command(BaseCommand):
     """Create the fixtures the live Playwright suite signs in and sells against."""
 
-    help = "Seed the E2E database with a Cashier, a Manager and one sellable product."
+    help = (
+        "Seed the E2E database with a Cashier, a Manager, an Owner, "
+        "one sellable product and one staff member on the payroll."
+    )
 
     def add_arguments(self, parser: Any) -> None:
         parser.add_argument(
@@ -149,12 +177,15 @@ class Command(BaseCommand):
 
         cashier = self._upsert_user(CASHIER_USERNAME, Role.Code.CASHIER)
         manager = self._upsert_user(MANAGER_USERNAME, Role.Code.MANAGER)
+        owner = self._upsert_user(OWNER_USERNAME, Role.Code.OWNER)
         category, product = self._upsert_product()
+        profile, payroll = self._upsert_payroll()
 
         summary: SeedSummary = {
             "database": database_name,
             "cashier": {"username": cashier.username, "password": E2E_PASSWORD},
             "manager": {"username": manager.username, "password": E2E_PASSWORD},
+            "owner": {"username": owner.username, "password": E2E_PASSWORD},
             "category": {"id": category.id, "name": category.name},
             "product": {
                 "id": product.id,
@@ -162,6 +193,12 @@ class Command(BaseCommand):
                 "sku": product.sku,
                 "unit_price": str(UNIT_PRICE),
                 "opening_stock": str(OPENING_STOCK),
+            },
+            "payroll": {
+                "profile_id": profile.id,
+                "employee_id": payroll.id,
+                "full_name": profile.full_name,
+                "monthly_wage": str(payroll.monthly_wage),
             },
         }
 
@@ -174,7 +211,9 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Seeded {summary['database']}: cashier={CASHIER_USERNAME} "
-                f"manager={MANAGER_USERNAME} product={PRODUCT_SKU} (id={product.id})"
+                f"manager={MANAGER_USERNAME} owner={OWNER_USERNAME} "
+                f"product={PRODUCT_SKU} (id={product.id}) "
+                f"payroll={profile.full_name} (id={payroll.id})"
             )
         )
 
@@ -271,3 +310,43 @@ class Command(BaseCommand):
             )
 
         return category, product
+
+    @transaction.atomic
+    def _upsert_payroll(self) -> tuple[EmployeeProfile, PayrollEmployee]:
+        """Create the staff profile and its payroll record the specs pay.
+
+        Built through :meth:`PayrollEmployee.from_profile` rather than a
+        hand-written ``PayrollEmployee``, because the one-to-one link and the
+        initial status are exactly the two things the payroll API's contract
+        depends on. Idempotent: a profile that already exists is refreshed, and
+        an existing employee row is re-priced rather than duplicated — a second
+        ``from_profile`` call would violate the one-to-one and the whole point
+        of the command is that re-running it leaves the same state as one run.
+
+        Returns:
+            The profile and its payroll employee.
+        """
+        profile, _ = EmployeeProfile.objects.get_or_create(
+            full_name=PROFILE_FULL_NAME,
+            defaults={
+                "position": PROFILE_POSITION,
+                "phone_number": PROFILE_PHONE,
+                "start_date": PROFILE_START_DATE,
+            },
+        )
+        profile.position = PROFILE_POSITION
+        profile.phone_number = PROFILE_PHONE
+        profile.start_date = PROFILE_START_DATE
+        profile.is_archived = False
+        profile.save()
+
+        payroll = PayrollEmployee.objects.filter(profile=profile).first()
+        if payroll is None:
+            payroll = PayrollEmployee.from_profile(profile, monthly_wage=PAYROLL_MONTHLY_WAGE)
+        else:
+            payroll.monthly_wage = PAYROLL_MONTHLY_WAGE
+            payroll.status = EmployeeStatus.ACTIVE
+            payroll.terminated_on = None
+            payroll.save()
+
+        return profile, payroll

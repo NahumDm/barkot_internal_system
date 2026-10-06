@@ -109,6 +109,42 @@ class InconsistentTotals(BARKOTDomainError):
     default_message = "The supplied totals do not match the line items."
 
 
+class InvalidDeductionAmount(BARKOTDomainError):
+    """A payroll deduction was submitted with an amount that cannot be deducted (spec §14.2).
+
+    A deduction is money leaving a payslip, so it has to be positive. Zero and
+    negative amounts are refused rather than stored: a negative "deduction" is a
+    payment to the employee wearing the wrong label, and it would quietly inflate
+    net pay and the finance balance with no other symptom.
+
+    400 rather than 409 because the submitted figure is incoherent on its own terms.
+    Nothing about the surrounding state changes the answer, so a retry with the
+    same body should not be invited.
+    """
+
+    code = "invalid_deduction_amount"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "A deduction amount must be greater than zero."
+
+
+class ExcessiveDeduction(BARKOTDomainError):
+    """Deductions would take an employee's net pay below zero (spec §14.2).
+
+    Raised instead of clamping the total. Clamping would hide the data-entry error
+    that caused it and produce a payslip nobody can reconcile against the
+    deductions recorded against it.
+
+    Distinct from :class:`InvalidDeductionAmount`: the amount here may be perfectly
+    reasonable on its own, and it is the running total that no longer fits inside
+    gross pay. The frontend needs both codes to tell "you typed zero" apart from
+    "this employee has nothing left to deduct".
+    """
+
+    code = "excessive_deduction"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "Deductions cannot exceed gross pay."
+
+
 class SessionExpired(BARKOTDomainError):
     """The session idled past the configured limit and has been ended (spec §9.3).
 

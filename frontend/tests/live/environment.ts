@@ -18,7 +18,7 @@
  * run. A port nobody else uses means the E2E can only ever be talking to the
  * process this configuration started.
  *
- * **Its own database.** `barket_e2e`, never the development one, and the seed
+ * **Its own database.** `barkot_e2e`, never the development one, and the seed
  * command refuses to erase anything whose name does not end in `_e2e`.
  *
  * **One origin.** The browser stays on 127.0.0.1:3000 and Next forwards
@@ -58,8 +58,14 @@ export const FRONTEND_ORIGIN = "http://127.0.0.1:3000";
  */
 export const FRONTEND_READY_URL = `${FRONTEND_ORIGIN}/login`;
 
-/** Database name; the `_e2e` suffix is what `seed_e2e --reset` insists on. */
-export const E2E_DB_NAME = "barket_e2e";
+/**
+ * Database name; the `_e2e` suffix is what `seed_e2e --reset` insists on.
+ *
+ * Same naming as the rest of the stack: the development database and role come
+ * from `docker-compose.yml` (`barkot`/`barkot`), so the disposable one is
+ * `barkot_e2e` rather than paying for an extra role to rename.
+ */
+export const E2E_DB_NAME = "barkot_e2e";
 
 /**
  * The frontend checkout.
@@ -105,8 +111,16 @@ export interface SeedSummary {
   database: string;
   cashier: SeededUser;
   manager: SeededUser;
+  owner: SeededUser;
   category: { id: number; name: string };
   product: SeededProduct;
+  /** The one staff member the payroll specs generate a run for. */
+  payroll: {
+    profile_id: number;
+    employee_id: number;
+    full_name: string;
+    monthly_wage: string;
+  };
 }
 
 /** Read what global setup seeded. Fails loudly rather than returning defaults. */
@@ -137,15 +151,16 @@ export function pythonExecutable(): string {
  * Environment for every Django process this suite starts - the server and the
  * management commands alike, so the seed writes to the same database the specs
  * read from. Connection details are overridable because a developer's Postgres
- * is somewhere other than CI's.
+ * is somewhere other than CI's, and the fallbacks mirror the defaults in
+ * `docker-compose.yml` so the suite works out of the box.
  */
 export function djangoEnv(): NodeJS.ProcessEnv {
   return {
     ...process.env,
     DJANGO_SETTINGS_MODULE: "config.settings.dev",
     DJANGO_DB_NAME: process.env.E2E_DB_NAME ?? E2E_DB_NAME,
-    DJANGO_DB_USER: process.env.E2E_DB_USER ?? "barket",
-    DJANGO_DB_PASSWORD: process.env.E2E_DB_PASSWORD ?? "barket",
+    DJANGO_DB_USER: process.env.E2E_DB_USER ?? "barkot",
+    DJANGO_DB_PASSWORD: process.env.E2E_DB_PASSWORD ?? "barkot",
     DJANGO_DB_HOST: process.env.E2E_DB_HOST ?? "127.0.0.1",
     DJANGO_DB_PORT: process.env.E2E_DB_PORT ?? "5433",
     DJANGO_ALLOWED_HOSTS: "127.0.0.1,localhost",

@@ -4,6 +4,12 @@
   /* Monochrome operationally-priority palette (UX §2.1, §3.3) */
   --color-background: #f7f7f7;
   --color-surface: #ffffff;
+  /* The fill a form field or a table header sits on: the page tone, not the
+   * card tone, so an input reads as a well you type into rather than as a
+   * continuation of the white card around it. Without this token the 19
+   * `bg-canvas` / `text-canvas` uses in finance and inventory compiled to
+   * nothing, which left the primary buttons black-on-black. */
+  --color-canvas: #f7f7f7;
   --color-ink: #111111;
   --color-ink-secondary: #666666;
   --color-border: #e5e5e5;

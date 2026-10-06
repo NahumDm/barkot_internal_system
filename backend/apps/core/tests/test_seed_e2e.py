@@ -36,17 +36,22 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from apps.accounts.models import Role, User
+from apps.core.enums import EmployeeStatus
 from apps.core.management.commands.seed_e2e import (
     CASHIER_USERNAME,
     E2E_PASSWORD,
     MANAGER_USERNAME,
     OPENING_STOCK,
+    OWNER_USERNAME,
+    PAYROLL_MONTHLY_WAGE,
     PRODUCT_SKU,
+    PROFILE_FULL_NAME,
     UNIT_PRICE,
     SeedSummary,
 )
 from apps.inventory.models import StockMovement
 from apps.inventory.services import current_stock
+from apps.payroll.models import Employee as PayrollEmployee
 from apps.products.models import Product
 
 #: Names that must never be erasable by ``--reset``. The first is the working
@@ -154,6 +159,34 @@ class TestFixtures:
 
         assert summary["cashier"] == {"username": CASHIER_USERNAME, "password": E2E_PASSWORD}
         assert summary["manager"] == {"username": MANAGER_USERNAME, "password": E2E_PASSWORD}
+
+    def test_seeds_a_payroll_worker_and_the_owner_who_signs_the_run_off(self) -> None:
+        """The payroll spec's whole cast is present and able to act.
+
+        The manager generates payroll but cannot approve it, so the second half
+        of the browser story needs an Owner. The employee row must carry the
+        seeded wage and the ``ACTIVE`` status the generation service includes,
+        and the profile must not be archived - otherwise ``is_employable`` is
+        false and the run comes out empty.
+        """
+        with database_named("barket_e2e"):
+            summary = seed_json("--reset")
+
+        owner = User.objects.get(username=OWNER_USERNAME)
+        assert owner.role.code == Role.Code.OWNER
+        assert owner.check_password(E2E_PASSWORD), "the Owner cannot sign in"
+        assert summary["owner"] == {"username": OWNER_USERNAME, "password": E2E_PASSWORD}
+
+        employee = PayrollEmployee.objects.get(pk=summary["payroll"]["employee_id"])
+        assert employee.full_name == PROFILE_FULL_NAME
+        assert employee.status == EmployeeStatus.ACTIVE
+        assert employee.monthly_wage == PAYROLL_MONTHLY_WAGE
+        assert summary["payroll"] == {
+            "profile_id": employee.profile_id,
+            "employee_id": employee.id,
+            "full_name": PROFILE_FULL_NAME,
+            "monthly_wage": str(PAYROLL_MONTHLY_WAGE),
+        }
 
     def test_seeds_one_priced_product_with_stock(self) -> None:
         """Priced through the price table and stocked through the stock ledger.

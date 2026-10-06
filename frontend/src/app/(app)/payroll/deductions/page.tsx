@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import DeductionRegister from "@/features/payroll/deduction-register";
 
 export default function PayrollDeductionsPage() {
-  return <PagePlaceholder title="Deductions" />;
+  return <DeductionRegister />;
 }

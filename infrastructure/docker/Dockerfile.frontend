@@ -7,7 +7,9 @@ FROM node:24-slim AS deps
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+# .npmrc is copied too: it is where the fetch timeouts and audit-off live, so a
+# build over a slow link fails on a dependency problem, not on a socket timeout.
+COPY package.json package-lock.json .npmrc ./
 RUN npm ci
 
 # ── dev target: next dev for docker compose dev ─────────────────────────────

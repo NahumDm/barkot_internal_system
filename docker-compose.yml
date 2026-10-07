@@ -1,9 +1,13 @@
 # Barkot — local development stack (spec §18.2).
 #
-# Dev workflow: source is bind-mounted, dev servers run with hot reload.
-# For day-to-day development you can also run only the database:
+# One command starts the whole environment: Postgres, Django and Next.js, with
+# source bind-mounted and hot reload. The disposable `barkot_e2e` database the
+# Playwright suite runs against is created here too:
+#   docker compose up -d            # db + api + web
+#
+# When all that is wanted is a database to point host-mode servers at (the
+# root README's other workflow), scale back instead of any manual setup:
 #   docker compose up -d db
-# and run the two dev servers on the host (see root README).
 
 name: barkot-dev
 
@@ -21,6 +25,10 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      # First-boot scripts. The entrypoint runs them once, when a fresh
+      # `db_data` volume is initialised, creating `barkot_e2e` alongside the
+      # development database - see 01-create-e2e-db.sql.
+      - ./infrastructure/docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DJANGO_DB_USER:-barkot} -d ${DJANGO_DB_NAME:-barkot}"]
       interval: 5s
@@ -34,7 +42,9 @@ services:
       target: dev
     command: python manage.py runserver 0.0.0.0:8000
     environment: &api-env
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0
+      # `api` is the compose-internal hostname: Next's rewrite forwards the
+      # request to http://api:8000 and Django validates that Host header too.
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,api
       DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:3000
       DJANGO_DB_NAME: ${DJANGO_DB_NAME:-barkot}
       DJANGO_DB_USER: ${DJANGO_DB_USER:-barkot}
@@ -58,6 +68,9 @@ services:
       target: dev
     environment:
       NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Barkot}
+      # `next dev` proxies /api/v1/ to Django (frontend/next.config.ts); on the
+      # compose network Django answers as `api`, not as localhost.
+      API_PROXY_TARGET: http://api:8000
     volumes:
       - ./frontend:/app
       # Container-owned node_modules so Windows host node_modules never leaks in.

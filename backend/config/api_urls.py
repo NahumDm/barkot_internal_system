@@ -26,6 +26,7 @@ urlpatterns = [
     path("inventory/", include("apps.inventory.urls")),
     path("payroll/", include("apps.payroll.urls")),
     path("reports/", include("apps.reports.urls")),
+    path("dashboard/", include("apps.dashboard.urls")),
     # C5: Owner account administration lives at the root of the version
     # (/users/, /roles/, /settings/). Included last so the more specific
     # domain prefixes above always win on their own paths.

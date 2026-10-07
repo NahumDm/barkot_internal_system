@@ -1,10 +1,10 @@
 # Barkot Engineering Handoff
 
-**Generated:** 2026-10-05  
+**Generated:** 2026-10-05, maintained through C6 on 2026-10-07  
 **Repository:** `C:\dev\barkot_internal_system`  
 **Branch:** `main`  
-**HEAD:** `cfad8f7 feat: add inventory workflows and ledger views`  
-**Remote:** `main` is clean and matches `origin/main`.
+**HEAD:** `5288a65 feat(frontend+backend): C5 - Users, roles and settings` (C6 commit follows)  
+**Remote:** `main` tracks `origin/main`; push after every verified commit.
 
 This document is a continuation map for an engineering model. It is not a substitute for reading the source. The code and normative specifications win over this document if they disagree.
 
@@ -36,10 +36,11 @@ python -c "import zipfile,xml.etree.ElementTree as ET;W='{http://schemas.openxml
 - C3: inventory receipts, breakage/waste, stock counts, variance approval, movement history, ledger-backed stock overview, API client, and inventory screens.
 - C4: date-filtered financial/inventory/payroll reports with CSV export; stubbed and live E2E.
 - C5: staff account administration, the read-only roles catalogue, and the system settings row. Owner-only — a Manager is refused at every endpoint and on the screen. Acceptance tests, API client, settings screen, and stubbed + live E2E.
+- C6: role-scoped dashboard summary. One read-only `GET /dashboard/` whose tiles delegate to the services that own them (balance, stock balance, sales totals, latest run), each `null` when the role lacks the grant. Acceptance tests, API client, dashboard screen, and stubbed + live E2E. **Phase C is complete.**
 
 ### Next
 
-**C6 Dashboard summary** is next in the roadmap order. Displayed figures must reconcile to the underlying authoritative sources (finance balance, payroll run states, stock ledger) rather than introduce parallel totals. The dashboard route shell is the placeholder left behind at `src/app/(app)/dashboard/`.
+**Phase D — Hardening and production readiness** is next in the roadmap order (`docs/roadmap.md` carries the D0-D6 table). Start with D0: rate limiting on all sensitive endpoints (§9.3), proven by a load test that exceeds the configured limit and receives 429. Note that A5 already throttles login; the live E2E suite is sized against that budget (see Verified Gates).
 
 ## API Surface
 
@@ -55,6 +56,7 @@ Mounted in `backend/config/api_urls.py` under `/api/v1/`:
 - `/users/`
 - `/roles/`
 - `/settings/`
+- `/dashboard/`
 
 Schema and Swagger are mounted beside the version at `/api/schema/` and `/api/docs/`.
 
@@ -118,6 +120,14 @@ All report endpoints take the same `?start=&end=` business-date range and CSV fo
 
 The user create/edit paths accept a temporary password and a role code. Role codes are UPPERCASE (`OWNER`, `MANAGER`, `CASHIER`, `BARMAN`). `PATCH /settings/` is a partial update and records `updated_by`. Every endpoint here is Owner-only enforced through `accounts.manage_users` / `accounts.manage_roles` / `accounts.manage_settings` permission classes; a Manager receives a plain 403 with no side effects.
 
+### Dashboard C6
+
+- `GET /api/v1/dashboard/?start=YYYY-MM-DD&end=YYYY-MM-DD`
+
+One read-only aggregate for the whole screen. Both bounds are optional but must be supplied together; absent both, the period defaults to the current business month-to-date in Africa/Addis_Ababa. Each section delegates to the service that owns it — `finance_balance`, `inventory_stock_balance`, `sales_totals`, and `PayrollRunSerializer` for the latest run — and the endpoint computes nothing of its own, so the screen cannot disagree with the source it links to.
+
+Sections are gated on `finance.view_reports`, `payroll.view_payroll`, `sales.view_sales` and `inventory.view_inventory` through `user.has_perm()`; a refused section is `null` on the wire rather than omitted. `payroll` is `null` both when the role lacks the grant **and** while no run exists, so the frontend consults the session's permission list (presentation only) to word "not your role" apart from "no run yet".
+
 ## Non-Negotiable Rules
 
 - `ROLE_MATRIX` in `backend/apps/accounts/permissions.py` is the only role-to-permission mapping. Views use `user.has_perm()` through permission classes; never branch on `user.role`.
@@ -144,12 +154,14 @@ The user create/edit paths accept a temporary password and a role code. Role cod
 - Payroll: `backend/apps/payroll/models.py`, `services.py`, `serializers.py`, `views.py`, `urls.py`
 - Reports: `backend/apps/reports/views.py`, `services.py`
 - Accounts (roles/settings/users): `backend/apps/accounts/services.py`, `schemas.py`, `admin_views.py`, `urls.py`
+- Dashboard: `backend/apps/dashboard/services.py`, `serializers.py`, `views.py`, `urls.py`
 - API mounting: `backend/config/api_urls.py`
 - Contract tests: `backend/tests/api/test_contract.py`
 - C1 acceptance tests: `backend/apps/finance/tests/test_finance_api.py`
 - C3 acceptance tests: `backend/apps/inventory/tests/test_inventory_api.py`
 - C4 acceptance tests: `backend/apps/reports/tests/`
 - C5 acceptance tests: `backend/apps/accounts/tests/test_admin_api.py`
+- C6 acceptance tests: `backend/apps/dashboard/tests/`
 
 ### Frontend
 
@@ -159,11 +171,12 @@ The user create/edit paths accept a temporary password and a role code. Role cod
 - Payroll client/screens: `frontend/src/lib/api/payroll.ts`, `frontend/src/features/payroll/`, `frontend/src/app/(app)/payroll/`
 - Reports client/screens: `frontend/src/lib/api/reports.ts`, `frontend/src/features/reports/`, `frontend/src/app/(app)/reports/`
 - Settings client/screen: `frontend/src/lib/api/admin.ts`, `frontend/src/features/settings/settings-page.tsx`, `frontend/src/app/(app)/settings/`
+- Dashboard client/screen: `frontend/src/lib/api/dashboard.ts`, `frontend/src/features/dashboard/dashboard-page.tsx`, `frontend/src/app/(app)/dashboard/`
 - Product list contract: `frontend/src/lib/api/products.ts` and `backend/apps/products/serializers.py`
 - Protected finance routes: `frontend/src/app/(app)/finance/`
 - Protected inventory routes: `frontend/src/app/(app)/inventory/`
 - Stubbed E2E: `frontend/tests/e2e/`
-- Live E2E: `frontend/tests/live/` — shared throttle-aware `signIn` in `frontend/tests/live/signin.ts` (repo `report > payroll > b5-sale > settings` alphabetical order, one worker)
+- Live E2E: `frontend/tests/live/` — shared throttle-aware `signIn` in `frontend/tests/live/signin.ts`; the suite runs alphabetically (`b5-sale > dashboard > payroll > reports > settings`), one worker
 
 The C3 frontend form currently handles one product line at a time. Multi-line receipt/breakage/count UX is a reasonable follow-up, but it must preserve the existing service contract that validates duplicate products and all-or-nothing writes.
 
@@ -182,7 +195,7 @@ Run from `backend`:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Last verified result after C5: **1203 passed** (915 after C3, +288 across C2/C4/C5), with 45 known deprecation warnings from `drf_spectacular` on the current Python runtime. OpenAPI validation had 0 errors and 5 enum-name warnings (three `status` collisions, `PaymentStatusEnum`, and `CodeEnum` — the last from the roles endpoint; all cosmetic).
+Last verified result after C6: **1221 passed** (915 after C3, +306 across C2/C4/C5/C6), with 45 known deprecation warnings from `drf_spectacular` on the current Python runtime. OpenAPI validation had 0 errors and 5 enum-name warnings (three `status` collisions, `PaymentStatusEnum`, and `CodeEnum` — the last from the roles endpoint; all cosmetic).
 
 For the local Compose database, use the project defaults explicitly when running host tooling:
 
@@ -209,7 +222,7 @@ npm run build
 npm run test:e2e
 ```
 
-Last verified after C5: **83 Vitest tests**, **30 stubbed Playwright tests**, and **8 live Playwright tests** passed. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
+Last verified after C6: **83 Vitest tests**, **34 stubbed Playwright tests**, and **10 live Playwright tests** passed. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
 
 ```powershell
 $env:E2E_DB_NAME='barkot_e2e'
@@ -217,6 +230,8 @@ $env:E2E_DB_USER='barkot'
 $env:E2E_DB_PASSWORD='barkot'
 npm run test:e2e:live
 ```
+
+**The live suite now makes ten sign-ins in one run, and A5 allows five a minute per address.** Every live spec must sign in through `frontend/tests/live/signin.ts`, which waits the window out and retries; a spec with its own non-retrying copy fails on the first 429 (payroll's did exactly that when C6 added two more logins). Do not add a sign-in path that is not the shared helper.
 
 Do not casually rename the harness or seed safety strings; they are covered by tests and may reflect CI naming. Treat the local override and the committed CI configuration as separate concerns.
 
@@ -230,11 +245,11 @@ Do not casually rename the harness or seed safety strings; they are covered by t
 
 ## Safe Next Action
 
-Before writing dashboard code:
+Before starting Phase D:
 
-1. The dashboard shell already exists at `frontend/src/app/(app)/dashboard/`; verify its current placeholder and what API client and screen conventions Finance/Inventory/Payroll established.
-2. Add a failing acceptance test for the chosen figures (e.g. finance balance + expense total, latest payroll run state + net pay, top products by revenue from sales) so the endpoint is forced to reconcile to authoritative sources.
-3. Add the viewset/serializer and mount it in `backend/config/api_urls.py` using `docs/ADDING_AN_ENDPOINT.md` — the contract suite will discover it automatically.
-4. Add the typed client under `frontend/src/lib/api/dashboard.ts` and the screen under `src/features/dashboard/` behind the route group.
-5. Prove the displayed figures reconcile to the underlying transactions before considering C6 complete.
-6. Run the full gates and commit only when the worktree contains the intended phase changes.
+1. Phases A–C are complete; do not open another domain task. Read the D0-D6 table in `docs/roadmap.md`.
+2. D0 first: inventory what rate limiting already exists (A5 throttles login only), then extend §9.3 to the sensitive endpoints and prove it with a load test that expects 429.
+3. D1 follows naturally: assert a per-endpoint `AuditLog` row for every state-changing endpoint. Services already call `AuditLog.record()`; the gap is endpoint-level proof.
+4. Keep the contract suite green when touching the API surface — it discovers mounted endpoints automatically.
+5. Run the full gate set in `## Verified Gates` before every commit; counts above are the last verified baseline.
+6. Commit only when the worktree contains the intended phase changes, and push after the commit.

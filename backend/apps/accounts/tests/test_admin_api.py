@@ -21,7 +21,6 @@ from typing import Any
 
 import pytest
 from django.test import Client
-from rest_framework.response import Response
 
 from apps.accounts.models import Role, User
 from apps.audit.models import AuditLog
@@ -39,7 +38,7 @@ def csrf_for(client: Client) -> str:
     return client.get(CSRF_URL).json()["token"]
 
 
-def post_json(client: Client, url: str, payload: dict[str, Any]) -> Response:
+def post_json(client: Client, url: str, payload: dict[str, Any]) -> Any:
     """POST a JSON body with a valid CSRF token."""
     return client.post(
         url,
@@ -49,7 +48,7 @@ def post_json(client: Client, url: str, payload: dict[str, Any]) -> Response:
     )
 
 
-def patch_json(client: Client, url: str, payload: dict[str, Any]) -> Response:
+def patch_json(client: Client, url: str, payload: dict[str, Any]) -> Any:
     """PATCH a JSON body with a valid CSRF token."""
     return client.patch(
         url,
@@ -256,6 +255,8 @@ def test_owner_can_change_role_and_contact_fields(
         action=AuditLog.Action.UPDATE,
     )
     assert entry.actor == owner
+    assert entry.before is not None
+    assert entry.after is not None
     assert entry.before["role"] == "BARMAN"
     assert entry.after["role"] == "CASHIER"
 
@@ -372,6 +373,8 @@ def test_owner_patches_settings_and_is_recorded(
 
     entry = AuditLog.objects.get(object_type="accounts.SiteSetting")
     assert entry.actor == owner
+    assert entry.before is not None
+    assert entry.after is not None
     assert entry.before["password_max_age_days"] == 0
     assert entry.after["password_max_age_days"] == 90
 

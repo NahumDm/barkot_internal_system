@@ -9,6 +9,7 @@
 export * from "./errors";
 export * from "./client";
 export * from "./admin";
+export * from "./dashboard";
 export * from "./auth";
 export * from "./finance";
 export * from "./inventory";

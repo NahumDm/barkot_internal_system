@@ -22,23 +22,20 @@
  *
  * The run period is the current month because the screen defaults to it and
  * the seed resets between runs, so "the generated run" is always unique.
+ *
+ * Sign-in goes through the shared helper in `./signin`, which waits out A5's
+ * five-attempts-a-minute window rather than failing on the first 429: with C6's
+ * dashboard spec adding two more logins ahead of this file, the suite now runs
+ * past the budget a single window allows. Each of these tests therefore sets
+ * its own timeout, because a throttled retry costs a full minute.
  */
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { readSeedSummary, type SeededUser } from "./environment";
+import { readSeedSummary } from "./environment";
+import { signIn } from "./signin";
 
 const seed = readSeedSummary();
-
-/** Sign in through the real form and wait for the guard to admit us. */
-async function signIn(page: Page, user: SeededUser): Promise<void> {
-  await page.goto("/login");
-  await page.getByLabel("Username").fill(user.username);
-  await page.getByLabel("Password").fill(user.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-}
 
 /**
  * The status chip in the run's summary box.
@@ -77,6 +74,9 @@ async function readItem(page: Page, runId: number): Promise<Record<string, unkno
 test.describe.configure({ mode: "serial" });
 
 test("a Manager generates the month and cannot approve it", async ({ page }) => {
+  // The sign-in may have to sit out the tail of the A5 login window.
+  test.setTimeout(240_000);
+
   await signIn(page, seed.manager);
   await page.goto("/payroll/runs");
 
@@ -118,6 +118,9 @@ test("a Manager generates the month and cannot approve it", async ({ page }) => 
 });
 
 test("the Owner signs off a month Django really generated", async ({ page }) => {
+  // The sign-in may have to sit out the tail of the A5 login window.
+  test.setTimeout(240_000);
+
   await signIn(page, seed.owner);
   await page.goto("/payroll/runs");
 

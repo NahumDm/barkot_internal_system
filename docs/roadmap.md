@@ -32,22 +32,22 @@ spec must not be read as "Phases 1–4 still ahead".
 
 ## Where the project actually stands
 
-Measured, not assumed:
+Measured, not assumed (last verified after C6):
 
 | Layer | State |
 | --- | --- |
 | Domain models | 9 apps with models, 11 migrations applied |
-| Service/use-case layer | 4 apps with services (sales, inventory, finance, payroll) |
-| Tests | 508 passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, idempotency keys and receipt allocation under real thread contention |
-| Static analysis | mypy clean over 135 files, ruff clean |
-| **API endpoints** | **2 health probes, a versioned API root, and an OpenAPI schema with one documented path (`/api/v1/`). No business endpoints yet — that is A4.** |
-| **Frontend** | **24 files, all shell. No API client, no auth, no data. 7 feature directories empty.** |
-| `reports` app | `apps.py` only |
-| `audit` app | Model and `record()` only; not yet written to by any endpoint |
+| Service/use-case layer | 8 apps with services (accounts, dashboard, finance, inventory, payroll, products, reports, sales) |
+| Tests | 1221 backend passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, idempotency keys and receipt allocation under real thread contention, plus per-domain acceptance tests |
+| Static analysis | mypy clean over 178 files, ruff clean |
+| **API endpoints** | **Phases A–C complete: auth, products, sales, finance, inventory, payroll, reports, users/roles/settings and the dashboard, behind an OpenAPI schema that validates with 0 errors** |
+| **Frontend** | **Typed client and protected route group with a screen per domain through C6; 83 Vitest, 34 stubbed and 10 live Playwright tests green** |
+| `reports` app | C4 — financial, inventory and payroll reports with CSV export |
+| `audit` app | Model and `record()`; written by services, D1 asks for per-endpoint coverage |
 | Audit coverage | Services call `AuditLog.record()`, so most state changes are already audited |
 
-The backend's middle is built. Its two ends — the API that exposes it and the UI that consumes it —
-are untouched. That is most of the remaining product.
+Phases A–C are built and proven end to end. What remains is Phase D — hardening and production
+readiness — and Phase E, which is externally blocked.
 
 ## The shape of every phase
 
@@ -374,12 +374,12 @@ Each must be green before the next begins, so a regression is caught in the task
 | C3 | Stock — receive, count, variance, breakage | E2E §23.1: Barman receives stock; Manager completes a count and the adjustment requires permission | Done |
 | C4 | Reports — date filters and export | E2E for each report | Done |
 | C5 | Users, roles, settings | Owner-only access enforced; a Manager is refused | Done |
-| C6 | Dashboard summary | Displayed figures reconcile to the underlying transactions | Next |
+| C6 | Dashboard summary | Displayed figures reconcile to the underlying transactions | Done |
 
 `ENGINEERING_HANDOFF.md` carries the per-phase list of what shipped and the verified gate counts.
 
-**Why C is not expected to slip.** The data modelling and business rules for all six domains are
-already written and tested (70 tests, including 19 domain invariants). The remaining work is
+**Why C was not expected to slip.** The data modelling and business rules for all six domains were
+already written and tested (70 tests, including 19 domain invariants). The remaining work was
 application of a pattern proven in B4, not new design. The two failure modes that normally make a
 "thin CRUD over existing services" phase slip were checked in advance:
 

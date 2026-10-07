@@ -367,14 +367,16 @@ no backend, it needs neither Postgres nor Python, and CI gets two separately att
 Each task is: viewset, serializer, filters, frontend screen, E2E scenario, contract-suite cases.
 Each must be green before the next begins, so a regression is caught in the task that caused it.
 
-| # | Domain | Gate that proves it |
-| --- | --- | --- |
-| C1 | Finance — expenses, balance | E2E plus contract suite; balance reconciles to source transactions |
-| C2 | Payroll — employees, runs, deductions | E2E §23.1: Manager generates a monthly run, deduction reason is captured, net pay reconciles |
-| C3 | Stock — receive, count, variance, breakage | E2E §23.1: Barman receives stock; Manager completes a count and the adjustment requires permission |
-| C4 | Reports — date filters and export | E2E for each report |
-| C5 | Users, roles, settings | Owner-only access enforced; a Manager is refused |
-| C6 | Dashboard summary | Displayed figures reconcile to the underlying transactions |
+| # | Domain | Gate that proves it | Status |
+| --- | --- | --- | --- |
+| C1 | Finance — expenses, balance | E2E plus contract suite; balance reconciles to source transactions | Done |
+| C2 | Payroll — employees, runs, deductions | E2E §23.1: Manager generates a monthly run, deduction reason is captured, net pay reconciles | Done |
+| C3 | Stock — receive, count, variance, breakage | E2E §23.1: Barman receives stock; Manager completes a count and the adjustment requires permission | Done |
+| C4 | Reports — date filters and export | E2E for each report | Done |
+| C5 | Users, roles, settings | Owner-only access enforced; a Manager is refused | Done |
+| C6 | Dashboard summary | Displayed figures reconcile to the underlying transactions | Next |
+
+`ENGINEERING_HANDOFF.md` carries the per-phase list of what shipped and the verified gate counts.
 
 **Why C is not expected to slip.** The data modelling and business rules for all six domains are
 already written and tested (70 tests, including 19 domain invariants). The remaining work is

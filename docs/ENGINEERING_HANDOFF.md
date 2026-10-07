@@ -32,24 +32,14 @@ python -c "import zipfile,xml.etree.ElementTree as ET;W='{http://schemas.openxml
 - B5: sale creation and voiding are implemented and proven at HTTP/service level. The roadmap claim remains deliberately open because income was originally not browser-readable; C1 now exposes a read-only finance balance endpoint, but the B5 status should still be reviewed explicitly rather than silently changed.
 - B6: endpoint guide at `docs/ADDING_AN_ENDPOINT.md`.
 - C1: finance balance, expense categories, expense recording, approval, audit records, API client, and finance screens.
+- C2: payroll employees, monthly runs through generated→approved→paid, deductions with a reason, API client, and payroll screens.
 - C3: inventory receipts, breakage/waste, stock counts, variance approval, movement history, ledger-backed stock overview, API client, and inventory screens.
+- C4: date-filtered financial/inventory/payroll reports with CSV export; stubbed and live E2E.
+- C5: staff account administration, the read-only roles catalogue, and the system settings row. Owner-only — a Manager is refused at every endpoint and on the screen. Acceptance tests, API client, settings screen, and stubbed + live E2E.
 
 ### Next
 
-**C2 Payroll** is next in the roadmap order.
-
-The existing payroll models, services, migrations, and permissions are already present. Wire them through the same pattern used by Finance and Inventory:
-
-- monthly employee records;
-- payroll run lifecycle: generated -> approved -> paid;
-- Manager generates and reviews;
-- Owner approves;
-- existing `payroll.*` permission classes only;
-- deductions retain a reason;
-- approved/paid payroll contributes to the existing finance balance service;
-- do not invent statutory tax, overtime, absence, or deduction calculations because the client has not confirmed them.
-
-After C2, the planned order is C4 Reports, C5 Users/Settings, then C6 Dashboard. C4 and C6 should aggregate already-authoritative domain data rather than introduce parallel totals.
+**C6 Dashboard summary** is next in the roadmap order. Displayed figures must reconcile to the underlying authoritative sources (finance balance, payroll run states, stock ledger) rather than introduce parallel totals. The dashboard route shell is the placeholder left behind at `src/app/(app)/dashboard/`.
 
 ## API Surface
 
@@ -60,6 +50,11 @@ Mounted in `backend/config/api_urls.py` under `/api/v1/`:
 - `/sales/`
 - `/finance/`
 - `/inventory/`
+- `/payroll/`
+- `/reports/`
+- `/users/`
+- `/roles/`
+- `/settings/`
 
 Schema and Swagger are mounted beside the version at `/api/schema/` and `/api/docs/`.
 
@@ -91,6 +86,38 @@ Expense voiding is not an HTTP action because the existing permission catalogue 
 
 Inventory writes call the existing services in `apps.inventory.services`. The movement ledger is authoritative; never add or update a cached stock field. Product list responses now include `current_stock`, derived from the ledger.
 
+### Payroll C2
+
+- `GET /api/v1/payroll/employees/`
+- `GET/POST /api/v1/payroll/runs/`
+- `GET /api/v1/payroll/runs/{id}/`
+- `POST /api/v1/payroll/runs/{id}/generate/`
+- `POST /api/v1/payroll/runs/{id}/approve/`
+- `POST /api/v1/payroll/runs/{id}/pay/`
+
+Payroll runs flow generated→approved→paid. Deductions retain a reason. Statutory tax, overtime, absence, and deduction calculations are deliberately not invented (client decisions still open).
+
+### Reports C4
+
+- `GET /api/v1/reports/financial/?start=&end=`
+- `GET /api/v1/reports/inventory/stock-balance/?date=`
+- `GET /api/v1/reports/inventory/variance/?start=&end=`
+- `GET /api/v1/reports/payroll/?start=&end=`
+- `GET /api/v1/reports/...?export=csv`
+
+All report endpoints take the same `?start=&end=` business-date range and CSV format. Reports aggregate authoritative domain data; they never keep parallel totals.
+
+### Accounts C5
+
+- `GET /api/v1/users/?page_size=200`
+- `POST /api/v1/users/`
+- `GET/PATCH /api/v1/users/{id}/`
+- `GET /api/v1/roles/?page_size=200`
+- `GET /api/v1/settings/`
+- `PATCH /api/v1/settings/`
+
+The user create/edit paths accept a temporary password and a role code. Role codes are UPPERCASE (`OWNER`, `MANAGER`, `CASHIER`, `BARMAN`). `PATCH /settings/` is a partial update and records `updated_by`. Every endpoint here is Owner-only enforced through `accounts.manage_users` / `accounts.manage_roles` / `accounts.manage_settings` permission classes; a Manager receives a plain 403 with no side effects.
+
 ## Non-Negotiable Rules
 
 - `ROLE_MATRIX` in `backend/apps/accounts/permissions.py` is the only role-to-permission mapping. Views use `user.has_perm()` through permission classes; never branch on `user.role`.
@@ -114,21 +141,29 @@ Inventory writes call the existing services in `apps.inventory.services`. The mo
 - Permissions: `backend/apps/accounts/permissions.py`
 - Finance: `backend/apps/finance/models.py`, `services.py`, `serializers.py`, `views.py`, `urls.py`
 - Inventory: `backend/apps/inventory/models.py`, `services.py`, `serializers.py`, `views.py`, `urls.py`
+- Payroll: `backend/apps/payroll/models.py`, `services.py`, `serializers.py`, `views.py`, `urls.py`
+- Reports: `backend/apps/reports/views.py`, `services.py`
+- Accounts (roles/settings/users): `backend/apps/accounts/services.py`, `schemas.py`, `admin_views.py`, `urls.py`
 - API mounting: `backend/config/api_urls.py`
 - Contract tests: `backend/tests/api/test_contract.py`
 - C1 acceptance tests: `backend/apps/finance/tests/test_finance_api.py`
 - C3 acceptance tests: `backend/apps/inventory/tests/test_inventory_api.py`
+- C4 acceptance tests: `backend/apps/reports/tests/`
+- C5 acceptance tests: `backend/apps/accounts/tests/test_admin_api.py`
 
 ### Frontend
 
 - Shared typed client: `frontend/src/lib/api/client.ts`
 - Finance client/screens: `frontend/src/lib/api/finance.ts`, `frontend/src/features/finance/`
 - Inventory client/screens: `frontend/src/lib/api/inventory.ts`, `frontend/src/features/inventory/`
+- Payroll client/screens: `frontend/src/lib/api/payroll.ts`, `frontend/src/features/payroll/`, `frontend/src/app/(app)/payroll/`
+- Reports client/screens: `frontend/src/lib/api/reports.ts`, `frontend/src/features/reports/`, `frontend/src/app/(app)/reports/`
+- Settings client/screen: `frontend/src/lib/api/admin.ts`, `frontend/src/features/settings/settings-page.tsx`, `frontend/src/app/(app)/settings/`
 - Product list contract: `frontend/src/lib/api/products.ts` and `backend/apps/products/serializers.py`
 - Protected finance routes: `frontend/src/app/(app)/finance/`
 - Protected inventory routes: `frontend/src/app/(app)/inventory/`
 - Stubbed E2E: `frontend/tests/e2e/`
-- Live E2E: `frontend/tests/live/`
+- Live E2E: `frontend/tests/live/` — shared throttle-aware `signIn` in `frontend/tests/live/signin.ts` (repo `report > payroll > b5-sale > settings` alphabetical order, one worker)
 
 The C3 frontend form currently handles one product line at a time. Multi-line receipt/breakage/count UX is a reasonable follow-up, but it must preserve the existing service contract that validates duplicate products and all-or-nothing writes.
 
@@ -147,7 +182,7 @@ Run from `backend`:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Last verified result after C3: **915 passed**, with 45 known deprecation warnings from `drf_spectacular` on the current Python runtime. OpenAPI validation had 0 errors and 4 enum-name warnings.
+Last verified result after C5: **1203 passed** (915 after C3, +288 across C2/C4/C5), with 45 known deprecation warnings from `drf_spectacular` on the current Python runtime. OpenAPI validation had 0 errors and 5 enum-name warnings (three `status` collisions, `PaymentStatusEnum`, and `CodeEnum` — the last from the roles endpoint; all cosmetic).
 
 For the local Compose database, use the project defaults explicitly when running host tooling:
 
@@ -174,7 +209,7 @@ npm run build
 npm run test:e2e
 ```
 
-Last verified after C3: **57 Vitest tests**, **16 stubbed Playwright tests**, and **3 live Playwright tests** passed. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
+Last verified after C5: **83 Vitest tests**, **30 stubbed Playwright tests**, and **8 live Playwright tests** passed. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
 
 ```powershell
 $env:E2E_DB_NAME='barkot_e2e'
@@ -195,11 +230,11 @@ Do not casually rename the harness or seed safety strings; they are covered by t
 
 ## Safe Next Action
 
-Before writing payroll code:
+Before writing dashboard code:
 
-1. Verify `backend/apps/payroll/models.py`, `services.py`, migrations, and permission classes against the C2 rules above.
-2. Add a failing `apps/payroll/tests/test_payroll_api.py` acceptance test for Manager generation and Owner approval.
-3. Add serializers, viewsets, URLs, and API mounting using `docs/ADDING_AN_ENDPOINT.md`.
-4. Add the typed client under `frontend/src/lib/api/payroll.ts` and screens under `frontend/src/features/payroll/` and `src/app/(app)/payroll/`.
-5. Validate the separation of duties and finance balance contribution before considering C2 complete.
+1. The dashboard shell already exists at `frontend/src/app/(app)/dashboard/`; verify its current placeholder and what API client and screen conventions Finance/Inventory/Payroll established.
+2. Add a failing acceptance test for the chosen figures (e.g. finance balance + expense total, latest payroll run state + net pay, top products by revenue from sales) so the endpoint is forced to reconcile to authoritative sources.
+3. Add the viewset/serializer and mount it in `backend/config/api_urls.py` using `docs/ADDING_AN_ENDPOINT.md` — the contract suite will discover it automatically.
+4. Add the typed client under `frontend/src/lib/api/dashboard.ts` and the screen under `src/features/dashboard/` behind the route group.
+5. Prove the displayed figures reconcile to the underlying transactions before considering C6 complete.
 6. Run the full gates and commit only when the worktree contains the intended phase changes.

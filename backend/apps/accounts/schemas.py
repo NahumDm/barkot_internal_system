@@ -1,4 +1,4 @@
-"""Request and response bodies for the auth endpoints (spec §9.1).
+"""Request and response bodies for the auth and admin endpoints (spec §9.1, §9.2).
 
 Kept beside the views rather than in :mod:`apps.core.schemas`, which holds the
 envelopes every domain shares. These types describe one endpoint's own contract,
@@ -26,7 +26,7 @@ from django.contrib.auth import password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from apps.accounts.models import User
+from apps.accounts.models import Role, SiteSetting, User
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -70,6 +70,199 @@ class UserSerializer(serializers.ModelSerializer):
             Sorted codenames from the role matrix plus any direct or group grants.
         """
         return sorted(instance.get_all_permissions())
+
+
+class StaffUserSerializer(serializers.ModelSerializer):
+    """One staff account, as the Owner's admin screen sees it (roadmap C5).
+
+    Read-only in this shape: creation and update take their own request
+    bodies below, and this type is what every admin read returns.
+    """
+
+    display_name = serializers.CharField(read_only=True)
+    role = serializers.CharField(source="role.code", read_only=True)
+    role_name = serializers.CharField(source="role.name", read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "display_name",
+            "role",
+            "role_name",
+            "email",
+            "phone_number",
+            "is_active",
+            "is_staff",
+            "is_temporary_password",
+            "last_login",
+        ]
+        read_only_fields = fields
+
+
+class StaffUserCreateSerializer(serializers.Serializer):
+    """Body of ``POST /users/``.
+
+    ``role`` is addressed by its stable ``code``, not by id: the code survives
+    reseeding and is what the Owner sees in the UI. ``password`` is optional
+    because a new hire can be onboarded locked and given a password later.
+    """
+
+    username = serializers.CharField(
+        max_length=150,
+        trim_whitespace=True,
+        help_text="Login name. Unique and permanent.",
+    )
+    role = serializers.SlugRelatedField(
+        queryset=Role.objects.all(),
+        slug_field="code",
+        help_text="Business role code (spec §9.2).",
+    )
+    email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional; Barkot signs staff in by username.",
+    )
+    phone_number = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=32,
+        help_text="Optional contact number.",
+    )
+    password = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        trim_whitespace=False,
+        style={"input_type": "password"},
+        write_only=True,
+        help_text=(
+            "Optional initial password. Omit it to create a locked account "
+            "that cannot be used until the Owner sets a password."
+        ),
+    )
+
+    def validate_username(self, value: str) -> str:
+        """Refuse a login name that mirrors an existing account.
+
+        Args:
+            value: The submitted username.
+
+        Returns:
+            The username, when it is free.
+
+        Raises:
+            serializers.ValidationError: If the name is already taken.
+        """
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("That login name is already in use.")
+        return value
+
+
+class StaffUserUpdateSerializer(serializers.Serializer):
+    """Body of ``PATCH /users/{id}/`` (roadmap C5).
+
+    Partial by design: only the supplied fields change. The Owner may change
+    any staff member's role, contact details and active flag, except their own
+    role and active flag - the service refuses those so an Owner cannot lock
+    the last administrator out.
+    """
+
+    role = serializers.SlugRelatedField(
+        queryset=Role.objects.all(),
+        slug_field="code",
+        required=False,
+        help_text="Replacement business role code.",
+    )
+    email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+        help_text="Replacement address, or empty to clear it.",
+    )
+    phone_number = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=32,
+        help_text="Replacement number, or empty to clear it.",
+    )
+    is_active = serializers.BooleanField(
+        required=False,
+        help_text=(
+            "False deactivates the account; true re-activates it. You cannot "
+            "change your own active flag."
+        ),
+    )
+
+
+class RoleSerializer(serializers.ModelSerializer):
+    """One business role from the fixed catalogue (roadmap C5, spec §9.2).
+
+    ``permissions`` lists the resolved ``app_label.codename`` grants so the
+    Owner can see in one place what a role can do, without a client having to
+    join the role matrix itself.
+    """
+
+    permissions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Role
+        fields = ["code", "name", "description", "is_staff_role", "permissions"]
+        read_only_fields = fields
+
+    def get_permissions(self, instance: Role) -> list[str]:
+        """Return the role's granted permission codenames, sorted.
+
+        Args:
+            instance: The role being serialised.
+
+        Returns:
+            Sorted ``app_label.codename`` strings.
+        """
+        return sorted(
+            f"{p.content_type.app_label}.{p.codename}" for p in instance.permissions_granted.all()
+        )
+
+
+class SiteSettingsSerializer(serializers.ModelSerializer):
+    """The singleton system settings row (roadmap C5, spec §20.2).
+
+    ``updated_at``/``updated_by`` are read-only provenance: the Owner screen
+    shows who last changed the settings, but cannot set them through this body.
+    """
+
+    updated_by = serializers.SerializerMethodField()
+    session_timeout_minutes = serializers.IntegerField(
+        min_value=1,
+        help_text="Idle minutes before a staff session must sign in again.",
+    )
+    password_max_age_days = serializers.IntegerField(
+        min_value=0,
+        help_text="0 means passwords do not expire by age.",
+    )
+
+    class Meta:
+        model = SiteSetting
+        fields = [
+            "session_timeout_minutes",
+            "password_max_age_days",
+            "require_password_change_for_new_users",
+            "updated_at",
+            "updated_by",
+        ]
+        read_only_fields = ["updated_at", "updated_by"]
+
+    def get_updated_by(self, instance: SiteSetting) -> str | None:
+        """Return the username who last changed the settings, if any.
+
+        Args:
+            instance: The settings row.
+
+        Returns:
+            The username, or None if the row has never been touched.
+        """
+        if instance.updated_by is None:
+            return None
+        return instance.updated_by.username
 
 
 class LoginRequestSerializer(serializers.Serializer):

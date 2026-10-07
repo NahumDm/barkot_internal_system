@@ -227,13 +227,20 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.BarkotPagination",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.core.exceptions.exception_handler",
-    # 5/m is the A5 gate - "6th attempt from one IP returns 429" - expressed in the
-    # same per-minute shape nginx.conf uses for its own zones. Nothing is listed in
-    # DEFAULT_THROTTLE_CLASSES on purpose: this is the rate an endpoint gets if it
-    # asks for one, and nothing asks automatically. Login opts in explicitly
-    # (apps.accounts.views.LoginView), so a new endpoint cannot acquire a limit by
-    # being added to a list nobody read.
-    "DEFAULT_THROTTLE_RATES": {"login": "5/m"},
+    # Two scopes (spec 9.3, A5 + D0). `login` (5/m) is the A5 gate - "6th attempt
+    # from one IP returns 429" - and only LoginView asks for it. `write` (60/m) is
+    # D0: every unsafe method on every endpoint, one budget per client address.
+    # The rates use the same per-minute shape nginx.conf uses for its own zones;
+    # apps.core.throttling explains why 60 matches the edge's api zone.
+    #
+    # DEFAULT_THROTTLE_CLASSES is what makes D0 hold for endpoints that do not
+    # exist yet: a new view inherits the write limit the way it already inherits
+    # IsAuthenticated, rather than depending on whoever writes it remembering.
+    # A view that must be exempt has to override throttle_classes deliberately -
+    # the only one today is LoginView, whose 5/m scope is stricter than this
+    # default and replaces it rather than stacking with it.
+    "DEFAULT_THROTTLE_RATES": {"login": "5/m", "write": "60/m"},
+    "DEFAULT_THROTTLE_CLASSES": ("apps.core.throttling.WriteRateThrottle",),
     # The version is in the path, so DRF only has to agree which paths count as
     # versioned. NamespaceVersioning reads the `namespace` given by the URLconf,
     # which means /api/v2/ cannot quietly resolve against v1 views: it 404s until

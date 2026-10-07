@@ -136,12 +136,13 @@ class LoginView(APIView):
 
     permission_classes = [AllowAny]
 
-    #: Five attempts a minute per client address (spec 9.3, A5). Declared here
-    #: rather than in ``DEFAULT_THROTTLE_CLASSES`` so a limit is something a view
-    #: opts into on purpose: login is the only endpoint an unauthenticated caller
-    #: can reach, and future endpoints should not silently inherit a rate nobody
-    #: chose. See :mod:`apps.core.throttling` for why the counter is in the
-    #: database and why the proxy header is not trusted by default.
+    #: Five attempts a minute per client address (spec 9.3, A5). This override
+    #: *replaces* the global write limit rather than adding to it: 5/m is
+    #: stricter than the 60/m every unsafe request gets by default, and running
+    #: both would spend the write budget on sign-in traffic that has nothing to
+    #: do with the business API. See :mod:`apps.core.throttling` for why the
+    #: counter is in the database and why the proxy header is not trusted by
+    #: default.
     throttle_classes = [LoginRateThrottle]
 
     @extend_schema(

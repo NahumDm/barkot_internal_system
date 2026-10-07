@@ -145,8 +145,16 @@ def test_multiple_field_errors_are_all_reported_at_once() -> None:
     assert set(response.data["error"]["details"]) == {"amount", "method"}
 
 
+@pytest.mark.django_db
 def test_malformed_json_is_a_parse_error_not_a_validation_error() -> None:
-    """A body truncated by a flaky connection is not the caller's mistake."""
+    """A body truncated by a flaky connection is not the caller's mistake.
+
+    Marked ``django_db`` because this is the module's only POST: D0 gives every
+    unsafe request the write throttle (this view is ``AllowAny``, so permission
+    passes and the throttle runs), and the throttle cache is the database.
+    Without the mark the request dies in the cache rather than at the parser,
+    which would be a false failure.
+    """
     response = _call(_fail_with(ParseError("JSON parse error")), method="post")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST

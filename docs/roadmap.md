@@ -32,14 +32,14 @@ spec must not be read as "Phases 1–4 still ahead".
 
 ## Where the project actually stands
 
-Measured, not assumed (last verified after C6):
+Measured, not assumed (last verified after D0):
 
 | Layer | State |
 | --- | --- |
 | Domain models | 9 apps with models, 11 migrations applied |
 | Service/use-case layer | 8 apps with services (accounts, dashboard, finance, inventory, payroll, products, reports, sales) |
-| Tests | 1221 backend passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, idempotency keys and receipt allocation under real thread contention, plus per-domain acceptance tests |
-| Static analysis | mypy clean over 178 files, ruff clean |
+| Tests | 1244 backend passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, rate-limit configuration and the write-throttle load test, idempotency keys and receipt allocation under real thread contention, plus per-domain acceptance tests |
+| Static analysis | mypy clean over 179 files, ruff clean |
 | **API endpoints** | **Phases A–C complete: auth, products, sales, finance, inventory, payroll, reports, users/roles/settings and the dashboard, behind an OpenAPI schema that validates with 0 errors** |
 | **Frontend** | **Typed client and protected route group with a screen per domain through C6; 83 Vitest, 34 stubbed and 10 live Playwright tests green** |
 | `reports` app | C4 — financial, inventory and payroll reports with CSV export |
@@ -393,7 +393,7 @@ application of a pattern proven in B4, not new design. The two failure modes tha
 
 | # | Task | Gate that proves it |
 | --- | --- | --- |
-| D0 | Rate limiting on all sensitive endpoints (§9.3) | Load test exceeds the configured limit and receives 429 |
+| ~~D0~~ | Rate limiting on all state-changing endpoints (spec §9.3): every unsafe method on every endpoint, 60 a minute per client address, installed as DRF's `DEFAULT_THROTTLE_CLASSES` so a new endpoint cannot be exempt by omission. Reads are never throttled; login keeps its stricter 5/m | Load test exceeds the configured limit and receives 429 |
 | D1 | Audit coverage: every state-changing endpoint writes `AuditLog` (P06) | A test per endpoint asserts the audit row |
 | D2 | Full E2E suite covering all five §23.1 scenarios | Suite green in CI |
 | D3 | Automated backups | **A restore drill**: restore into a scratch database and reconcile |

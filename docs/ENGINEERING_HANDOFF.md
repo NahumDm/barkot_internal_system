@@ -1,9 +1,9 @@
 # Barkot Engineering Handoff
 
-**Generated:** 2026-10-05, maintained through C6 on 2026-10-07  
+**Generated:** 2026-10-05, maintained through D0 on 2026-10-07  
 **Repository:** `C:\dev\barkot_internal_system`  
 **Branch:** `main`  
-**HEAD:** `5288a65 feat(frontend+backend): C5 - Users, roles and settings` (C6 commit follows)  
+**HEAD:** `afb28e2 feat(frontend+backend): C6 - Dashboard summary` (D0 commit follows)  
 **Remote:** `main` tracks `origin/main`; push after every verified commit.
 
 This document is a continuation map for an engineering model. It is not a substitute for reading the source. The code and normative specifications win over this document if they disagree.
@@ -37,10 +37,11 @@ python -c "import zipfile,xml.etree.ElementTree as ET;W='{http://schemas.openxml
 - C4: date-filtered financial/inventory/payroll reports with CSV export; stubbed and live E2E.
 - C5: staff account administration, the read-only roles catalogue, and the system settings row. Owner-only — a Manager is refused at every endpoint and on the screen. Acceptance tests, API client, settings screen, and stubbed + live E2E.
 - C6: role-scoped dashboard summary. One read-only `GET /dashboard/` whose tiles delegate to the services that own them (balance, stock balance, sales totals, latest run), each `null` when the role lacks the grant. Acceptance tests, API client, dashboard screen, and stubbed + live E2E. **Phase C is complete.**
+- D0: rate limiting on all state-changing endpoints (spec §9.3). Every POST/PUT/PATCH/DELETE on every endpoint, 60 a minute per client address, installed as DRF's `DEFAULT_THROTTLE_CLASSES` so a new endpoint cannot be exempt by omission; reads are never throttled and login keeps its stricter 5/m. Configuration assertions, reads-don't-spend, per-address isolation, login/write budget separation, window reset, and the load test that expects 429.
 
 ### Next
 
-**Phase D — Hardening and production readiness** is next in the roadmap order (`docs/roadmap.md` carries the D0-D6 table). Start with D0: rate limiting on all sensitive endpoints (§9.3), proven by a load test that exceeds the configured limit and receives 429. Note that A5 already throttles login; the live E2E suite is sized against that budget (see Verified Gates).
+**D1 — Audit coverage** is next in the roadmap order (`docs/roadmap.md` carries the D1-D6 table): every state-changing endpoint writes an `AuditLog` row (P06), proven by a test per endpoint. Services already call `AuditLog.record()`; the gap is endpoint-level proof. D0 is done — see the rule in Non-Negotiable Rules and the budgets in Verified Gates.
 
 ## API Surface
 
@@ -132,6 +133,7 @@ Sections are gated on `finance.view_reports`, `payroll.view_payroll`, `sales.vie
 
 - `ROLE_MATRIX` in `backend/apps/accounts/permissions.py` is the only role-to-permission mapping. Views use `user.has_perm()` through permission classes; never branch on `user.role`.
 - Every endpoint is private by default, session-authenticated, JSON-only, versioned, and uses `BarkotPagination` for list responses. The automatic contract suite discovers mounted endpoints.
+- Every state-changing request (POST/PUT/PATCH/DELETE) is throttled at 60 a minute per client address through DRF's `DEFAULT_THROTTLE_CLASSES`; reads are never throttled. `LoginView` is the only override (5/m, stricter, replaces rather than stacks). Do not set `throttle_classes` on a view without the reason written down. See `backend/apps/core/throttling.py`.
 - Expected domain failures raise `BARKOTDomainError` subclasses. The API envelope is `{"error": {"code", "message", "details"?}}`.
 - Money is Decimal/NUMERIC and explicitly ETB. Never use floats.
 - State-changing services validate first, run atomically, write all linked domain/ledger records, audit the event, then return.
@@ -195,7 +197,7 @@ Run from `backend`:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Last verified result after C6: **1221 passed** (915 after C3, +306 across C2/C4/C5/C6), with 45 known deprecation warnings from `drf_spectacular` on the current Python runtime. OpenAPI validation had 0 errors and 5 enum-name warnings (three `status` collisions, `PaymentStatusEnum`, and `CodeEnum` — the last from the roles endpoint; all cosmetic).
+Last verified result after D0: **1244 passed** (915 after C3, +329 across C2/C4/C5/C6/D0), with 45 known deprecation warnings from `drf_spectacular` on the current Python runtime. OpenAPI validation had 0 errors and 5 enum-name warnings (three `status` collisions, `PaymentStatusEnum`, and `CodeEnum` — the last from the roles endpoint; all cosmetic).
 
 For the local Compose database, use the project defaults explicitly when running host tooling:
 
@@ -222,7 +224,7 @@ npm run build
 npm run test:e2e
 ```
 
-Last verified after C6: **83 Vitest tests**, **34 stubbed Playwright tests**, and **10 live Playwright tests** passed. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
+Last verified: **83 Vitest tests** (after C6), and **34 stubbed Playwright tests** plus **10 live Playwright tests** re-run green after D0. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
 
 ```powershell
 $env:E2E_DB_NAME='barkot_e2e'
@@ -233,6 +235,8 @@ npm run test:e2e:live
 
 **The live suite now makes ten sign-ins in one run, and A5 allows five a minute per address.** Every live spec must sign in through `frontend/tests/live/signin.ts`, which waits the window out and retries; a spec with its own non-retrying copy fails on the first 429 (payroll's did exactly that when C6 added two more logins). Do not add a sign-in path that is not the shared helper.
 
+**D0 added a second budget: 60 state-changing requests a minute per client address (reads are free).** The live suite runs far below it today; if a future spec loops mutations, count them the way sign-ins are counted before raising a spec's intensity.
+
 Do not casually rename the harness or seed safety strings; they are covered by tests and may reflect CI naming. Treat the local override and the committed CI configuration as separate concerns.
 
 ## Known Gaps and Decisions
@@ -242,14 +246,15 @@ Do not casually rename the harness or seed safety strings; they are covered by t
 - The frontend has some existing non-blocking lint warnings in older product/sales files when running full lint without `--quiet`; do not mix them up with new errors.
 - Open client decisions remain: physical count frequency/closing time, payroll additions/overtime/absence, deduction/statutory calculations, fiscal/e-invoicing, domain availability, VPS, and payment method.
 - The repository and product are named `barkot`; some older internal strings and live E2E defaults say `barket`. Verify before changing any such string because some are intentional test guards and some are stale naming.
+- `infrastructure/nginx/nginx.conf` declares `zone=login` (10r/m) but no location applies it, so the enforced login limit is Django's 5/m through the app; the edge `api` zone (60r/m, burst 20) is applied at `location /api/v1/`. Wire or drop the unused zone when the edge config is first validated against a running stack (D6); it was deliberately left alone in D0 because nginx cannot be validated locally.
 
 ## Safe Next Action
 
-Before starting Phase D:
+Before starting D1:
 
-1. Phases A–C are complete; do not open another domain task. Read the D0-D6 table in `docs/roadmap.md`.
-2. D0 first: inventory what rate limiting already exists (A5 throttles login only), then extend §9.3 to the sensitive endpoints and prove it with a load test that expects 429.
-3. D1 follows naturally: assert a per-endpoint `AuditLog` row for every state-changing endpoint. Services already call `AuditLog.record()`; the gap is endpoint-level proof.
+1. Phases A–C and D0 are complete; do not open another domain task. Read the D1-D6 table in `docs/roadmap.md`.
+2. D1 first: inventory which services already call `AuditLog.record()`, then prove per-endpoint coverage with a test per state-changing endpoint. Reuse the contract suite's endpoint discovery (`backend/tests/api/contract.py`) so future endpoints are covered automatically — the access sweep already does this for permissions.
+3. D2 follows: the full E2E suite covering all five §23.1 scenarios.
 4. Keep the contract suite green when touching the API surface — it discovers mounted endpoints automatically.
 5. Run the full gate set in `## Verified Gates` before every commit; counts above are the last verified baseline.
 6. Commit only when the worktree contains the intended phase changes, and push after the commit.

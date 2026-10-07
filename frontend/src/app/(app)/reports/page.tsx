@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import ReportsPage from "@/features/reports/reports-page";
 
-export default function ReportsPage() {
-  return <PagePlaceholder title="Reports" />;
+export default function ReportsPageRoute() {
+  return <ReportsPage />;
 }

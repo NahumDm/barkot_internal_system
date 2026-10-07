@@ -12,3 +12,4 @@ export * from "./auth";
 export * from "./finance";
 export * from "./inventory";
 export * from "./payroll";
+export * from "./reports";

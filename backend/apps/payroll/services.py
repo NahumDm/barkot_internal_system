@@ -36,6 +36,7 @@ from apps.core.exceptions import (
 )
 from apps.core.money import ZERO_MONEY, quantize_money
 from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, PayrollRun
+from apps.users.models import EmployeeProfile
 
 
 def _first_of_month(day: date) -> date:
@@ -176,6 +177,16 @@ def add_deduction(
     payroll_item.total_deductions = new_total
     payroll_item.save(update_fields=["total_deductions", "net_amount", "updated_at", "updated_by"])
 
+    AuditLog.record(
+        action=AuditLog.Action.CREATE,
+        object_type="payroll.PayrollDeduction",
+        object_id=deduction.pk,
+        actor=actor,
+        summary=(
+            f"Deducted {deduction.amount} {deduction.deduction_type} from "
+            f"{payroll_item.employee.full_name}"
+        ),
+    )
     return deduction
 
 
@@ -215,6 +226,47 @@ def mark_payroll_run_paid(*, run: PayrollRun, actor: Any | None = None) -> Payro
     return run
 
 
+@transaction.atomic
+def add_employee(
+    *,
+    profile: EmployeeProfile,
+    monthly_wage: Decimal,
+    actor: Any | None = None,
+) -> Employee:
+    """Put an existing staff profile onto payroll (roadmap D1).
+
+    The create half of ``POST /payroll/employees/`` moved here from the view
+    so the write follows the rule every other payroll write follows: the
+    service validates, saves and audits in one transaction, and the view only
+    translates HTTP. ``Employee.from_profile`` is the documented constructor
+    that sets the one-to-one link and initial status together.
+
+    Args:
+        profile: The staff profile to add.
+        monthly_wage: Gross monthly wage. Zero is allowed and must be fixed in
+            a later decision (spec §30 item 5), not guessed here.
+        actor: The staff member adding it (permission
+            ``payroll.manage_payroll_employees``).
+
+    Returns:
+        The created :class:`Employee`.
+
+    Raises:
+        IntegrityError: If the profile already has a payroll row; the
+            serializer refuses that case before the service runs.
+    """
+    employee = Employee.from_profile(profile, monthly_wage=monthly_wage)
+
+    AuditLog.record(
+        action=AuditLog.Action.CREATE,
+        object_type="payroll.Employee",
+        object_id=employee.pk,
+        actor=actor,
+        summary=f"Added {employee.full_name} to payroll at {monthly_wage}/month",
+    )
+    return employee
+
+
 def latest_run_period() -> date | None:
     """Return the most recent run's month, or ``None`` if there are none.
 
@@ -227,6 +279,7 @@ def latest_run_period() -> date | None:
 __all__ = [
     "PayrollDeductionType",
     "add_deduction",
+    "add_employee",
     "approve_payroll_run",
     "generate_payroll_run",
     "latest_run_period",

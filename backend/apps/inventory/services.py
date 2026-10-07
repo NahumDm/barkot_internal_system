@@ -326,6 +326,14 @@ def open_stock_count(
             counted_quantity=Decimal("0.000"),
             variance=Decimal("0.000"),
         )
+
+    AuditLog.record(
+        action=AuditLog.Action.CREATE,
+        object_type="inventory.StockCount",
+        object_id=count.pk,
+        actor=actor,
+        summary=f"Opened stock count covering {len(lines)} product(s)",
+    )
     return count
 
 

@@ -61,7 +61,21 @@ from apps.sales.services import void_sale as svc_void_sale
     ),
 )
 class SaleViewSet(viewsets.ModelViewSet):
-    """CRUD for sales (list, retrieve, create, void)."""
+    """CRUD for sales (list, retrieve, create, void).
+
+    ``http_method_names`` strips the update and destroy handlers a
+    ``ModelViewSet`` would otherwise inherit: financial records are voided or
+    reversed, never edited or deleted (spec §13.1, P03), so the only write
+    verbs this resource answers are create and void. Left in place, ``DELETE``
+    reached ``Sale.delete()`` and died on the protected item/payment rows with
+    a 500, while ``PUT``/``PATCH`` returned a 200 that changed nothing - a
+    misleading success sitting on top of an accidental endpoint. Roadmap D1
+    removed the surface rather than auditing an operation the spec forbids;
+    :func:`apps.sales.tests.test_sale_vertical.test_records_are_neither_editable_nor_deletable`
+    pins the 405.
+    """
+
+    http_method_names = ["get", "post", "head", "options"]
 
     queryset = Sale.objects.prefetch_related("items__product", "payments").order_by(
         "-sold_at", "-id"

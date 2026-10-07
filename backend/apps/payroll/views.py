@@ -57,6 +57,7 @@ from apps.payroll.serializers import (
 )
 from apps.payroll.services import (
     add_deduction,
+    add_employee,
     approve_payroll_run,
     generate_payroll_run,
     mark_payroll_run_paid,
@@ -102,11 +103,13 @@ class PayrollEmployeeViewSet(
     def create(self, request: Request, *args, **kwargs) -> Response:
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # ``from_profile`` is the documented way to build this pair, so the
-        # one-to-one link and the initial status are always set together.
-        employee = Employee.from_profile(
-            serializer.validated_data["profile"],
+        # ``add_employee`` is the documented way to build this pair, so the
+        # one-to-one link, the initial status and the audit entry are always
+        # set together (roadmap D1).
+        employee = add_employee(
+            profile=serializer.validated_data["profile"],
             monthly_wage=serializer.validated_data["monthly_wage"],
+            actor=request.user,
         )
         return Response(
             PayrollEmployeeSerializer(employee).data,

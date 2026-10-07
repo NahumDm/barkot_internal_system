@@ -356,3 +356,46 @@ def test_a_sale_is_listed_with_its_total_for_a_cashier(
     assert row["payment_status"] == PaymentStatus.PAID
     assert row["payment_status_display"]
     assert Decimal(row["total"]) == EXPECTED_TOTAL
+
+
+# --------------------------------------- D1: the record is fixed once recorded
+
+
+def test_records_are_neither_editable_nor_deletable(
+    client: Client, staff_login: Callable[..., Any], stocked: Product
+) -> None:
+    """PUT, PATCH and DELETE are refused outright on a sale.
+
+    Roadmap D1 found the inherited ``ModelViewSet`` handlers answering with a
+    silent 200 that changed nothing (PUT/PATCH) or a 500 on the protected item
+    rows (DELETE): misleading success on top of endpoints the spec does not
+    have, because financial records are voided, never edited. The
+    ``http_method_names`` list on the viewset removes the handlers, so the
+    answer is a plain 405 and the record is untouched.
+
+    Args:
+        client: The Django test client.
+        staff_login: Fixture signing the client in as a given role.
+        stocked: A priced product with ``STOCKED`` units received.
+    """
+    staff_login(client, Role.Code.MANAGER)
+    assert post_sale(client, stocked).status_code == 201
+    sale = Sale.objects.get()
+    before = (sale.total, sale.status)
+
+    put = client.put(
+        f"{SALES_URL}{sale.pk}/",
+        data={"total": "0.01"},
+        content_type="application/json",
+    )
+    patch = client.patch(
+        f"{SALES_URL}{sale.pk}/",
+        data={"status": "VOID"},
+        content_type="application/json",
+    )
+    delete = client.delete(f"{SALES_URL}{sale.pk}/")
+
+    assert (put.status_code, patch.status_code, delete.status_code) == (405, 405, 405)
+    sale.refresh_from_db()
+    assert (sale.total, sale.status) == before
+    assert Sale.objects.count() == 1

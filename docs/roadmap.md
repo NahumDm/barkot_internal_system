@@ -394,7 +394,7 @@ application of a pattern proven in B4, not new design. The two failure modes tha
 | # | Task | Gate that proves it |
 | --- | --- | --- |
 | ~~D0~~ | Rate limiting on all state-changing endpoints (spec §9.3): every unsafe method on every endpoint, 60 a minute per client address, installed as DRF's `DEFAULT_THROTTLE_CLASSES` so a new endpoint cannot be exempt by omission. Reads are never throttled; login keeps its stricter 5/m | Load test exceeds the configured limit and receives 429 |
-| D1 | Audit coverage: every state-changing endpoint writes `AuditLog` (P06) | A test per endpoint asserts the audit row |
+| ~~D1~~ | Audit coverage: every state-changing endpoint writes `AuditLog` (P06). A completeness test enumerates the discovered unsafe surface and fails if a method/path has no scenario; each of the 31 scenarios then posts through the real view and asserts exactly one new row with the right action, object type, actor, object id and summary. Writing it found three silent gaps - product and category `perform_create` and `set_price` all logged `actor=None` - and confirmed sales mutations are unreachable rather than unlogged: `http_method_names` removes them from DRF's router, so the audit surface and the discovered surface cannot drift apart | A test per endpoint asserts the audit row |
 | D2 | Full E2E suite covering all five §23.1 scenarios | Suite green in CI |
 | D3 | Automated backups | **A restore drill**: restore into a scratch database and reconcile |
 | D4 | Production runbook | A second person can deploy and roll back from the document alone |

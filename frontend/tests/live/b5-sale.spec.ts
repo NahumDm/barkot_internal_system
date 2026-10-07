@@ -31,7 +31,8 @@
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { readSeedSummary, type SeededUser } from "./environment";
+import { readSeedSummary } from "./environment";
+import { signIn } from "./signin";
 
 const seed = readSeedSummary();
 
@@ -45,16 +46,6 @@ const TOTAL = (Number(seed.product.unit_price) * QUANTITY).toFixed(2);
 
 /** What Django says when a role may not do something. */
 const REFUSED = "You do not have permission to do that.";
-
-/** Sign in through the real form and wait for the guard to admit us. */
-async function signIn(page: Page, user: SeededUser): Promise<void> {
-  await page.goto("/login");
-  await page.getByLabel("Username").fill(user.username);
-  await page.getByLabel("Password").fill(user.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-}
 
 /**
  * The product select on the new-sale screen.
@@ -114,6 +105,10 @@ test("a wrong password is refused by Django itself", async ({ page }) => {
 });
 
 test("a Cashier records a sale: real session, stock down once, void refused", async ({ page }) => {
+  // The sign-in may have to sit out the tail of the A5 login window, which can
+  // cost a full minute per retry - see the shared helper's contract.
+  test.setTimeout(240_000);
+
   await signIn(page, seed.cashier);
   expect(await readStock(page)).toBe(ON_SHELF);
 
@@ -172,6 +167,10 @@ test("a Cashier records a sale: real session, stock down once, void refused", as
 });
 
 test("a Manager voids the sale and the stock comes back", async ({ page }) => {
+  // Same A5 window as the test above: this run shares one client address with
+  // the rest of the live suite, so the sign-in must be able to wait it out.
+  test.setTimeout(240_000);
+
   await signIn(page, seed.manager);
   await page.goto("/sales");
 

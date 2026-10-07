@@ -85,6 +85,12 @@ export default defineConfig({
   testMatch: "**/*.spec.{ts,tsx}",
   globalSetup: "./tests/live/global-setup.ts",
   fullyParallel: true,
+  // One worker whenever Django is part of the run, so the live files execute in
+  // discovery order (alphabetical: b5-sale, dashboard, payroll, reports,
+  // settings) and each spec sees what the previous one left behind. The stubbed
+  // invocation does not select the live project and keeps the parallel default -
+  // it intercepts its own requests and shares no state worth serializing.
+  workers: liveProjectSelected() ? 1 : undefined,
   reporter: "list",
   use: {
     baseURL: FRONTEND_ORIGIN,
@@ -105,8 +111,12 @@ export default defineConfig({
       testMatch: "**/live/**/*.spec.ts",
       // The live specs share one database, so they take it in turn rather than
       // all at once. Within the project, `mode: "serial"` in the spec keeps one
-      // story in order; this stops two workers from picking up different files
-      // of the same project simultaneously.
+      // story in order; `workers: 1` below is what keeps the files in order -
+      // `fullyParallel: false` only stops tests *within* a file from spreading
+      // across workers, while separate files are still distributed in parallel.
+      // The stories depend on each other's leftovers (reports reads the run
+      // payroll approved, and counts the sale b5 voided), so that parallelism
+      // was a race the docstrings already assumed could not happen.
       fullyParallel: false,
       use: { ...devices["Desktop Chrome"] },
       // Fifteen seconds for assertions, where the default is five.

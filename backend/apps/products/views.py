@@ -44,8 +44,11 @@ from apps.products.serializers import (
 from apps.products.services import (
     create_category,
     create_product,
+    delete_category,
     retire_product,
     set_product_price,
+    update_category,
+    update_product,
 )
 
 
@@ -110,17 +113,14 @@ class CategoryViewSet(viewsets.ModelViewSet):
             description=serializer.validated_data.get("description", ""),
             display_order=serializer.validated_data.get("display_order", 0),
             is_active=serializer.validated_data.get("is_active", True),
+            actor=self.request.user,  # type: ignore[arg-type]
         )
 
     def perform_update(self, serializer):
-        category = self.get_object()
-        for field, value in serializer.validated_data.items():
-            setattr(category, field, value)
-        category.save(
-            update_fields=[
-                *serializer.validated_data.keys(),
-                "updated_at",
-            ]
+        update_category(
+            category=self.get_object(),
+            actor=self.request.user,  # type: ignore[arg-type]
+            **serializer.validated_data,
         )
 
     def destroy(self, request, *args, **kwargs):
@@ -135,7 +135,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return super().destroy(request, *args, **kwargs)
+        delete_category(category=category, actor=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema_view(
@@ -243,17 +244,14 @@ class ProductViewSet(viewsets.ModelViewSet):
             unit=serializer.validated_data.get("unit", "bottle"),
             is_stock_tracked=serializer.validated_data.get("is_stock_tracked", True),
             description=serializer.validated_data.get("description", ""),
+            actor=self.request.user,  # type: ignore[arg-type]
         )
 
     def perform_update(self, serializer):
-        product = self.get_object()
-        for field, value in serializer.validated_data.items():
-            setattr(product, field, value)
-        product.save(
-            update_fields=[
-                *serializer.validated_data.keys(),
-                "updated_at",
-            ]
+        update_product(
+            product=self.get_object(),
+            actor=self.request.user,  # type: ignore[arg-type]
+            **serializer.validated_data,
         )
 
     def destroy(self, request, *args, **kwargs):
@@ -294,6 +292,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             unit_price=serializer.validated_data["unit_price"],
             currency=serializer.validated_data["currency"],
             effective_from=serializer.validated_data.get("effective_from"),
+            actor=request.user,  # type: ignore[arg-type]
         )
         return Response(ProductPriceSerializer(price).data, status=status.HTTP_201_CREATED)
 

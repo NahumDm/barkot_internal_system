@@ -13,7 +13,7 @@ class RestoreDrillTest(TestCase):
         # This test documents the drill procedure and verifies
         # the core tables are accessible for reconciliation
 
-        with connections['default'].cursor() as cursor:
+        with connections["default"].cursor() as cursor:
             # Check core tables exist and have data
             cursor.execute("""
                 SELECT COUNT(*) FROM information_schema.tables

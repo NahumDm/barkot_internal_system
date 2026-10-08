@@ -162,6 +162,48 @@ class TestProductionHardeningIsStillApplied:
         assert frame == "DENY"
 
 
+PROXY_HEADER_PROBE = (
+    "import django; django.setup(); "
+    "from django.conf import settings; print(settings.SECURE_PROXY_SSL_HEADER)"
+)
+
+
+class TestProxySslHeaderIsTrustedOnlyWhenProxyIsTrusted:
+    """Nginx terminates TLS and forwards the original scheme.
+
+    Django only learns that a proxied request was already https from
+    ``X-Forwarded-Proto``, and only honours it when ``SECURE_PROXY_SSL_HEADER``
+    is configured. Without it, a production stack with ``SECURE_SSL_REDIRECT``
+    on (the compose default) answers every proxied request with an endless
+    https redirect. The header must be wired only for the same ``TRUSTED_PROXY``
+    switch that gates the throttle's client address, so a bare gunicorn that
+    never set the header cannot be persuaded it was secure by one written by
+    the caller.
+    """
+
+    def _proxy_header_of(self, axis: str) -> str:
+        return subprocess.run(
+            [sys.executable, "-c", PROXY_HEADER_PROBE],
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "PYTHONPATH": str(BACKEND_DIR),
+                "DJANGO_SETTINGS_MODULE": "config.settings.prod",
+                "DJANGO_SECRET_KEY": get_random_secret_key(),
+                "DJANGO_TRUSTED_PROXY": axis,
+            },
+            cwd=str(BACKEND_DIR),
+            check=False,
+        ).stdout.strip()
+
+    def test_trusted_proxy_trusts_the_forwarded_proto(self) -> None:
+        assert self._proxy_header_of("true") == "('HTTP_X_FORWARDED_PROTO', 'https')"
+
+    def test_untrusted_proxy_ignores_the_forwarded_proto(self) -> None:
+        assert self._proxy_header_of("false") == "None"
+
+
 DEBUG_PROBE = (
     "import django; django.setup(); from django.conf import settings; print(settings.DEBUG)"
 )

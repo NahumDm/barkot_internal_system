@@ -1,445 +1,541 @@
 # Barkot Bar & Restaurant — Business Operations System
 
-Internal operations and control system for Barkot Bar & Restaurant, covering sales, inventory, finance/balance and monthly payroll.
+**Barkot** is the internal operations and control system for Barkot Bar & Restaurant (Addis Ababa).
+It runs the four business flows that keep the bar accountable day to day: **point of sale (sales)**,
+**inventory (stock control)**, **finance (balance and expenses)**, and **monthly payroll** — all behind
+role-based access for the four positions that use it: **Owner, Manager, Cashier, and Barman**.
 
-Primary users: Owner, Manager, Cashier, Barman. Currency: ETB. Business timezone: Africa/Addis_Ababa.
+Currency: **ETB** (Ethiopian Birr). Business timezone: **Africa/Addis_Ababa**. Times are stored in UTC.
+
+---
+
+## Table of contents
+
+1. [Status](#status)
+2. [Architecture](#architecture)
+3. [Authentication and authorization](#authentication-and-authorization)
+4. [Security](#security)
+5. [Domain and database design](#domain-and-database-design)
+6. [API design](#api-design)
+7. [Testing and CI](#testing-and-ci)
+8. [Deployment and operations](#deployment-and-operations)
+9. [Observability](#observability)
+10. [Engineering notes and major decisions](#engineering-notes-and-major-decisions)
+11. [Documentation](#documentation)
+12. [Getting started](#getting-started)
+13. [Repository structure](#repository-structure)
+14. [Conventions](#conventions)
+15. [Open decisions](#open-decisions)
+
+---
 
 ## Status
 
-**Domain foundation complete; the API and UI are not.** The backend's models, service layer,
-migrations, role matrix and tests are done for every domain. What is missing is everything that makes
-them reachable: the REST API is not written and the frontend has no data layer. The backend is
-currently exercisable only through the test suite.
+| Area | State |
+| --- | --- |
+| **Backend** | Django 5.2 LTS + DRF, nine domain apps, complete API under `/api/v1/`, OpenAPI schema with zero validation errors |
+| **Frontend** | Next.js operational: login, dashboard, sales, inventory, payroll, reports, refusals, settings |
+| **Auth & security** | Session auth, CSRF, role matrix (27 permissions × 4 roles), rate limiting, prod security hardening |
+| **Tests** | 1251 backend, 83 frontend unit, 34 stubbed + 14 live E2E (last verified local run) |
+| **Gates** | ruff, ruff-format, mypy, `makemigrations --check`, OpenAPI validation, vitest, Playwright — all exercised locally and in CI |
+| **Hardening (Phase D)** | Rate limiting, audit coverage, E2E suite, backups + restore drill, production runbook, observability, local deployment rehearsal — complete |
+| **Deployment** | Prod stack (db + api + web) rehearsed locally from `docker-compose.prod.yml`; **target-host (VPS) rehearsal blocked on client decisions** |
 
-**The build plan is [`docs/roadmap.md`](docs/roadmap.md).** Read that for what is next and why.
+The build plan and per-phase gates live in **[`docs/roadmap.md`](docs/roadmap.md)**. Phases A–C
+(auth, products, sales, inventory, finance, payroll, reports, settings, dashboard) and Phase D
+(hardening) through D5 are complete; D6 is done up to the local rehearsal. **Phase E** (optional
+integrations) is deferred until the client decides on a payment provider, fiscal/e-invoicing, and
+email — see [Open decisions](#open-decisions).
 
-Current state:
+What a new engineer should read first: this README, then [`docs/roadmap.md`](docs/roadmap.md),
+[`docs/ENGINEERING_HANDOFF.md`](docs/ENGINEERING_HANDOFF.md), and the four ADRs in
+[`docs/architecture/ADR/`](docs/architecture/ADR/).
 
-| Area                           | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Backend (Django 5.2 LTS + DRF) | 9 domain apps with models, 4 with service layers, 10 migrations applied                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Tests                          | 508 passing – domain invariants, permission matrix, permission classes cross-checked against the matrix over every role and permission, production config guards, error envelope, API base, pagination, endpoint contract rules, `create_owner` bootstrap, session auth endpoints, login rate limiting, session timeout, forced password change, a live signed-out access sweep over every registered route, and idempotency keys and receipt allocation under real thread contention                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Static analysis                | mypy clean (130 files, `mypy .`), ruff clean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Authentication                 | Custom user, 4-role permission matrix, session/CSRF settings wired. One DRF permission class per capability in `apps/accounts/permissions.py`, each resolving through `user.has_perm()` so the matrix stays the single enforcement point; a view writes `permission_classes = [IsAuthenticated, CanApprovePayrollRun]`. Payroll approval is Owner-only, deliberately withheld from the Manager who generates the run (spec 23.1). `manage.py create_owner` creates the first Owner. Session auth is live: `/auth/csrf`, `/auth/login`, `/auth/logout`, `/auth/me`, `/auth/change-password`. Login is rate limited to 5 attempts a minute per client address, counted in the database so the budget is shared between Gunicorn workers. Sessions idle out after a configurable timeout (default 8 hours, Owner setting) and are answered `403 session_expired`. An account flagged `is_temporary_password` can reach only `/auth/me`, `/auth/logout`, `/auth/csrf` and `/auth/change-password` until it sets a new one; everything else answers `403 password_change_required`. |
-| **API**                        | **Versioned under `/api/v1/`, one error envelope for every failure, pagination with a hard cap, the five session auth endpoints, rate limiting on login, and an OpenAPI schema that documents every one of them with its security scheme. No business endpoints yet.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| **Frontend**                   | **Shell only. 24 files, no API client, no auth, 7 feature directories empty.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `reports` app                  | `apps.py` only                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Audit                          | `AuditLog.record()` called from services; no API to read it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| **Contract suite**             | **`tests/api/contract.py` — 5 rules every registered endpoint must satisfy, with declared exemptions. A new endpoint is checked automatically.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Owner bootstrap**            | **`manage.py create_owner <username>` — the password is read from a no-echo prompt or stdin, never an argument. `--generate-password` prints once; `--check` is a bare preflight.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| Docker / Nginx / Compose       | Dev + prod compose, multi-target Dockerfiles, host Nginx config                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| CI                             | `.github/workflows/ci.yml` — the 7 §22.2 gates on both stacks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Docs                           | ADRs 0001–0004, client decisions, roadmap                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+---
 
-### How this maps to spec §28
+## Architecture
 
-Spec §28 lays out seven phases as a horizontal, domain-by-domain sequence. The work so far was built
-as one vertical slice instead, so §28 no longer describes the repository literally. The important
-part:
+### Topology
 
-**The backend work of spec Phases 1–4 is complete** — models, business rules and services for auth,
-users, products, sales, inventory, finance and payroll. What remains for those phases is the API, the
-frontend, and hardening. Recorded in
-[ADR-0004](docs/architecture/ADR/ADR-0004-phase-0b-vertical-slice.md).
-
-| Spec §28 phase                    | State                                         |
-| --------------------------------- | --------------------------------------------- |
-| 0 — Environment + design baseline | Complete                                      |
-| 1 — Auth + users + products       | Domain layer complete; API and UI outstanding |
-| 2 — Sales + inventory             | Domain layer complete; API and UI outstanding |
-| 3 — Finance                       | Domain layer complete; API and UI outstanding |
-| 4 — Payroll                       | Domain layer complete; API and UI outstanding |
-| 5 — Hardening                     | Not started                                   |
-| 6 — Optional integrations         | Not started; blocked on open client questions |
-
-Architecture decisions are recorded as **ADRs** in `docs/architecture/ADR/`. The BARKOT-SAS-001 Word
-spec is author-maintained; deviations are noted in the ADRs for the next (v1.1.0) spec revision.
-
-## Before production
-
-- [ ] **Confirm `DJANGO_TRUSTED_PROXY` is set for the production deploy.** Login rate
-      limiting (5/minute per address) keys on the client address. Behind Nginx that
-      address only reaches Django in `X-Forwarded-For`, so the variable decides whether the
-      limit works or silently collapses. It is off by default because the header is
-      written by whoever sent the request; trusting it unconditionally would let an
-      attacker pick a fresh bucket per attempt and guess a password forever.
-      `docker-compose.prod.yml` defaults it to `true`, which is correct for that stack.
-      If the backend is ever deployed without it - bare `gunicorn`, a different proxy, or
-      any non-Compose path - set it explicitly there. Wrong in the other direction is worse
-      than it looks: the limit still runs, but every client behind the proxy shares the
-      proxy's address as its bucket, so one user's mistyped password locks out everyone.
-      Verify by making several failed logins from two different addresses and confirming
-      each address gets its own 5-attempt budget before real users hit the endpoint.
-
-## Bugs that changed the design
-
-Three defects found while building A6 (session timeout, forced password change). All
-three failed quietly - none produced a loud failure that would have been noticed before
-release - which is why they are written down here rather than left in the diff. If any
-of these symptoms appear in production, they are the same bugs.
-
-### 1. Reading `request.user` inside authentication recursed until the stack limit
-
-`django.contrib.auth.logout()` reads `request.user` to decide whether anyone is signed
-in. On a DRF `Request`, `user` is a **property that performs authentication on access**.
-Calling `logout()` from inside the authenticator therefore restarted the authenticator
-that called it, and every one of those calls started another.
-
-What it looked like from outside: an idle timeout returned **500** with a
-`RecursionError` in the log, on every session that actually expired. The 403 the endpoint
-was written to return never happened, so the feature would have looked broken rather than
-absent.
-
-The design now avoids the trap entirely: `apps.accounts/sessions.py::end_session` flushes
-the session and deletes the row directly instead of calling `logout`. Same effect, no read
-of `request.user`.
-
-The rule to take from it: **never call code that touches `request.user` from inside
-`authenticate()`.** That includes `logout()` and anything that wraps it. Pass the already
-resolved user down as an argument instead - which is why `enforce_session_rules()` takes
-`user` as a parameter rather than reading it back off the request.
-
-### 2. The password policy raised the wrong exception, so no password was ever rejected
-
-`django.contrib.auth.password_validation` has **no** `PasswordValidationError` attribute
-in Django 5.2. `validate_password()` raises `django.core.exceptions.ValidationError`. The
-`except` clause named the non-existent attribute, so it raised `AttributeError` _while
-handling a rejection_.
-
-What it looked like from outside: every weak or disallowed password returned **500**
-instead of **400**. `MinimumLengthValidator`, `UserAttributeSimilarityValidator`,
-`CommonPasswordValidator` and `NumericPasswordValidator` were all still running - they
-raised correctly - but the refusal was converted into an unhandled error on the way out.
-The policy was not weakened, it was unusable: nothing could be rejected without a server
-error. A client would have shown the user a generic failure for a password the server had
-just told it was too short.
-
-Now caught as `django.core.exceptions.ValidationError`, aliased at the import to distinguish
-it from the DRF `serializers.ValidationError` raised two statements earlier in the same
-method. If you add a validator check anywhere else, check the exception type against the
-installed Django version rather than by name.
-
-### 3. The forced-change rule made its own endpoint unreachable
-
-`CsrfView` is `AllowAny`, but `AllowAny` controls _permissions_, not _authentication_. The
-session authenticator still ran, so a user flagged `is_temporary_password` was answered
-`403 password_change_required` when fetching a CSRF token - and without a token they could
-not POST to `/auth/change-password/`, the very call the refusal was telling them to make.
-
-What it looked like from outside: a user on a temporary password could never complete the
-change. The screen said "you must change your password", the button returned 403, and no
-combination of client behaviour got past it. **The rule was not too strict, it was
-unusable.**
-
-`CsrfView` is now in `ALLOWED_WHILE_PASSWORD_CHANGE_PENDING`, with a comment saying why.
-`backend/tests/api/test_session_rules.py` asserts the allow list is exactly four
-views, so removing it to "tighten" the list fails a test rather than shipping a dead end.
-
-The general lesson: an allow list built from view classes needs every endpoint in the
-_user's path through the flow_, not just the endpoint being protected. `me` (to render the
-screen), `csrf` (to POST it), `change-password` (to satisfy it), `logout` (to escape it).
-
-### Also worth knowing
-
-- **`update_session_auth_hash()` does not rotate the CSRF token.** It cycles the _session
-  key_, keeping the session valid. The `csrftoken` cookie is untouched and the token the
-  client already holds stays valid. The OpenAPI description claimed otherwise and was
-  corrected.
-- **There is no per-session copy of "this user must change their password."** An earlier
-  draft stamped it into the session at sign-in, on the reasoning that an administrative
-  reset would not otherwise take effect. That was backwards: DRF reloads the user from the
-  database on every request, so `is_temporary_password` is already current. The stamp only
-  created a second source of truth that a reset could _not_ clear, keeping a restored
-  account blocked until its session expired. One source of truth, read fresh.
-- **Remote CI was never verified for this work** - no `gh`, no token, and the repository is
-  private. The evidence is local only: 508 tests, ruff, ruff-format, `mypy .` over
-  135 files, `manage.py check`, and no missing migrations.
-- **`mypy .` is the gate, not `mypy apps config`.** The latter skips `tests/`, which is
-  where the type errors worth catching in a security suite actually live. The roadmap's
-  verification section said `apps config`; CI says `.`. The roadmap was wrong and now
-  matches CI.
-
-## A8: the permission gate was a test stand-in
-
-The A8 gate is "a Cashier cannot approve payroll". Before this phase that sentence was
-true of a _test file_, not of the application: `tests/api/urls_for_tests.py` defined its
-own `HasPermission` and `HasApprovePayrollPermission`, and its two assertions passed
-happily because nothing in `apps/` ever consulted `ROLE_MATRIX` at request time. The
-matrix was declared, the seed migration applied it, `RolePermissionBackend` served it
-– and no shipped code asked. The probe was testing the probe.
-
-### What shipped
-
-`apps/accounts/permissions.py` now carries `HasRolePermission` and one subclass per
-capability (`CanApprovePayrollRun`, `CanVoidSale`, `CanManageSettings`, ...), registered
-in `PERMISSION_CLASSES`. The test URLconf imports `CanApprovePayrollRun` instead of
-defining its own, so the same assertions now exercise shipped enforcement.
-
-Each class is one line:
-
-```python
-def has_permission(self, request: Request, view: Any) -> bool:
-    return bool(request.user.has_perm(self.required_permission))
+```
+        ┌────────────────────────────────────────────────────────────┐
+        │                    Host (single VPS)                        │
+        │                                                            │
+  User──┼──► Nginx (TLS, HTTPS:443) ─┬─► /api/v1/auth/login/  login limit 10r/m
+        │                            ├─► /api/v1/            api limit 60r/m, burst 20
+        │                            ├─► /health/  ──► api container
+        │                            └─► /          ──► web container
+        │                                                            │
+        │   api (Django + Gunicorn)  127.0.0.1:8000   ◄── never public
+        │   web (Next.js)           127.0.0.1:3000   ◄── never public
+        │   db  (PostgreSQL 17)      docker network   ◄── never public
+        └────────────────────────────────────────────────────────────┘
 ```
 
-It does not read `ROLE_MATRIX` at request time, and that is deliberate. The matrix is
-applied to `auth_permission` rows by the seed migration; a request-time lookup of the
-constant would be a _second_ source of truth which could disagree with the rows actually
-granted, and the disagreement would surface as a 403 in production with nothing in the
-codebase able to explain it. Going through `has_perm` means the answer is always the
-matrix the Owner reviews.
+- **Nginx runs on the host** and terminates TLS with Let's Encrypt certificates (spec §8.3, §20.1).
+  API and web containers publish only on `127.0.0.1`; PostgreSQL is never reachable off the Docker
+  private network.
+- Nginx passes the caller's real address in `X-Forwarded-For` and the original scheme in
+  `X-Forwarded-Proto`. Django only trusts them when `DJANGO_TRUSTED_PROXY=true` (the compose default),
+  so the login throttle keys on the real client (spec §9.3/A5) and `SECURE_SSL_REDIRECT` does not
+  redirect-loop behind the proxy.
+- Rate limiting is layered: nginx zones at the edge (login 10r/m, api 60r/m) and Django's own
+  throttles in the app (login 5/m, writes 60/m). Both have to be satisfied.
 
-### Three things that turned out to be unnecessary
+### Stack
 
-Each was written, then deleted after checking how the surrounding layers actually
-behave. Recorded because the instinct to add them is reasonable and the code would have
-been dead:
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js 16 (App Router), TypeScript 5.9, React 19, Tailwind CSS 4 |
+| Backend | Django 5.2 LTS + Django REST Framework 3.18, modular monolith |
+| Database | PostgreSQL 17 — the single system of record |
+| Proxy | Nginx (TLS termination, host) |
+| Runtime | Docker Compose on one commercially permitted VPS |
+| Async | Redis/Valkey + Celery — optional, added only when a real async workload exists |
 
-- **A custom `message()` naming the missing permission.** DRF passes
-  `getattr(permission, "message", None)` to `permission_denied` _without calling it_
-  (`rest_framework/views.py`), and `apps/core/exceptions.py` maps every
-  `PermissionDenied` to one fixed string regardless. Had anything used it, the response
-  would have contained a bound-method repr. The fixed string is also the better answer:
-  a refusal naming the permission hands a Cashier a map of the grants they lack.
-- **An explicit `is_active` check.** `RolePermissionBackend` returns an empty set for an
-  inactive user, and `BarketSessionAuthentication` refuses one as 401 before any
-  permission class runs. Verified directly, including with a Django-native grant added.
-  The third check could never change a verdict, and would have gone stale the moment
-  either layer moved.
-- **Tests for roleless users and deleted role rows.** `User.role` is non-nullable with
-  `on_delete=PROTECT`, so the database refuses to store either state; a test would have
-  had to mock the model into something the schema forbids.
+### Design principles
 
-### The Manager case
+- **Single system of record.** PostgreSQL. Dashboards and reports are views over transactions, never
+  a second source of truth.
+- **Ledger, not mutable state.** Inventory is an append-only movement ledger; current stock is the
+  sum of movements. Financial values and payroll figures are frozen once approved.
+- **Correct, never overwrite.** Void a record with a required reason instead of deleting; historical
+  prices are append-only rows with validity windows.
+- **Money is `Decimal`/`NUMERIC(14,2)`**, never floating point. Each transaction line persists the
+  price actually used.
+- **Backend permissions are authoritative.** The frontend hides what a user cannot do, but the API
+  is the enforcement point.
+- **Every sensitive operation is audited** with actor, timestamp, entity, action, and reason.
+- **Idempotent multi-step operations.** Completing a sale, receiving stock, completing a stock
+  count, and approving payroll are atomic and replay-safe.
+- Frontend and backend **never import from each other**; they communicate only over the REST
+  contract at `/api/v1/` and are built, tested, and deployed independently.
 
-The gate is checked for BarMan, Cashier **and** Manager. Manager is the one that
-matters: it holds `payroll.generate_run`, so it has legitimate payroll access, but
-`payroll.approve_run` is withheld. That is the only place the matrix encodes separation
-of duties rather than a capability gradient – whoever computes the payroll figure
-must not sign it off. A test using only a Cashier would have passed even if that
-separation had been quietly dropped, so the matrix entry and the class behaviour are
-each pinned separately.
+---
 
-### Coverage
+## Authentication and authorization
 
-`test_permission_classes_agree_with_the_matrix` is the full cross-product: 4 roles x 27
-permissions, asserting the class verdict equals the matrix grant for every pair. Plus
-coverage tests in both directions – every catalogued permission has a class, and no
-class requires an uncatalogued permission – so a capability added to the matrix and
-shipped without a class fails the build instead of being silently unreachable.
+### Sessions, not tokens
 
-## A9: the 401 gate was never tested, only assumed
+Authentication is **session-based** (Django DB sessions + DRF `SessionAuthentication`). The client
+logs in once, receives a session cookie, and includes a CSRF token on unsafe requests. There is no
+API-key or JWT flow, and no `django.contrib.admin` is installed — the system's own UI is the only
+way in.
 
-The A9 gate is "401/403 on every protected route". Nothing tested it. The contract suite
-does prove every endpoint _declares_ `IsAuthenticated` — but by design its rules are pure
-attribute reads (`contract.py:11-15`), which is the right trade for a suite that must stay
-fast. The cost: every 401 in the suite hard-coded one URL, so an endpoint added tomorrow
-with no protection whatsoever would fail nothing at all.
+| Endpoint | Purpose |
+| --- | --- |
+| `GET  /api/v1/auth/csrf/` | Issue a CSRF token (`{"token": "…"}`) and set the `csrftoken` cookie |
+| `POST /api/v1/auth/login/` | Sign in (rate limited 5/minute per address); returns the user profile |
+| `POST /api/v1/auth/logout/` | Sign out (204) |
+| `GET  /api/v1/auth/me/` | Current session user + role + effective permissions |
+| `POST /api/v1/auth/change-password/` | Change the password (rotates the session hash) |
 
-`tests/api/test_access_sweep.py` closes that gap with real requests. It imports
-`discover_endpoints` from the contract engine and derives the public routes from the
-contract's own `EXEMPTIONS` table, so a new endpoint cannot become public by being added
-to a second list here — it would have to be exempted _there_, with a reason, and that
-exemption is reviewed.
+Key behaviour:
 
-### Two real defects the sweep surfaced
+- **CSRF:** the token is fetched from `GET /auth/csrf/` and sent back in the `X-CSRFToken` header.
+  Cookies are `SameSite=Lax`; the session cookie is `HttpOnly` (`barkot_sessionid`), the CSRF cookie
+  is deliberately readable (`csrftoken`).
+- **Idle timeout:** sessions expire after a configurable inactivity window (**8 hours default**,
+  an Owner setting). An expired session is answered `403 session_expired` (deliberately not 401, so a
+  client can distinguish "expired but was logged in" from "never logged in").
+- **Forced password change:** an account flagged `is_temporary_password` can reach exactly four
+  endpoints — `me`, `csrf`, `change-password`, `logout` — and everything else answers
+  `403 password_change_required`. After resetting, the flag clears and the account is unrestricted.
+- **Login rate limiting** is 5 attempts per minute per client address (spec §9.3/A5), counted in the
+  **database** cache so the budget is shared correctly across Gunicorn workers. Every attempt
+  (success or failure) is counted; the 6th in a minute gets `429 throttled` + `Retry-After`.
+- Bad credentials return a **uniform** `400 validation_error` — the server never reveals whether the
+  username exists. Login failures and successes are written to the audit log.
 
-Both were found by sending real traffic, and neither was visible to an attribute check:
+### Roles and the permission matrix
 
-- **`/api/docs/` escapes the error envelope entirely.** `SpectacularSwaggerView` is a
-  Django template view, so its 401 is a plain `text/html` "401 Unauthorized" page
-  produced outside DRF. There is no `error.code` for a client to branch on, and asking
-  for JSON returns 406. `/api/schema/` goes through the handler but renders the envelope
-  as YAML unless asked for JSON. Both are correctly _protected_ — status and
-  `WWW-Authenticate` hold — and both are now asserted on exactly that, with the reason
-  recorded in `NON_JSON_REFUSALS` so a change to either view's rendering shows up as a
-  visible diff rather than a silently dropped assertion.
-- **The login route's throttle reads the database.** The public-route check reached
-  `LoginView`'s throttle before its permission check and died in the cache. The test now
-  carries `django_db`; without it the failure would have been a false one.
+Users belong to exactly one of four roles (`Role` model, `on_delete=PROTECT`). Each role grants a
+fixed set of Django permissions defined in one constant, `ROLE_MATRIX`
+(`backend/apps/accounts/permissions.py`), which is seeded into the database and is the **single
+source of truth** an Owner reviews.
 
-### Vacuity and mutation
+| Permission | OWNER | MANAGER | CASHIER | BARMAN |
+| --- | :-: | :-: | :-: | :-: |
+| products.view_products / inventory.view_inventory | x | x | x | x |
+| inventory.receive_stock · record_breakage | x | x | – | x |
+| inventory.complete_stock_count | x | x | x | – |
+| inventory.approve_adjustment | x | x | – | – |
+| sales.view_sales · create_sale | x | x | x | – |
+| sales.void_sale | x | x | – | – |
+| products.manage_categories · manage_products · change_prices | x | – | – | – |
+| finance.view_reports · create_expense · approve_expense · manage_expense_categories | x | x | – | – |
+| payroll.view_payroll · generate_run · create_deduction · manage_payroll_employees | x | x | – | – |
+| payroll.approve_run · mark_paid | x | – | – | – |
+| users.manage_employees | x | x | – | – |
+| audit.view_audit_log | x | x | – | – |
+| accounts.manage_users · manage_roles · manage_settings | x | – | – | – |
 
-Every parameterised test would pass having issued zero requests if discovery returned
-nothing, so `TestTheSweepIsNotVacuous` pins the endpoint count, the presence of protected
-routes, and an exact partition of public against protected. The classifier was checked by
-mutation — injecting a waiver for `MeView` flips `_is_public` to `True` and removing it
-flips back — so it is not a constant that would make the whole file green.
+Counts: OWNER 27, MANAGER 16, CASHIER 5, BARMAN 5.
 
-### The role dimension is wired, not asserted
+**Enforcement engine.** Each capability has one DRF permission class (e.g. `CanApprovePayrollRun`)
+that calls `user.has_perm(...)`. The permission backend unions *role grants ∪ direct user grants ∪
+group grants*, so the verdict always reflects the matrix rows the Owner reviews — never a second
+copy of it. A permission matrix change is applied with `manage.py bootstrap_roles` (plus `--check`
+for CI); tests cross-check every class against the matrix (4 roles × all 27 permissions).
 
-No shipped view names a `HasRolePermission` yet; the payroll endpoints come later. That
-emptiness is an explicit assertion with a message explaining what it means, rather than
-a test that silently matches nothing. The Cashier reachability check signs in per
-endpoint (reusing one client would let the first request invalidate the session for the
-rest, and the failure would read like a permission bug) and excludes `LogoutView`, since
-logging out is the refusal it is being asked about.
+**Separation of duties.** The one deliberate split in the matrix: the Manager *generates* the
+payroll run, but only the **Owner** *approves* it (`payroll.approve_run`, `payroll.mark_paid`).
+Whoever computes the figure must not sign it off.
 
-## A10: a duplicate sale is unrecoverable, so the retry had to be impossible
+### The bootstrap path
 
-The A10 gate is "the same key twice creates one sale, not two". Two things stood in the way of
-proving it, and one of them was worse than a missing feature.
+- **`manage.py create_owner <username>`** creates the first and only Owner. The password is read
+  from a no-echo prompt or stdin — **never** an argument or environment variable. `--generate-password`
+  prints a random 24-character password once and flags it as temporary; `--check` is a CI preflight.
+  The Owner is not a superuser — its authority comes from the matrix.
+- Roles are seeded automatically on `migrate` (a `post_migrate` receiver) and verified by
+  `manage.py bootstrap_roles --check`.
 
-**The roadmap said "on write endpoints". There are no write endpoints.** Phase A is auth, and A2–A4
-exist precisely to stop the API being grown by inventing routes. So the guarantee is delivered where
-it lives — the service layer, where the key arrives as a keyword argument. The same guarantee then
-covers a management command or a scheduled job that never touches HTTP, and the endpoint that later
-reads the header becomes a thin adapter rather than the place the logic is. `IDEMPOTENCY_HEADER`
-is defined next to the mechanism so the two cannot drift.
+---
 
-**`next_sale_reference()` was already racy, and the unique constraint was hiding it.** The number
-is derived from `COUNT()` of the day's sales, which is what makes the no-skipped-numbers promise
-possible — and two concurrent sales both read "3 used" and both return `S-20260929-0004`. The
-`unique` on `Sale.reference` then let exactly one commit and turned the other into an
-`IntegrityError`: a 500 for a cashier who did nothing wrong, on a number burned by a sale that never
-landed. The count is now taken under a transaction-scoped `pg_advisory_xact_lock`, so it is
-trustworthy, with the constraint left in place as the final authority. No counter table: that would
-need its row to exist before the first sale of the day, which is a race of its own in a second
-place, and it would take the single source of truth away from the sales table.
+## Security
 
-### The fingerprint was where the real risk was
+### Cookie and transport hardening (production)
 
-A claim row makes the _mechanism_ correct. What it cannot do is decide that two payloads are the
-same request, and getting that wrong fails in one of two ways, both bad. Hash too loosely and a
-retry is refused as a reused key — a cashier who pressed the button twice sees a 409 for a sale that
-already exists. Hash too tightly and a genuinely different request is answered with the first sale —
-the caller believes its second, different basket was recorded.
+| Setting | Value |
+| --- | --- |
+| `DEBUG` | `False`, hard-coded — no `DJANGO_DEBUG` escape hatch |
+| `SESSION_COOKIE_HTTPONLY` | `True` (session cookie is invisible to JavaScript) |
+| `SESSION_COOKIE_SECURE` / `CSRF_COOKIE_SECURE` | `True` by default in prod |
+| `SESSION_COOKIE_SAMESITE` / `CSRF_COOKIE_SAMESITE` | `Lax` |
+| `SECURE_SSL_REDIRECT` | On when `DJANGO_SECURE_SSL_REDIRECT=true` (compose default) |
+| `SECURE_HSTS_SECONDS` | 1 year (31,536,000), include-subdomains, preload |
+| `SECURE_CONTENT_TYPE_NOSNIFF` / `X_FRAME_OPTIONS` | `nosniff` / `DENY` |
+| JSON renderer/parser | JSON only (no HTML browsable API responses) |
 
-Two bugs here were found by writing the tests, not by reading the code:
+### Anti-fraud and anti-abuse
 
-- **The fingerprint hashed the resolved `sold_at`, not the caller's.** `moment = sold_at or
-now_utc()` means an ordinary client that never sends `sold_at` got a fresh timestamp per attempt,
-  so no two attempts could ever match. The double-click the mechanism exists to absorb would have
-  come back as a key-reuse error — the mechanism present and useless. The gate test failed on this
-  before it was fixed, which is the only reason it was caught.
-- **Amounts were stringified before being hashed**, which quietly defeated the `Decimal`
-  normalisation `canonical` exists to perform. `Decimal("2.00")` and `Decimal("2")` are the same
-  quantity, but `"2.00" != "2"` as text. Handing the `Decimal` over to be normalised is the whole
-  point of having it (§10.3).
+- **Secret key guard:** prod refuses to boot without a `DJANGO_SECRET_KEY` that is set, distinct from
+  the development placeholder, and at least 50 characters — a refused start beats a forged session.
+- **No secrets in Git.** `.env` is gitignored; `.env.example` documents every variable.
+- **Rate limits:** login 5/m, state-changing requests 60/m per address at the app, echoed at the
+  nginx edge. Reads are never throttled.
+- **`TRUSTED_PROXY` discipline:** `X-Forwarded-For` is ignored unless the deployment is known to sit
+  behind our nginx. Trusting an unauthenticated proxy header would let an attacker pick a fresh
+  throttle bucket per attempt.
+- **Audit trail:** sales, stock movements, breakages, expenses, payroll, price changes, logins, and
+  permission-relevant actions write `AuditLog` rows with actor, action, entity, summary, `before`/
+  `after` JSON, and IP. Logs are insert-only.
+- **Uniform error codes** (see [API design](#api-design)): a refusal never reveals which permission
+  is missing.
 
-`canonical` also had a third gap: its docstring promised that `1` and `1.0` hash alike and the code
-did not do it, so `int`, `float` and `Decimal` now share one tag. `bool` is checked first, because
-it is an `int` subclass and `True` must not hash as `1`. A float artefact like `0.1 + 0.2` stays
-_visible_ rather than being rounded onto the value a human probably meant — silently guessing about
-money is worse than showing the caller something odd.
+### Throttling budget
 
-### The concurrency tests are marked `transaction=True`, and are checked by mutation
+Every unsafe method, on every endpoint, is throttled to **60 requests/minute per client address**
+(`WriteRateThrottle`, installed as DRF's `DEFAULT_THROTTLE_CLASSES`, so a new endpoint cannot be
+exempt by omission). Login keeps its stricter `LoginRateThrottle` (5/m), which *replaces* the general
+budget on that view. Throttles run after permissions, so 401/403 responses never spend budget.
 
-Under the default `django_db` the test runs inside a transaction that is rolled back, so a worker
-thread on its own connection would not see the fixtures at all — the threads would race over an
-empty database and pass without anything having been allocated. `transaction=True` commits the
-setup so the workers genuinely contend for the same rows.
+---
 
-Both concurrency tests were verified by mutation rather than by being green:
+## Domain and database design
 
-- Removing the advisory lock fails `test_concurrent_receipt_numbers_are_distinct_and_leave_no_gap`
-  with `IntegrityError: duplicate key value violates unique constraint
-"sales_sale_reference_key"` — the exact production symptom the docstring predicts.
-- Making `claim_key` not write its claim fails the double-click test with two sales, pk 1 and pk 2,
-  from one key.
+PostgreSQL is the system of record. Shared building blocks
+(`backend/apps/core/`):
 
-A concurrency test that cannot fail is worth nothing, so both were made to fail on purpose before
-being allowed to pass.
+- `MoneyField` = `NUMERIC(14,2)`, `QuantityField` = `NUMERIC(12,3)` — money is never a float.
+- `TimeStampedModel` / `ActorStampedModel` — every row records when it changed and who did it.
+- `VoidableModel` — records are **voided with a mandatory reason**, not deleted; `objects` hides
+  voided rows, `all_rows` includes them.
+- `AppendOnlyModel` — `save()` refuses updates and `delete()` always refuses (used by the stock
+  ledger and the audit log).
+- `IdempotencyRecord` — unique `(scope, key)` claims that make retries safe.
+
+### Sales — `backend/apps/sales/`
+
+- **`Sale`** — `reference S-YYYYMMDD-NNNN` (unique), `status` COMPLETED/VOIDED, `sold_at`,
+  denormalised `total`/`amount_paid`, payment status. A sale is voided with a reason and compensating
+  stock movements.
+- **`SaleItem`** — product, quantity, and **`unit_price` frozen at sale time**, with a
+  `price_source` foreign key to the exact `ProductPrice` row used (coins the auditability of "what it
+  actually cost that day").
+- **`Payment`** — CASH or MOBILE_BANKING, amount, optional external reference. Reports build income
+  from `Payment` rows, never from stored totals.
+- **Idempotency:** clients send `Idempotency-Key`; the same key replays the *first* response instead
+  of creating a duplicate sale. Daily receipt numbers are allocated under a transaction-scoped
+  `pg_advisory_xact_lock`, so two concurrent cashiers never get the same `S-…-NNNN` (the unique
+  constraint on `reference` is the final authority).
+
+### Inventory — `backend/apps/inventory/`
+
+- **`StockMovement`** — an **append-only ledger**; current stock is defined as the sum of
+  movements, and there is deliberately no `stock` column on products. Kinds: RECEIPT, SALE,
+  SALE_VOID, BREAKAGE, COUNT_VARIANCE, STOCK_IN, STOCK_OUT. Every movement has exactly one source
+  FK (enforced by a check constraint), a direction derived from its kind (never hand-set), and an
+  optional unit cost for valuation.
+- **`StockReceipt` + items** — DRAFT→COMPLETED; receiving posts RECEIPT movements.
+- **`StockCount` + items** — DRAFT→COMPLETED→APPROVED. The count *snapshots* the ledger balance at
+  line creation; **only approval writes COUNT_VARIANCE movements**, and only a Manager/Owner can
+  approve. A Cashier can count but not approve.
+
+### Finance — `backend/apps/finance/`
+
+- **`Expense`** — category, amount, business-local `incurred_on`, status RECORDED→APPROVED→VOIDED,
+  with `approved_at`/`approved_by`. Only approved, non-voided expenses count in reports.
+- **Balance is derived, not stored:** income = sum of `sales.Payment`, minus approved expenses,
+  minus approved payroll. `net` = income − expenses − payroll.
+
+### Payroll — `backend/apps/payroll/`
+
+- **`Employee`** — payroll-side companion (1:1 to the `EmployeeProfile` person record) with
+  `monthly_wage`. One employee per payroll run is enforced.
+- **`PayrollRun`** — GENERATED→APPROVED→PAID (or CANCELLED), one run per month. Manager generates,
+  Owner approves and marks paid. Totals (`gross_total`, `deduction_total`, `net_total`) are computed.
+- **`PayrollItem`** — per-employee stored `gross_amount`, `total_deductions`, `net_amount` frozen at
+  approval. Deductions (ADVANCE, ABSENCE, LATE, OTHER) may not exceed gross.
+- **`PayrollDeduction`** — type, amount, reason, date. Statutory deduction types are deliberately
+  absent until the client specifies the calculation rules.
+
+### Users and audit — `backend/apps/users/`, `backend/apps/audit/`
+
+- **`EmployeeProfile`** — the *person* (full name, position, start date), archivied, never deleted,
+  optionally linked to a login account.
+- **`AuditLog`** — insert-only: actor, action (CREATE/UPDATE/DELETE/VOID/LOGIN/LOGOUT/
+  FAILED_LOGIN/APPROVE), object type + id, summary, `before`/`after` JSON, IP, UTC timestamp. Indexed
+  by object, time, and actor+time.
+
+The full ADR-level rationale for the important choices is in
+[`docs/architecture/ADR/`](docs/architecture/ADR/).
+
+---
+
+## API design
+
+- **Versioned** at `/api/v1/` (DRF namespace versioning). OpenAPI schema and Swagger docs live at
+  `/api/schema/` and `/api/docs/`, beside the version so a v1 client need not know about v2.
+- **One error envelope for every failure:**
+
+  ```json
+  {"error": {"code": "validation_error", "message": "…", "details": {"field": ["…"]}}}
+  ```
+
+  Codes distinguish *client* mistakes (`validation_error`, `not_found`), *session* states
+  (`not_authenticated`, `session_expired`, `password_change_required`), *authorisation*
+  (`permission_denied`), *business rules* (`insufficient_stock`, `invalid_state_transition`,
+  `immutable_record`, `idempotency_key_reuse` — all 409), and *abuse* (`throttled` 429).
+- **Pagination** with a hard cap: default page size 20, maximum 200 (`/?page_size=`), response
+  `{count, page_size, page, pages, results}`.
+- Every endpoint satisfying the contract (auth, error envelope, JSON, pagination, version) is checked
+  automatically by the **contract suite** (see below).
+- Health endpoints `/health/live` (process up) and `/health/ready` (DB reachable) are operational
+  probes, deliberately free of business logic.
+
+---
+
+## Testing and CI
+
+Testing is layered: fast isolated checks first, deep integration in the middle, and a real browser
+against a real stack at the top.
+
+| Layer | Tool | What it proves |
+| --- | --- | --- |
+| Backend unit/integration | pytest (**1251 tests**) | Domain invariants, permission matrix cross-product, session rules, auth flows, throttles, idempotency under real thread contention, prod config guards, all five §23.1 business scenarios |
+| API contract suite | `backend/tests/api/contract.py` | Every mounted endpoint satisfies invariant rules (auth, envelope, JSON, pagination, version) — auto-discovery, exemptions require a reason. A new endpoint is checked automatically |
+| Access sweep | `backend/tests/api/test_access_sweep.py` | Real signed-out requests to every route assert 401/403 with the right envelope; the sweep is pinned non-vacuous and mutation-checked |
+| Endpoint audit | `backend/tests/api/test_audit_coverage.py` | Every state-changing endpoint asserts exactly one audit row for each of its 31 scenarios |
+| Frontend unit | vitest (**83 tests**) | Component and logic behaviour |
+| E2E stubbed | Playwright (**34 specs**) | Screens behave against stubbed states a real server will not produce on demand (dead backend, 502, forced password change) |
+| E2E live | Playwright (**14 specs**) | Browser against a real Django + Postgres: real session, real CSRF, real 403, real rows. A stub cannot catch frontend/backend drift; this half does |
+
+**CI** (`.github/workflows/ci.yml`, GitHub Actions) runs the same gates on `main` and PRs:
+backend — `ruff check`, `ruff format --check`, `mypy .`, `pytest`, `makemigrations --check`,
+OpenAPI validation; frontend — lint, Prettier, `tsc --noEmit`, vitest, production build; E2E — the
+stubbed suite then the live suite as two separate invocations (roles seed via `post_migrate`;
+Playwright live runs its own Django on port 8010 against a disposable `*_e2e` database).
+
+Run everything locally with the root `Makefile`: `make ci` mirrors the pipeline step-for-step
+(POSIX shell), or run each app's commands directly (see [Getting started](#getting-started)).
+
+---
+
+## Deployment and operations
+
+### Design
+
+- One VPS (client-chosen provider), Docker Compose swarm-free: `db`, `api` (Gunicorn), `web`
+  (Next.js standalone). Host nginx terminates TLS and proxies.
+- `docker-compose.prod.yml` is the production definition; `.env.example` documents every required
+  variable. Prod refuses to boot without a real secret key and sets DEBUG off unconditionally.
+- No `collectstatic` step: the API serves no static assets (the frontend is a separate container).
+  Roles seed on `migrate`; only the Owner account is created explicitly.
+
+### The deployment sequence
+
+```bash
+git clone https://github.com/NahumDm/barkot_internal_system.git
+cd barkot_internal_system
+cp .env.example .env            # fill in real secrets (secret key ≥ 50 chars, DB password)
+docker compose --env-file .env -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env -f docker-compose.prod.yml exec api python manage.py migrate --no-input
+docker compose --env-file .env -f docker-compose.prod.yml exec -it api python manage.py create_owner owner
+sudo cp infrastructure/nginx/nginx.conf /etc/nginx/nginx.conf
+sudo cp infrastructure/nginx/conf.d/barkot.conf /etc/nginx/conf.d/barkot.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### Runbooks
+
+| Document | Covers |
+| --- | --- |
+| [`docs/runbooks/production.md`](docs/runbooks/production.md) | Initial deployment, service operations, backup/restore, **rollback procedure**, troubleshooting, verification checklist (D4 gate: "a second person can deploy and roll back from this document alone") |
+| [`docs/runbooks/backup-restore.md`](docs/runbooks/backup-restore.md) | Daily `pg_dump` backups, restore, and the **automated restore drill** into a scratch database |
+| [`docs/runbooks/deployment-rehearsal.md`](docs/runbooks/deployment-rehearsal.md) | Full-stack rehearsal checklist, with the executed local rehearsal logged (2026-10-08) |
+
+**Backups** (`infrastructure/scripts/`): `backup.sh` (pg_dump), `restore.sh`, and a
+`restore-drill.sh` that backs up, restores into a scratch DB (`barkot_restore_drill_<timestamp>`),
+and reconciles row counts — because an untested backup is a hypothesis. A Windows-drive equivalent
+(`restore-drill.ps1`) documents the procedure.
+
+**Rehearsal status.** The D6 gate ("full stack starts from `docker compose.prod.yml` with real
+secrets") passed in a **local rehearsal** (2026-10-08): images built, stack Up, migrations applied,
+`/health/live` + `/health/ready` 200, owner login 200, `X-Request-ID` present, `nginx -t` clean.
+The remaining **milestone rehearsal on a real Ubuntu 24.04 VPS with a domain and Let's Encrypt
+certs** is blocked on the client's VPS/domain decision (open questions 9/10).
+
+---
+
+## Observability
+
+- **Request context:** every request carries a `request_id` (from nginx's `$request_id` or generated),
+  written back in the `X-Request-ID` header and attached to log records along with the acting
+  `user_id`.
+- **Structured logs** (dev and prod) include `request_id` and `user_id` for correlating a user action
+  with the requests that produced it.
+- **Health probes:** `/health/live` and `/health/ready` are consumed by Docker healthchecks and
+  nginx; `/health/ready` turns 503 when the database is unreachable.
+- **Alerting guidance** (documented in the production runbook): alert on 5xx rate, on `/health/ready`
+  returning 503, and on `/health/live` failing.
+
+---
+
+## Engineering notes and major decisions
+
+The full write-ups are in [`docs/roadmap.md`](docs/roadmap.md); the highlights show why the design
+looks the way it does.
+
+1. **Session auth avoids a recursion trap.** Reading `request.user` from inside the authenticator
+   recursed to a stack overflow when a session expired. Sessions are now ended by flushing the
+   session directly, never by calling `logout()`; session rules take the already-resolved user as an
+   argument.
+2. **The password policy was not rejecting anything.** Django 5.2 raises
+   `ValidationError`, not a non-existent `PasswordValidationError`; the `except` clause threw an
+   `AttributeError` while handling a rejection, turning every refusal into a 500. Caught as
+   `ValidationError` now.
+3. **The forced-password rule had made its own endpoint unreachable.** The CSRF view sat outside the
+   `password_change_required` allow-list, so a user on a temporary password could not fetch a token
+   to change it. The allow-list is exactly four views and is pinned by a test.
+4. **The permission gate used to be a test stand-in.** An old test URLconf defined its own
+   permission classes, so "Cashier cannot approve payroll" was true of a test, not the app. Shipped
+   permission classes (one per capability, resolving through `has_perm` against the matrix rows) now
+   replace the stand-in, and a 4×27 cross-product test pins the matrix.
+5. **401s were assumed, not verified.** An access sweep of real signed-out requests over every route
+   surfaced that the API docs view answers 401 outside the JSON envelope. Those responses are now
+   asserted on exactly what they do (correct status + `WWW-Authenticate`), with the reason recorded.
+6. **Duplicate-sale retries are impossible by design.** Same `Idempotency-Key` replays the first
+   result; a fingerprint hashes canonicalised `Decimal` amounts (never their string form) and the
+   caller's `sold_at`; the next-daily-reference counter runs under a `pg_advisory_xact_lock`.
+   Concurrency tests are `transaction=True` and verified by mutation.
+7. **TLS-in-front is trusted only when the proxy is trusted.** `SECURE_PROXY_SSL_HEADER` is wired
+   only behind `DJANGO_TRUSTED_PROXY=true`; without it, `SECURE_SSL_REDIRECT` behind nginx would
+   redirect-loop (2026-10-08, guarded by `tests/settings/test_prod_guards.py`).
+8. **No `django.contrib.admin`, no API keys, no JWT.** The only client is the same-origin web app;
+   reducing the surface is a feature.
+
+---
+
+## Documentation
+
+| Path | Contents |
+| --- | --- |
+| `docs/roadmap.md` | Phase-by-phase plan (spec A28), gates, status, open questions |
+| `docs/architecture/ADR/` | Architecture decision records 0001–0004 (layout, Python runtime, phase-0b scope, vertical slice) |
+| `docs/ENGINEERING_HANDOFF.md` | Operator-facing state of the world, known gaps, verified gate baselines |
+| `docs/ADDING_AN_ENDPOINT.md` | How to add an endpoint without breaking the contract/audit/completeness gates |
+| `docs/runbooks/` | Production, backup-restore, deployment-rehearsal |
+| `docs/business/client-decisions.md` | Open decisions that steer scope |
+| `docs/ui-ux/`, `docs/architecture/*.docx` | The client-authored UI/UX and architecture specifications |
+
+---
 
 ## Getting started
 
-Everything below is also available through the root `Makefile` (`make help`) for UNIX-like shells.
-Windows without `make`: use the commands directly as shown.
-
-1. **Database (local or CI):** only the database needs Docker for day-to-day work.
-   `docker compose up -d db` then `docker compose exec db psql -U barkot` to poke around.
-2. **Backend** (example PowerShell): `cd backend; python -m venv .venv; .\.venv\Scripts\pip`
-   uses `; .\.venv\Scripts\python.exe` from then on. See [`backend/README.md`](backend/README.md).
-3. **Frontend:** `cd frontend; npm ci; npm run dev` → http://localhost:3000 (redirects to
-   `/dashboard`).
-4. **All-in dev stack:** `docker compose up -d` (db + api + web with hot reload).
-
-> The root `Makefile` is an orchestration convenience only. `make ci` runs the same gates as the
-> CI pipeline. On Windows run `make` from a POSIX-style shell (Git Bash/WSL), or run each app's
-> commands directly.
-
-### Tests
-
-The Playwright suite has two halves, and they are not interchangeable.
-
-| Command                    | Needs                              | What it proves                                                                                                        |
-| -------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `npm run test:e2e:stubbed` | Node only                          | The frontend handles states no real server will produce on demand: a dead backend, a 502, a forced password change.   |
-| `npm run test:e2e:live`    | Python, the backend deps, Postgres | The frontend and backend actually agree: a real session, a real CSRF token, a real 403, real rows in a real database. |
-| `npm run test:e2e`         | both of the above                  | What CI runs: the stubbed project, then the live one, as two separate invocations.                                    |
-
-The stubbed half answers the question "does this screen behave?", and it cannot answer
-"do these two halves still fit together?" — a stub is written from the author's idea of
-the backend, so it keeps agreeing with a frontend that drifted. The live half is the one
-that catches drift, and it is why the stubbed specs are kept alongside it rather than
-replaced by it.
-
-The live half starts its own Django on port 8010 — deliberately not 8000, because a
-developer usually has a server running there against their working database — and points
-it at a disposable `barket_e2e` database that it flushes and reseeds on every run.
-Creating that database is the only manual step:
+All-in dev stack (database + API + web with hot reload):
 
 ```bash
-docker compose exec db createdb -U barkot barkot_e2e
+docker compose up -d
+docker compose exec api python manage.py create_owner owner
+# open http://localhost:3000 (redirects to /dashboard)
 ```
 
-It then connects with `E2E_DB_NAME`, `E2E_DB_USER`, `E2E_DB_PASSWORD`, `E2E_DB_HOST` and
-`E2E_DB_PORT`. The defaults are user `barket` on `127.0.0.1:5433`, which is where the
-compose database publishes, but **the password has no usable default**: it is whatever
-`DJANGO_DB_PASSWORD` was when your database volume was first created, so set
-`E2E_DB_PASSWORD` to match. A mismatch fails immediately and says so, rather than
-half-way through a test run.
+Per-app (without Docker for the app code):
+
+1. **Database** (the only service needed): `docker compose up -d db`
+2. **Backend:** `cd backend; python -m venv .venv; .\.venv\Scripts\pip install -r requirements/dev.txt`
+   on Windows (POSIX: `make install-backend`). Then `.\.venv\Scripts\python manage.py runserver 8000`.
+   See [`backend/README.md`](backend/README.md).
+3. **Frontend:** `cd frontend; npm ci; npm run dev` → http://localhost:3000
+4. **All-in:** `docker compose up -d` (db + api + web with hot reload)
+
+Tests:
 
 ```bash
-E2E_DB_PASSWORD='<the same one your backend uses>' npm run test:e2e:live
+make ci              # local parity with the CI pipeline (POSIX shell)
+# or individually:
+cd backend    && .\.venv\Scripts\python.exe -m pytest   # backend suite
+cd frontend   && npm run lint && npm run test -- --run  # lint + vitest
+npm run test:e2e:stubbed                                # stubbed E2E (Node only)
+E2E_DB_PASSWORD='<your DJANGO_DB_PASSWORD>' npm run test:e2e:live   # live E2E
 ```
 
-`seed_e2e --reset` refuses to flush any database whose name does not end in `_e2e`, so a
-mistyped `E2E_DB_NAME` fails loudly instead of erasing anything real.
+The live E2E suite starts its own Django on port 8010 against a disposable `barket_e2e` database
+and reseeds it on every run. `seed_e2e --reset` refuses to flush any database whose name does not
+end in `_e2e`.
 
-## Architecture at a glance
-
-| Layer      | Stack                                                                          |
-| ---------- | ------------------------------------------------------------------------------ |
-| Frontend   | Next.js 16.x (App Router) + TypeScript 5.9 + React 19.3 + Tailwind CSS 4.x     |
-| Backend    | Django 5.2.x LTS + Django REST Framework 3.18.x, modular monolith              |
-| Database   | PostgreSQL 17.x, the single system of record                                   |
-| Web server | Nginx (TLS termination, `/` to web, `/api/v1/` to API)                         |
-| Runtime    | Docker Compose on one commercially permitted VPS                               |
-| Async      | Redis/Valkey + Celery — optional, added only when a real async workload exists |
-
-Full detail: [`docs/architecture/`](docs/architecture/). Design contract: [`docs/ui-ux/`](docs/ui-ux/).
+---
 
 ## Repository structure
 
 ```
 barkot_internal_system/
-├── frontend/          Next.js + TypeScript application
-├── backend/           Django + DRF application
-├── infrastructure/    Docker, Nginx and operational scripts
-├── docs/              Architecture, API, UI/UX, business and runbook documentation
-├── .github/workflows/ CI pipelines
-├── docker-compose.yml
-├── docker-compose.prod.yml
-└── .env.example
+├── frontend/             Next.js + TypeScript application (Next.js 16, App Router)
+├── backend/              Django 5.2 + DRF application (modular monolith, 9 domain apps)
+├── infrastructure/       Docker (multi-target backend/frontend), Nginx config, ops scripts
+├── docs/                 Roadmap, ADRs, runbooks, handoff, client decisions, specs
+├── .github/workflows/    CI pipelines (backend · frontend · e2e)
+├── docker-compose.yml    Dev stack (db + api + web, hot reload)
+├── docker-compose.prod.yml  Production stack definition
+├── Makefile              CI-parity orchestration (lint/typecheck/test/…)
+└── .env.example          Environment template (never commit .env)
 ```
 
-## Frontend and backend are separate
-
-`frontend/` and `backend/` never import from each other. They communicate only over the `/api/v1/` REST contract, and they are built, tested and deployed independently. The root `Makefile` orchestrates them for CI parity but is not required at runtime.
-
-## Guiding rules
-
-- PostgreSQL is the system of record. Dashboards and reports are views over transactions, never a second source of truth.
-- Inventory and financial values are a ledger. Historical records are corrected with adjustments, never silently overwritten.
-- Multi-step operations (complete sale, receive stock, complete stock count, approve payroll) are atomic and idempotent.
-- Money is `Decimal`/`NUMERIC`, never floating point. Each transaction line persists the price actually used.
-- Backend permissions are authoritative. Frontend visibility is presentation only.
-- Corrections and sensitive operations are audited with actor, timestamp, entity, action and reason.
-- Timestamps stored in UTC; daily and period reports calculated in Africa/Addis_Ababa.
-- No secrets in Git.
+---
 
 ## Conventions
 
-- Branching: `main` (production-ready), `staging` (release candidate), `feature/*`.
-- Commits are not yet governed by a documented convention — to be agreed before the first implementation commit.
+- **Branching:** `main` (production-ready), `staging` (release candidate), `feature/*`.
+- **Commits:** conventional-style prefixes (e.g. `feat(backend):`, `docs(runbook):`,
+  `style(backend):`); one logical change per commit; commit only when the worktree contains the
+  intended phase change.
+- **Adding API surface** requires passing the contract suite and adding an audit scenario — both are
+  enforced automatically; see `docs/ADDING_AN_ENDPOINT.md`.
+- **No secrets** in Git, in committed `settings` overrides, or in test fixtures that ship.
+
+---
+
+## Open decisions
+
+None block the running system, but several set the remaining scope
+(`docs/business/client-decisions.md`):
+
+| # | Decision | Affects |
+| --- | --- | --- |
+| 4 | Stock-count frequency and a formal closing time (implies report cut-offs) | C4 reporting boundaries |
+| 5 | Payroll additions, overtime, absences | Payroll |
+| 6 | Deduction approval policy and statutory calculations | Payroll |
+| 8 | Fiscal / e-invoicing technical requirements | Phase E |
+| 9, 10 | Commercially permitted VPS provider and ETB payment method | **Deployment rehearsal (D6) and Phase E** |

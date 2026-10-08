@@ -1,9 +1,9 @@
 # Barkot Engineering Handoff
 
-**Generated:** 2026-10-05, maintained through D1 on 2026-10-07  
+**Generated:** 2026-10-05, maintained through D2 on 2026-10-08  
 **Repository:** `C:\dev\barkot_internal_system`  
 **Branch:** `main`  
-**HEAD:** `26687b6 feat(backend): D0 - Rate limiting on all state-changing endpoints` (D1 commit follows)  
+**HEAD:** `de05ebe feat(backend): D1 - Audit coverage: a test per state-changing endpoint` (D2 commit follows)  
 **Remote:** `main` tracks `origin/main`; push after every verified commit.
 
 This document is a continuation map for an engineering model. It is not a substitute for reading the source. The code and normative specifications win over this document if they disagree.
@@ -39,10 +39,11 @@ python -c "import zipfile,xml.etree.ElementTree as ET;W='{http://schemas.openxml
 - C6: role-scoped dashboard summary. One read-only `GET /dashboard/` whose tiles delegate to the services that own them (balance, stock balance, sales totals, latest run), each `null` when the role lacks the grant. Acceptance tests, API client, dashboard screen, and stubbed + live E2E. **Phase C is complete.**
 - D0: rate limiting on all state-changing endpoints (spec §9.3). Every POST/PUT/PATCH/DELETE on every endpoint, 60 a minute per client address, installed as DRF's `DEFAULT_THROTTLE_CLASSES` so a new endpoint cannot be exempt by omission; reads are never throttled and login keeps its stricter 5/m. Configuration assertions, reads-don't-spend, per-address isolation, login/write budget separation, window reset, and the load test that expects 429.
 - D1: audit coverage (P06). `backend/tests/api/test_audit_coverage.py` holds one scenario per state-changing endpoint (31 method/path pairs) that drives the real view and asserts exactly one new `AuditLog` row with the right action, object type, actor, object id and summary, plus a completeness test that compares the discovered unsafe surface against the scenario table — a new endpoint with no scenario fails the suite, and a mutation re-exposed on `SalesViewSet` fails it too (DRF drops `http_method_names`-blocked methods from discovery, so the two surfaces cannot drift apart). Writing it closed real gaps: product/category `perform_create` and `set_price` logged `actor=None`; `open_stock_count`, payroll's `add_deduction`, a new `add_employee` service, and product/category update/delete services did not record at all; `AuditLog.Action.DELETE` did not exist.
+- D2: the five §23.1 scenarios mapped onto the live suite, green locally and in CI. Scenario 1.1's income half: `b5-sale.spec.ts` now asserts the dashboard Takings and Transactions tiles after the sale, not just the stock movement. Scenario 1.4's deduction: `payroll.spec.ts` records a 500 "Salary advance" with a written reason and ties the deductions register to the run (total_deductions 500.00 / net_amount 11500.00) and to `reports.spec.ts`, which reads the run as its net (financial payroll_total, payroll tab tiles, deductions-by-type panel and the CSV). Scenarios 2 and 3 (C3's first browser coverage): new `stock.spec.ts` — the Barman receives 50 units at 20.00/unit (receipt completed on the wire with line cost 1000.00, one IN movement, shelf 40 → 90) and a Manager opens a count at 90, counts 89, completes it (variance −1.000), a Cashier is refused approve over the wire (backend's own 403 envelope), and the Manager's approval posts a COUNT_VARIANCE OUT 1.000 movement that lands in the variance report. Scenario 1.5's refusals: new `refusals.spec.ts` — the Cashier's payroll no-access note, a 403 on approve-run and on set-price, and the Owner (the only role with `products.change_prices`) getting a 201 where the Cashier got 403. The wire-based refusals needed `frontend/tests/live/wire.ts` (same-origin `page.evaluate(fetch)`, CSRF token from the cookie, so the 403 is Django's permission answer rather than a CSRF defence). The seed (`seed_e2e.py`, `environment.ts`) now also creates a Barman.
 
 ### Next
 
-**D2 — Full E2E suite covering all five §23.1 scenarios** is next in the roadmap order (`docs/roadmap.md` carries the D1-D6 table); the gate is "suite green in CI". The suites today were grown per phase — a stubbed and a live spec per vertical (34 + 10 Playwright tests) — and D2's job is to map them onto the five normative scenarios, fill what has no browser coverage (C3 inventory has none — see Known Gaps), and make the gate runnable: the repository has no CI configuration at all, so "green in CI" also means creating the workflow. D1 is done — see the rule in Non-Negotiable Rules and the budgets in Verified Gates.
+**D3 — Automated backups (restore drill)** is next in the roadmap order (`docs/roadmap.md` carries the D1-D6 table); the gate is "restore into a scratch database and reconcile". D2's E2E gate is now green both locally and via the CI workflow (`.github/workflows/ci.yml` — it pre-existed and already ran the backend gates, lint, prettier, typecheck, vitest, the build and both Playwright projects; D2 only had to keep it green), and the live suite covers every §23.1 scenario. D2 is done — see the rule in Non-Negotiable Rules and the budgets in Verified Gates.
 
 ## API Surface
 
@@ -181,7 +182,7 @@ Sections are gated on `finance.view_reports`, `payroll.view_payroll`, `sales.vie
 - Protected finance routes: `frontend/src/app/(app)/finance/`
 - Protected inventory routes: `frontend/src/app/(app)/inventory/`
 - Stubbed E2E: `frontend/tests/e2e/`
-- Live E2E: `frontend/tests/live/` — shared throttle-aware `signIn` in `frontend/tests/live/signin.ts`; the suite runs alphabetically (`b5-sale > dashboard > payroll > reports > settings`), one worker
+- Live E2E: `frontend/tests/live/` — shared throttle-aware `signIn` in `frontend/tests/live/signin.ts`; the suite runs alphabetically (`b5-sale > dashboard > payroll > refusals > reports > settings > stock`), one worker
 
 The C3 frontend form currently handles one product line at a time. Multi-line receipt/breakage/count UX is a reasonable follow-up, but it must preserve the existing service contract that validates duplicate products and all-or-nothing writes.
 
@@ -227,7 +228,7 @@ npm run build
 npm run test:e2e
 ```
 
-Last verified: **83 Vitest tests** (after C6), and **34 stubbed Playwright tests** plus **10 live Playwright tests** re-run green after D1. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
+Last verified: **83 Vitest tests** (after C6), and **34 stubbed Playwright tests** plus **14 live Playwright tests** re-run green after D2. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
 
 ```powershell
 $env:E2E_DB_NAME='barkot_e2e'
@@ -236,9 +237,9 @@ $env:E2E_DB_PASSWORD='barkot'
 npm run test:e2e:live
 ```
 
-**The live suite now makes ten sign-ins in one run, and A5 allows five a minute per address.** Every live spec must sign in through `frontend/tests/live/signin.ts`, which waits the window out and retries; a spec with its own non-retrying copy fails on the first 429 (payroll's did when C6 added two more logins, and `b5-sale`'s did at D1). Do not add a sign-in path that is not the shared helper, and keep `test.setTimeout(240_000)` on any test that signs in.
+**The live suite now makes fifteen sign-ins in one run, and A5 allows five a minute per address.** Every live spec must sign in through `frontend/tests/live/signin.ts`, which waits the window out and retries; a spec with its own non-retrying copy fails on the first 429 (payroll's did when C6 added two more logins, and `b5-sale`'s did at D1). Do not add a sign-in path that is not the shared helper, and keep `test.setTimeout(240_000)` on any test that signs in.
 
-**The live files also depend on each other's leftovers** — `reports` reads the run `payroll` approved and the sale `b5-sale` voided — so `playwright.config.ts` sets `workers: 1` whenever the live project is selected. `fullyParallel: false` alone only serializes tests *within* a file; separate files still spread across workers, which raced `reports` ahead of `payroll`'s approval. The alphabetical file order (`b5-sale > dashboard > payroll > reports > settings`) is the contract; do not add a live spec whose position in that order does not matter.
+**The live files also depend on each other's leftovers** — `reports` reads the run `payroll` approved (with its deduction) and the sale `b5-sale` voided, and `stock` counts on the shelf the receipt it receives — so `playwright.config.ts` sets `workers: 1` whenever the live project is selected. `fullyParallel: false` alone only serializes tests *within* a file; separate files still spread across workers, which raced `reports` ahead of `payroll`'s approval. The alphabetical file order (`b5-sale > dashboard > payroll > refusals > reports > settings > stock`) is the contract; `stock` is last because receive and count approval change the stock the earlier stories leave alone, and `reports` must still see a pristine variance report.
 
 **D0 added a second budget: 60 state-changing requests a minute per client address (reads are free).** The live suite runs far below it today; if a future spec loops mutations, count them the way sign-ins are counted before raising a spec's intensity.
 
@@ -247,7 +248,7 @@ Do not casually rename the harness or seed safety strings; they are covered by t
 ## Known Gaps and Decisions
 
 - B5's original browser income claim was blocked before C1 because no finance read existed. C1 now exposes the read. Decide explicitly whether to amend the roadmap status or add a B5 browser assertion; do not mark it silently.
-- C3 has backend HTTP acceptance tests but no inventory-specific Playwright scenario yet. Existing stubbed/live suites pass; D2 eventually requires browser coverage of the normative scenarios.
+- C3 inventory's normative scenarios 2 and 3 now have browser coverage in `stock.spec.ts` (Barman receive, Manager count + approval, Cashier refusal over the wire); the receive and count screens have no Process-and-Banner, so that spec's assertions read the wire and the movement ledger instead.
 - The frontend has some existing non-blocking lint warnings in older product/sales files when running full lint without `--quiet`; do not mix them up with new errors.
 - Open client decisions remain: physical count frequency/closing time, payroll additions/overtime/absence, deduction/statutory calculations, fiscal/e-invoicing, domain availability, VPS, and payment method.
 - The repository and product are named `barkot`; some older internal strings and live E2E defaults say `barket`. Verify before changing any such string because some are intentional test guards and some are stale naming.
@@ -257,9 +258,8 @@ Do not casually rename the harness or seed safety strings; they are covered by t
 
 Before starting D2:
 
-1. Phases A–C and D0–D1 are complete; do not open another domain task. Read the D1-D6 table in `docs/roadmap.md`.
-2. D2 first: read the five §23.1 scenarios in the architecture spec, map each onto the existing stubbed (`frontend/tests/e2e/`) and live (`frontend/tests/live/`) specs, and fill the gaps — C3 inventory has no browser scenario (see Known Gaps). The gate is "suite green in CI" and the repository has no CI workflow yet, so part of D2 is creating one that runs lint, typecheck, the backend gates, and both Playwright projects.
-3. D3 follows: automated backups with a restore drill into a scratch database.
+1. Phases A–C and D0–D2 are complete; do not open another domain task. Read the D1-D6 table in `docs/roadmap.md`.
+2. D3 next: automated backups with a restore drill into a scratch database. The D2 E2E gate is green in CI; extend the live suite with a new `tests/live/<name>.spec.ts` under the same rules (shared `signIn`, `test.setTimeout(240_000)`, alphabetical order matters, count new sign-ins against the fifteen in the current baseline).
 4. Keep the contract suite green when touching the API surface — it discovers mounted endpoints automatically. A new state-changing endpoint also needs a scenario in `backend/tests/api/test_audit_coverage.py` (the completeness test enforces this).
 5. Run the full gate set in `## Verified Gates` before every commit; counts above are the last verified baseline.
 6. Commit only when the worktree contains the intended phase changes, and push after the commit.

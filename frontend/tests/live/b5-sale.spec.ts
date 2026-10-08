@@ -21,6 +21,8 @@
  * 2. A Cashier signs in with a real session, sees an empty till, records a sale,
  *    and the stock ledger moves exactly once. Read back over HTTP with the
  *    cashier's own cookie, because a screen agreeing with itself is not evidence.
+ *    The income half of that story is on the till too: the dashboard's Takings
+ *    and Transactions tiles show the money the sale took in.
  * 3. That Cashier cannot void it - a real 403 from a real permission, with the
  *    sale still standing - and a Manager can, after which the stock is back.
  *
@@ -144,10 +146,28 @@ test("a Cashier records a sale: real session, stock down once, void refused", as
     total: TOTAL,
   });
 
+  // The sale's income side is on the till too: the dashboard's Takings and
+  // Transactions tiles are the money the ledger took in, not a number the
+  // browser invented. The tile value is asserted through the Metric card that
+  // owns its label, so a matching number elsewhere on screen cannot satisfy it.
+  await page.goto("/dashboard");
+  await expect(page.getByText("Takings", { exact: true }).first()).toBeVisible();
+  await expect(
+    page
+      .getByText("Takings", { exact: true })
+      .locator("..")
+      .getByText(`${TOTAL} ETB`, { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Transactions", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByText("Transactions", { exact: true }).locator("..").getByText("1", { exact: true }),
+  ).toBeVisible();
+
   // The screen offers Void to anyone who can see the row; Django is what
   // refuses. The confirm has to be accepted or the request is never sent and
   // this test would pass without the backend ever being asked - Playwright
   // dismisses dialogs by default, so the handler below is load-bearing.
+  await page.goto("/sales");
   const dialogs: { kind: string; message: string }[] = [];
   page.on("dialog", (dialog) => {
     dialogs.push({ kind: dialog.type(), message: dialog.message() });

@@ -65,6 +65,7 @@ E2E_PASSWORD = "e2e-cashier-pw"
 CASHIER_USERNAME = "e2e-cashier"
 MANAGER_USERNAME = "e2e-manager"
 OWNER_USERNAME = "e2e-owner"
+BARMAN_USERNAME = "e2e-barman"
 
 CATEGORY_NAME = "E2E Drinks"
 PRODUCT_NAME = "E2E Coffee"
@@ -134,6 +135,7 @@ class SeedSummary(TypedDict):
     cashier: SeededUserSummary
     manager: SeededUserSummary
     owner: SeededUserSummary
+    barman: SeededUserSummary
     category: SeededCategorySummary
     product: SeededProductSummary
     payroll: SeededPayrollSummary
@@ -143,7 +145,7 @@ class Command(BaseCommand):
     """Create the fixtures the live Playwright suite signs in and sells against."""
 
     help = (
-        "Seed the E2E database with a Cashier, a Manager, an Owner, "
+        "Seed the E2E database with a Cashier, a Manager, an Owner, a Barman, "
         "one sellable product and one staff member on the payroll."
     )
 
@@ -178,6 +180,7 @@ class Command(BaseCommand):
         cashier = self._upsert_user(CASHIER_USERNAME, Role.Code.CASHIER)
         manager = self._upsert_user(MANAGER_USERNAME, Role.Code.MANAGER)
         owner = self._upsert_user(OWNER_USERNAME, Role.Code.OWNER)
+        barman = self._upsert_user(BARMAN_USERNAME, Role.Code.BARMAN)
         category, product = self._upsert_product()
         profile, payroll = self._upsert_payroll()
 
@@ -186,6 +189,7 @@ class Command(BaseCommand):
             "cashier": {"username": cashier.username, "password": E2E_PASSWORD},
             "manager": {"username": manager.username, "password": E2E_PASSWORD},
             "owner": {"username": owner.username, "password": E2E_PASSWORD},
+            "barman": {"username": barman.username, "password": E2E_PASSWORD},
             "category": {"id": category.id, "name": category.name},
             "product": {
                 "id": product.id,
@@ -212,6 +216,7 @@ class Command(BaseCommand):
             self.style.SUCCESS(
                 f"Seeded {summary['database']}: cashier={CASHIER_USERNAME} "
                 f"manager={MANAGER_USERNAME} owner={OWNER_USERNAME} "
+                f"barman={BARMAN_USERNAME} "
                 f"product={PRODUCT_SKU} (id={product.id}) "
                 f"payroll={profile.full_name} (id={payroll.id})"
             )

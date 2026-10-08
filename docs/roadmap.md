@@ -41,7 +41,7 @@ Measured, not assumed (last verified after D0):
 | Tests | 1244 backend passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, rate-limit configuration and the write-throttle load test, idempotency keys and receipt allocation under real thread contention, plus per-domain acceptance tests |
 | Static analysis | mypy clean over 179 files, ruff clean |
 | **API endpoints** | **Phases A–C complete: auth, products, sales, finance, inventory, payroll, reports, users/roles/settings and the dashboard, behind an OpenAPI schema that validates with 0 errors** |
-| **Frontend** | **Typed client and protected route group with a screen per domain through C6; 83 Vitest, 34 stubbed and 10 live Playwright tests green** |
+| **Frontend** | **Typed client and protected route group with a screen per domain through C6; 83 Vitest, 34 stubbed and 14 live Playwright tests green** |
 | `reports` app | C4 — financial, inventory and payroll reports with CSV export |
 | `audit` app | Model and `record()`; written by services, D1 asks for per-endpoint coverage |
 | Audit coverage | Services call `AuditLog.record()`, so most state changes are already audited |
@@ -395,7 +395,7 @@ application of a pattern proven in B4, not new design. The two failure modes tha
 | --- | --- | --- |
 | ~~D0~~ | Rate limiting on all state-changing endpoints (spec §9.3): every unsafe method on every endpoint, 60 a minute per client address, installed as DRF's `DEFAULT_THROTTLE_CLASSES` so a new endpoint cannot be exempt by omission. Reads are never throttled; login keeps its stricter 5/m | Load test exceeds the configured limit and receives 429 |
 | ~~D1~~ | Audit coverage: every state-changing endpoint writes `AuditLog` (P06). A completeness test enumerates the discovered unsafe surface and fails if a method/path has no scenario; each of the 31 scenarios then posts through the real view and asserts exactly one new row with the right action, object type, actor, object id and summary. Writing it found three silent gaps - product and category `perform_create` and `set_price` all logged `actor=None` - and confirmed sales mutations are unreachable rather than unlogged: `http_method_names` removes them from DRF's router, so the audit surface and the discovered surface cannot drift apart | A test per endpoint asserts the audit row |
-| D2 | Full E2E suite covering all five §23.1 scenarios | Suite green in CI |
+| ~~D2~~ | Full E2E suite covering all five §23.1 scenarios | Suite green in CI |
 | D3 | Automated backups | **A restore drill**: restore into a scratch database and reconcile |
 | D4 | Production runbook | A second person can deploy and roll back from the document alone |
 | D5 | Observability baseline (§24): request ID, user ID in logs, alerting on 5xx and health | Alert fires in a test environment |

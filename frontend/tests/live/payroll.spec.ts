@@ -13,9 +13,11 @@
  * The story runs in two sign-ins, because the two acts are owned by different
  * people (spec A14.1):
  *
- * 1. The Manager generates the current month and is refused "Approve" - the
- *    owner-only button simply is not shown - while the payslip on screen is
- *    the seeded wage, not a number typed by a test.
+ * 1. The Manager generates the current month, records the one deduction the seed
+ *    allows against it (a salary advance with a written reason), and is refused
+ *    "Approve" - the owner-only button simply is not shown - while the payslip on
+ *    screen is the seeded wage minus what the deduction took, not a number typed
+ *    by a test (scenario §23.1.4: the reason is captured and the net reconciles).
  * 2. The Owner approves the run and then marks it paid. Each step is read back
  *    over HTTP with the browser's own cookie, because a screen agreeing with
  *    itself is not evidence that status moved.
@@ -113,6 +115,54 @@ test("a Manager generates the month and cannot approve it", async ({ page }) => 
 
   // The Manager's permissions stop at generation: the button is not rendered
   // at all, and the screen says who has to sign it.
+  await expect(page.getByRole("button", { name: "Approve run" })).toHaveCount(0);
+  await expect(page.getByText("An owner approves this run before anything is paid.")).toBeVisible();
+
+  // --- The deduction half of scenario §23.1.4: a salary advance with a reason.
+  // The screens it must reconcile are the deductions register and the run -
+  // the reason is captured as a first-class column, and the payslip's net pay
+  // drops by exactly what was taken off it.
+  await page.goto("/payroll/deductions");
+  await page.getByLabel("Amount (ETB)").fill("500");
+  await page.getByLabel("Reason").fill("Transport advance agreed by the owner.");
+  await page.getByRole("button", { name: "Record deduction" }).click();
+
+  await expect(
+    page.getByText("500.00 ETB deducted from Seble Worku.", { exact: true }),
+  ).toBeVisible();
+  const deductionRow = page.getByRole("row").filter({ hasText: seed.payroll.full_name });
+  await expect(deductionRow).toContainText("Salary advance");
+  await expect(deductionRow).toContainText("500.00 ETB");
+  await expect(deductionRow).toContainText("Transport advance agreed by the owner.");
+
+  // Back on the run, the payslip still carries the gross, the deduction column
+  // is populated and the net is the difference - the two screens disagreeing
+  // would be exactly the bug this story exists to catch.
+  await page.goto("/payroll/runs");
+  const employeeRowAfter = page.getByRole("row").filter({ hasText: seed.payroll.full_name });
+  await expect(employeeRowAfter).toContainText("12,000.00 ETB");
+  await expect(employeeRowAfter).toContainText("500.00 ETB");
+  await expect(employeeRowAfter).toContainText("11,500.00 ETB");
+
+  const withDeduction = await readRun(page);
+  expect(withDeduction).not.toBeNull();
+  expect(withDeduction).toMatchObject({
+    status: "GENERATED",
+    gross_total: seed.payroll.monthly_wage,
+    deduction_total: "500.00",
+    net_total: "11500.00",
+  });
+  const itemAfter = await readItem(page, Number((withDeduction as { id: number }).id));
+  expect(itemAfter).not.toBeNull();
+  expect(itemAfter).toMatchObject({
+    full_name: seed.payroll.full_name,
+    gross_amount: seed.payroll.monthly_wage,
+    total_deductions: "500.00",
+    net_amount: "11500.00",
+  });
+
+  // The month is still a proposal while it waits for the Owner, so the
+  // generation-permission surveillance from before the deduction still holds.
   await expect(page.getByRole("button", { name: "Approve run" })).toHaveCount(0);
   await expect(page.getByText("An owner approves this run before anything is paid.")).toBeVisible();
 });

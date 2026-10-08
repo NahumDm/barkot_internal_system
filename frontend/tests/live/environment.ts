@@ -112,6 +112,7 @@ export interface SeedSummary {
   cashier: SeededUser;
   manager: SeededUser;
   owner: SeededUser;
+  barman: SeededUser;
   category: { id: number; name: string };
   product: SeededProduct;
   /** The one staff member the payroll specs generate a run for. */

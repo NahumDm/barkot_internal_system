@@ -205,6 +205,15 @@ docker compose --env-file .env -f docker-compose.prod.yml exec api python manage
 - Check Django settings are correct for prod (DEBUG=False, allowed hosts, secure cookies)
 - Run migrations: `docker compose exec api python manage.py migrate --check`
 
+## Observability (D5)
+
+- Request ID: All requests get `X-Request-ID` header (from nginx or generated). Logs include `request_id` and `user_id`.
+- Health endpoints: `GET /health/live` and `GET /health/ready` — monitor for 503s and timeouts.
+- Alerting recommendations:
+  - Alert on 5xx responses (rate > threshold over time window)
+  - Alert on `/health/ready` returning 503 (DB connectivity issues)
+  - Alert on `/health/live` failing (process down)
+
 ## Health Checks
 
 - API health: `GET /health/` should return 200

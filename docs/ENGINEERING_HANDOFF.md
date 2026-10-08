@@ -252,14 +252,14 @@ Do not casually rename the harness or seed safety strings; they are covered by t
 - The frontend has some existing non-blocking lint warnings in older product/sales files when running full lint without `--quiet`; do not mix them up with new errors.
 - Open client decisions remain: physical count frequency/closing time, payroll additions/overtime/absence, deduction/statutory calculations, fiscal/e-invoicing, domain availability, VPS, and payment method.
 - The repository and product are named `barkot`; some older internal strings and live E2E defaults say `barket`. Verify before changing any such string because some are intentional test guards and some are stale naming.
-- `infrastructure/nginx/nginx.conf` declares `zone=login` (10r/m) but no location applies it, so the enforced login limit is Django's 5/m through the app; the edge `api` zone (60r/m, burst 20) is applied at `location /api/v1/`. Wire or drop the unused zone when the edge config is first validated against a running stack (D6); it was deliberately left alone in D0 because nginx cannot be validated locally.
+- `zone=login` (10r/m) is now wired onto `location /api/v1/auth/login/` in `conf.d/barkot.conf` (validated with `nginx -t` during the 2026-10-08 D6 local rehearsal), beside Django's 5/m app limit.
 
 ## Safe Next Action
 
-Before starting D2:
+Phases A–C and D0–D6 (docs/impl) are complete. Read the D1-D6 table in `docs/roadmap.md`.
 
-1. Phases A–C and D0–D2 are complete; do not open another domain task. Read the D1-D6 table in `docs/roadmap.md`.
-2. D3 next: automated backups with a restore drill into a scratch database. The D2 E2E gate is green in CI; extend the live suite with a new `tests/live/<name>.spec.ts` under the same rules (shared `signIn`, `test.setTimeout(240_000)`, alphabetical order matters, count new sign-ins against the fifteen in the current baseline).
-4. Keep the contract suite green when touching the API surface — it discovers mounted endpoints automatically. A new state-changing endpoint also needs a scenario in `backend/tests/api/test_audit_coverage.py` (the completeness test enforces this).
-5. Run the full gate set in `## Verified Gates` before every commit; counts above are the last verified baseline.
-6. Commit only when the worktree contains the intended phase changes, and push after the commit.
+1. A local D6 rehearsal ran 2026-10-08 (stack up from `docker-compose.prod.yml`, migrate, health 200/200, owner login 200, `X-Request-ID` present, nginx `nginx -t` clean). The remaining D6 gate — the milestone rehearsal on a real Ubuntu 24.04 VPS with a domain and Let's Encrypt certs — is blocked on open clients decisions 9/10 (`docs/business/client-decisions.md`).
+2. Phase E (optional integrations) is externally blocked on the same decisions: Chapa/payment, fiscal/e-invoicing, email, async jobs.
+3. Keep the contract suite green when touching the API surface — it discovers mounted endpoints automatically. A new state-changing endpoint also needs a scenario in `backend/tests/api/test_audit_coverage.py` (the completeness test enforces this).
+4. Run the full gate set in `## Verified Gates` before every commit; counts there are the last verified baseline.
+5. Commit only when the worktree contains the intended phase changes, and push after the commit.

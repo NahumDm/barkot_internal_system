@@ -46,8 +46,9 @@ Measured, not assumed (last verified after D0):
 | `audit` app | Model and `record()`; written by services, D1 asks for per-endpoint coverage |
 | Audit coverage | Services call `AuditLog.record()`, so most state changes are already audited |
 
-Phases A–C are built and proven end to end. What remains is Phase D — hardening and production
-readiness — and Phase E, which is externally blocked.
+Phases A–C are built and proven end to end. Phase D — hardening and production readiness — is done
+through D5; D6's local rehearsal passed and its target-host milestone is blocked on client decisions.
+Phase E, optional integrations, is externally blocked.
 
 ## The shape of every phase
 
@@ -396,13 +397,18 @@ application of a pattern proven in B4, not new design. The two failure modes tha
 | ~~D0~~ | Rate limiting on all state-changing endpoints (spec §9.3): every unsafe method on every endpoint, 60 a minute per client address, installed as DRF's `DEFAULT_THROTTLE_CLASSES` so a new endpoint cannot be exempt by omission. Reads are never throttled; login keeps its stricter 5/m | Load test exceeds the configured limit and receives 429 |
 | ~~D1~~ | Audit coverage: every state-changing endpoint writes `AuditLog` (P06). A completeness test enumerates the discovered unsafe surface and fails if a method/path has no scenario; each of the 31 scenarios then posts through the real view and asserts exactly one new row with the right action, object type, actor, object id and summary. Writing it found three silent gaps - product and category `perform_create` and `set_price` all logged `actor=None` - and confirmed sales mutations are unreachable rather than unlogged: `http_method_names` removes them from DRF's router, so the audit surface and the discovered surface cannot drift apart | A test per endpoint asserts the audit row |
 | ~~D2~~ | Full E2E suite covering all five §23.1 scenarios | Suite green in CI |
-| D3 | Automated backups | **A restore drill**: restore into a scratch database and reconcile |
-| D4 | Production runbook | A second person can deploy and roll back from the document alone |
-| D5 | Observability baseline (§24): request ID, user ID in logs, alerting on 5xx and health | Alert fires in a test environment |
+| ~~D3~~ | Automated backups | **A restore drill**: restore into a scratch database and reconcile |
+| ~~D4~~ | Production runbook | A second person can deploy and roll back from the document alone |
+| ~~D5~~ | Observability baseline (§24): request ID, user ID in logs, alerting on 5xx and health | Alert fires in a test environment |
 | D6 | Deployment rehearsal on a target host | Full stack starts from `docker compose.prod.yml` with real secrets |
 
 D3's restore drill is the item most often skipped and the one that matters most: an untested backup is
 a hypothesis.
+
+D6 held a local rehearsal on 2026-10-08 (stack up from `docker compose.prod.yml` with generated secrets,
+migrate applied, `/health/live` + `/health/ready` 200, owner login 200, `X-Request-ID` present, nginx
+`nginx -t` clean, `zone=login` wired). The milestone rehearsal on a real Ubuntu VPS remains open:
+it is blocked on the client decisions for a commercially permitted VPS provider and domain (9/10).
 
 ## Phase E — Optional integrations
 

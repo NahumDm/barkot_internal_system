@@ -17,7 +17,7 @@ Single VPS topology:
 - Nginx on the host terminates TLS and proxies traffic
 - Docker Compose runs: `db` (PostgreSQL 17), `api` (Django/Gunicorn), `web` (Next.js)
 - Services only publish on `127.0.0.1` to the host; PostgreSQL not exposed publicly
-- Nginx routes `/api/v1/` to API, everything else to web; `/health/` to API health check
+- Nginx routes `/api/v1/` to API, everything else to web; `/health/` to API health endpoints
 
 See `infrastructure/nginx/` and `docker-compose.prod.yml` for full configuration.
 
@@ -70,16 +70,24 @@ docker compose --env-file .env -f docker-compose.prod.yml logs web
 docker compose --env-file .env -f docker-compose.prod.yml exec api python manage.py migrate --no-input
 ```
 
-### 5. Seed Data (if needed)
+### 5. Create the Owner Account
+
+Roles are seeded automatically by a `post_migrate` receiver, so only the Owner
+account needs explicit creation. `create_owner` prompts for a password in a
+terminal, or accepts `--from-stdin` for unattended environments and
+`--generate-password` to print a random one exactly once:
 
 ```bash
-docker compose --env-file .env -f docker-compose.prod.yml exec api python manage.py seed --no-input
-# Or for E2E testing environment only: python manage.py seed_e2e --reset
+docker compose --env-file .env -f docker-compose.prod.yml exec -it api python manage.py create_owner owner
+# Non-interactive (generates a random password, printed once):
+docker compose --env-file .env -f docker-compose.prod.yml exec -T api python manage.py create_owner owner --generate-password
 ```
+
+`seed_e2e` is for test environments only, never production data.
 
 ### 6. Verify Deployment
 
-- Check health endpoint: `curl -i https://barkotbar.com/health/`
+- Check health endpoint: `curl -i https://barkotbar.com/health/live`
 - Check API: `curl -i https://barkotbar.com/api/v1/`
 - Check frontend: browse to `https://barkotbar.com`
 
@@ -216,7 +224,7 @@ docker compose --env-file .env -f docker-compose.prod.yml exec api python manage
 
 ## Health Checks
 
-- API health: `GET /health/` should return 200
+- API health: `GET /health/live` (process up) and `GET /health/ready` (DB reachable) should return 200
 - Database: `pg_isready` on db container
 - All containers: `docker compose ps` shows "healthy"/"Up"
 

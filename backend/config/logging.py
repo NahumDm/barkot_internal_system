@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 
 def get_logging_config() -> dict:
     """Return logging configuration for observability."""
@@ -12,7 +10,10 @@ def get_logging_config() -> dict:
         "disable_existing_loggers": False,
         "formatters": {
             "verbose": {
-                "format": "%(asctime)s [%(levelname)s] %(name)s: request_id=%(request_id)s user_id=%(user_id)s %(message)s",
+                "format": (
+                    "%(asctime)s [%(levelname)s] %(name)s: "
+                    "request_id=%(request_id)s user_id=%(user_id)s %(message)s"
+                ),
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
             "simple": {

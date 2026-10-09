@@ -24,7 +24,7 @@ function StatusBadge({ status }: { status: "COMPLETED" | "VOIDED" }) {
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-        status === "COMPLETED" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+        status === "COMPLETED" ? "bg-success/15 text-success" : "bg-danger/15 text-danger"
       }`}
     >
       {status}
@@ -37,10 +37,10 @@ function PaymentStatusBadge({ status }: { status: string }) {
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
         status === "PAID"
-          ? "bg-green-100 text-green-800"
+          ? "bg-success/15 text-success"
           : status === "PARTIAL"
-            ? "bg-yellow-100 text-yellow-800"
-            : "bg-slate-100 text-slate-800"
+            ? "bg-warning/15 text-warning"
+            : "bg-canvas text-ink-secondary"
       }`}
     >
       {status}
@@ -335,7 +335,7 @@ export default function SalesPage() {
         </div>
         <button
           onClick={handleCreateClick}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface hover:bg-ink/90"
+          className="rounded bg-brand px-4 py-2 text-sm font-medium text-ivory transition-colors hover:bg-brand-deep"
         >
           New Sale
         </button>

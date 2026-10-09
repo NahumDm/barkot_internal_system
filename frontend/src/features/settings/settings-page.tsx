@@ -746,7 +746,7 @@ function ActionButton({
       className={
         secondary
           ? "rounded border border-border bg-canvas px-3 py-1.5 text-sm font-medium text-ink hover:text-ink-secondary disabled:opacity-50"
-          : "rounded bg-ink px-3 py-1.5 text-sm font-medium text-canvas disabled:opacity-50"
+          : "rounded bg-brand px-3 py-1.5 text-sm font-medium text-canvas disabled:opacity-50"
       }
     >
       {children}

@@ -123,7 +123,7 @@ function TabButton({
       onClick={onClick}
       aria-pressed={active}
       className={`rounded px-3 py-1.5 text-sm font-medium ${
-        active ? "bg-ink text-canvas" : "bg-surface text-ink-secondary hover:text-ink"
+        active ? "bg-brand text-canvas" : "bg-surface text-ink-secondary hover:text-ink"
       }`}
     >
       {label}

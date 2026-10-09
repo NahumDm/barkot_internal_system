@@ -296,7 +296,7 @@ export default function DeductionRegister() {
               <button
                 type="submit"
                 disabled={saving || !itemId}
-                className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 lg:col-span-3 lg:justify-self-end"
+                className="rounded bg-brand px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 lg:col-span-3 lg:justify-self-end"
               >
                 {saving ? "Recording..." : "Record deduction"}
               </button>

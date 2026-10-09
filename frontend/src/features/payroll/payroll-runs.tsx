@@ -237,7 +237,7 @@ export default function PayrollRuns() {
                   onClick={() => setMonth(key)}
                   className={`rounded border px-2 py-1 text-xs ${
                     selected
-                      ? "border-ink bg-ink text-canvas"
+                      ? "border-brand bg-brand text-canvas"
                       : "border-border bg-surface text-ink-secondary hover:border-ink hover:text-ink"
                   }`}
                 >
@@ -291,7 +291,7 @@ export default function PayrollRuns() {
                     type="button"
                     disabled={busy !== null}
                     onClick={() => void perform("approve", () => approvePayrollRun(run.id))}
-                    className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+                    className="rounded bg-brand px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
                   >
                     {busy === "approve" ? "Approving..." : "Approve run"}
                   </button>
@@ -307,7 +307,7 @@ export default function PayrollRuns() {
                     type="button"
                     disabled={busy !== null}
                     onClick={() => void perform("paid", () => markPayrollRunPaid(run.id))}
-                    className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+                    className="rounded bg-brand px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
                   >
                     {busy === "paid" ? "Recording..." : "Mark as paid"}
                   </button>
@@ -389,7 +389,7 @@ export default function PayrollRuns() {
             <button
               type="submit"
               disabled={busy !== null}
-              className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+              className="rounded bg-brand px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
             >
               {busy === "generate" ? "Generating..." : "Generate run"}
             </button>

@@ -12,6 +12,7 @@
 import { useId, type ReactNode } from "react";
 
 import { ErrorCode, type ApiError } from "@/lib/api";
+import { BarkotLogo } from "@/components/brand/logo";
 
 /**
  * The one message shown above a form.
@@ -90,7 +91,7 @@ export function Field({
         disabled={disabled}
         aria-invalid={errors.length > 0}
         aria-describedby={errors.length > 0 ? errorId : undefined}
-        className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+        className="rounded border border-border bg-canvas px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/25"
       />
       {hint !== undefined && errors.length === 0 ? (
         <p className="text-xs text-ink-secondary">{hint}</p>
@@ -110,8 +111,11 @@ export function FormShell({
   children,
 }: Readonly<{ title: string; subtitle: string; children?: ReactNode }>) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <section className="w-full max-w-sm rounded border border-border bg-surface p-6">
+    <main className="flex min-h-screen items-center justify-center bg-wine p-6">
+      <section className="w-full max-w-md rounded-lg border border-ivory/10 bg-surface p-8 shadow-xl shadow-wine/40">
+        <div className="mb-6 rounded-lg border border-border bg-cream px-6 py-5">
+          <BarkotLogo variant="full" className="mx-auto h-14 w-auto" />
+        </div>
         <h1 className="text-xl font-semibold tracking-tight text-ink">{title}</h1>
         <p className="mt-1 text-sm text-ink-secondary">{subtitle}</p>
         <div className="mt-6 flex flex-col gap-4">{children}</div>

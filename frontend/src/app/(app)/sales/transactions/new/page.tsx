@@ -320,7 +320,7 @@ export default function NewSalePage() {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface disabled:opacity-60 disabled:cursor-not-allowed"
+          className="rounded bg-brand px-4 py-2 text-sm font-medium text-ivory transition-colors hover:bg-brand-deep disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {submitting ? "Recording Sale…" : "Record Sale"}
         </button>

@@ -186,7 +186,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
           )}
           <button
             disabled={saving || !product}
-            className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+            className="rounded bg-brand px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
             type="submit"
           >
             {saving ? "Saving..." : mode === "count" ? "Open count" : "Save record"}
@@ -229,7 +229,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
               <button
                 disabled={saving || quantity === ""}
                 onClick={finishCount}
-                className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+                className="rounded bg-brand px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
               >
                 Complete count
               </button>
@@ -239,13 +239,13 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
             <button
               disabled={saving}
               onClick={approveCount}
-              className="rounded bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="rounded bg-brand px-4 py-2 text-sm font-semibold text-ivory disabled:opacity-50"
             >
               Approve adjustment
             </button>
           )}
           {count.status === "APPROVED" && (
-            <p className="text-sm text-emerald-700">Adjustment posted to the ledger.</p>
+            <p className="text-sm text-success">Adjustment posted to the ledger.</p>
           )}
         </section>
       )}

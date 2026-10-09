@@ -49,7 +49,7 @@ export default function MovementList() {
                 <td className="px-3 py-3 font-medium text-ink">{movement.product_name}</td>
                 <td className="px-3 py-3">{movement.kind}</td>
                 <td
-                  className={`px-3 py-3 font-semibold ${movement.direction === "IN" ? "text-emerald-700" : "text-danger"}`}
+                  className={`px-3 py-3 font-semibold ${movement.direction === "IN" ? "text-success" : "text-danger"}`}
                 >
                   {movement.direction === "IN" ? "+" : "-"}
                   {movement.quantity}

@@ -21,6 +21,7 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+import { BarkotLogo } from "../brand/logo";
 import { navGroups } from "./nav";
 
 const iconByHref: Record<string, LucideIcon> = {
@@ -47,16 +48,18 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col bg-sidebar text-white">
-      <div className="border-b border-white/10 px-4 py-5">
-        <p className="text-lg font-bold tracking-widest">BARKOT</p>
-        <p className="text-sm text-white/60">Bar &amp; Restaurant</p>
+    <aside className="flex h-screen w-64 shrink-0 flex-col bg-sidebar text-ivory">
+      <div className="border-b border-ivory/10 px-4 py-5">
+        <div className="rounded-lg bg-cream p-2">
+          <BarkotLogo variant="compact" className="mx-auto h-9 w-auto" />
+        </div>
+        <p className="mt-2 text-center text-xs text-ivory/60">Bar &amp; Restaurant</p>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {navGroups.map((group, groupIndex) => (
           <div key={groupIndex} className="mb-4">
             {group.heading ? (
-              <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/40">
+              <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-ivory/45">
                 {group.heading}
               </p>
             ) : null}
@@ -69,10 +72,10 @@ export function Sidebar() {
                     <Link
                       href={item.href}
                       className={[
-                        "mb-1 flex items-center gap-3 rounded px-2 py-2 text-sm",
+                        "mb-1 flex items-center gap-3 rounded px-2 py-2 text-sm transition-colors",
                         active
-                          ? "bg-white/10 font-medium text-white"
-                          : "text-white/70 hover:bg-white/5 hover:text-white",
+                          ? "bg-ivory/10 font-medium text-ivory"
+                          : "text-ivory/65 hover:bg-ivory/10 hover:text-ivory",
                       ].join(" ")}
                     >
                       <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

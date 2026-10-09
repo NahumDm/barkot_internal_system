@@ -1,27 +1,46 @@
 @import "tailwindcss";
 
 @theme {
-  /* Monochrome operationally-priority palette (UX §2.1, §3.3) */
-  --color-background: #f7f7f7;
+  /* Barkot brand palette (visual §2): deep burgundy + warm ivory, sampled
+   * from images/barkot logo.png and images/rlogo-design.jpg (#901030/#802030
+   * burgundy, #F0E0C0/#E0D0C0 ivory). */
+
+  /* Primary brand — buttons, links, focus, accent text */
+  --color-brand: #901030;
+  --color-brand-hover: #7c0d2c;
+  --color-brand-deep: #6b0f26;
+  --color-brand-soft: #f9e9ec;
+
+  /* Warm ivory accent (logo creams) */
+  --color-accent: #efdfc6;
+  --color-ivory: #efdfc6;
+  --color-cream: #f6f0e2;
+
+  /* Deep wine — sidebar and auth backdrop */
+  --color-wine: #3e0715;
+  --color-wine-raised: #520d20;
+
+  /* Neutrals — warm-toned for readability against the ivory/cream base */
+  --color-background: #f6f1e7;
   --color-surface: #ffffff;
   /* The fill a form field or a table header sits on: the page tone, not the
    * card tone, so an input reads as a well you type into rather than as a
-   * continuation of the white card around it. Without this token the 19
-   * `bg-canvas` / `text-canvas` uses in finance and inventory compiled to
-   * nothing, which left the primary buttons black-on-black. */
-  --color-canvas: #f7f7f7;
-  --color-ink: #111111;
-  --color-ink-secondary: #666666;
-  --color-border: #e5e5e5;
+   * continuation of the white card around it. */
+  --color-canvas: #ece4d5;
+  --color-ink: #2b2019;
+  --color-ink-secondary: #6e6153;
+  --color-muted: #8a7d6d;
+  --color-border: #e2d9c7;
 
-  --color-sidebar: #111111;
-  --color-sidebar-surface: #181818;
+  /* Sidebar surface (dark wine) */
+  --color-sidebar: #3e0715;
+  --color-sidebar-surface: #520d20;
 
-  /* Semantic status colors — desaturated for print/grayscale clarity */
-  --color-success: #5b7a5b;
-  --color-warning: #a98d4a;
-  --color-danger: #a04848;
-  --color-info: #4f6d7d;
+  /* Semantic status colors — desaturated, warm-harmonised */
+  --color-success: #4e7a4c;
+  --color-warning: #8a6214;
+  --color-danger: #b23b3b;
+  --color-info: #4a6673;
 }
 
 @layer base {

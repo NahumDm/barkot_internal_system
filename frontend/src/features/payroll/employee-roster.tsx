@@ -159,7 +159,7 @@ export default function EmployeeRoster() {
             <button
               disabled={saving || noOneWaiting || !profileId}
               type="submit"
-              className="w-full rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded bg-brand px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Adding..." : "Add to payroll"}
             </button>

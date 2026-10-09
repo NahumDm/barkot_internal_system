@@ -138,7 +138,7 @@ export default function ExpenseRegister() {
         <button
           disabled={saving || !category}
           type="submit"
-          className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 lg:col-span-4 lg:justify-self-end"
+          className="rounded bg-brand px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 lg:col-span-4 lg:justify-self-end"
         >
           {saving ? "Saving..." : "Record expense"}
         </button>
@@ -171,7 +171,7 @@ export default function ExpenseRegister() {
                   {expense.status === "RECORDED" && (
                     <button
                       onClick={() => approve(expense.id)}
-                      className="text-sm font-semibold text-blue-700 hover:underline"
+                      className="text-sm font-semibold text-brand hover:underline"
                     >
                       Approve
                     </button>

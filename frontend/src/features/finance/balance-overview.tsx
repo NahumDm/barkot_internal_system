@@ -150,7 +150,7 @@ function Metric({
   tone?: string;
 }) {
   const colors =
-    tone === "positive" ? "text-emerald-700" : tone === "accent" ? "text-blue-700" : "text-ink";
+    tone === "positive" ? "text-success" : tone === "accent" ? "text-brand" : "text-ink";
   return (
     <article className="rounded border border-border bg-surface p-4">
       <p className="text-xs font-medium uppercase tracking-wider text-ink-secondary">{label}</p>

@@ -99,7 +99,7 @@ export default function ChangePasswordPage() {
         <button
           type="submit"
           disabled={busy}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface disabled:opacity-60"
+          className="rounded bg-brand px-4 py-2 text-sm font-medium text-ivory transition-colors hover:bg-brand-hover disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
           {busy ? "Saving…" : "Set password"}
         </button>

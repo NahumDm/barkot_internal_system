@@ -25,7 +25,7 @@ function ProductRow({ product }: { product: ProductListItem }) {
       <td className="px-3 py-2 text-sm">
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-            product.is_active ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-800"
+            product.is_active ? "bg-success/15 text-success" : "bg-canvas text-ink-secondary"
           }`}
         >
           {product.is_active ? "Active" : "Retired"}
@@ -320,7 +320,7 @@ export default function ProductsPage() {
         </div>
         <button
           onClick={handleCreateClick}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface hover:bg-ink/90"
+          className="rounded bg-brand px-4 py-2 text-sm font-medium text-ivory transition-colors hover:bg-brand-deep"
         >
           Add Product
         </button>

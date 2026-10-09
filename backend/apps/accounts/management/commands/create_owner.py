@@ -22,6 +22,15 @@ printed once to stdout and nowhere else, because printing it to stdout is the
 only way for a human to learn it — which is why it is also flagged
 ``is_temporary_password`` so A6 can force a change at first login.
 
+**One Owner, enforced, not merely intended.** There is no ``--force``: once an
+Owner exists the command refuses, so a bootstrap secret cannot be re-minted by
+anyone who can reach the host later. The existence check runs inside the same
+transaction as the insert, behind a ``SELECT … FOR UPDATE`` lock on the Owner
+role, so two concurrent invocations cannot both pass the check and create two
+Owners. Defence in depth lives in the database: a constraint trigger (migration
+``0002_single_owner``) rejects a second Owner however it is inserted, and the
+account-admin service refuses one with a clean 409 rather than a 500.
+
 Three deliberate non-features, each of which would be a security regression:
 
 - No ``--password`` flag, no ``DJANGO_OWNER_PASSWORD`` environment variable. Both
@@ -39,8 +48,9 @@ import sys
 from typing import Any
 
 from django.contrib.auth import password_validation
-from django.core.exceptions import ValidationError as PasswordValidationError
+from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
+from django.core.validators import validate_email
 from django.db import transaction
 
 from apps.accounts.models import Role, User
@@ -74,7 +84,7 @@ def generate_password() -> str:
             # No user instance: similarity against a username we do not have yet
             # is checked properly below, against the real username.
             password_validation.validate_password(candidate)
-        except PasswordValidationError:
+        except ValidationError:
             continue
         return candidate
     raise CommandError(
@@ -137,14 +147,6 @@ class Command(BaseCommand):
                 "already present. Intended for CI."
             ),
         )
-        parser.add_argument(
-            "--force",
-            action="store_true",
-            help=(
-                "Create the Owner even if one already exists. A second Owner is a "
-                "grant of full authority, so it has to be asked for deliberately."
-            ),
-        )
 
     # ── internals ──────────────────────────────────────────────────────────
 
@@ -187,12 +189,50 @@ class Command(BaseCommand):
 
         try:
             password_validation.validate_password(password, user=User(username=username))
-        except PasswordValidationError as exc:
+        except ValidationError as exc:
             raise CommandError(
                 "That password does not meet the configured requirements:\n  "
                 + "\n  ".join(exc.messages)
             ) from exc
         return password
+
+    def _read_email(self, provided: str) -> str:
+        """Resolve the Owner's contact email, prompting when interactive.
+
+        An email address is optional in Barkot (staff sign in by username) but
+        it is part of an accountable bootstrap, so it is asked for rather than
+        silently omitted. It is read with ``input`` and not ``getpass`` because
+        it is not a secret and the operator should see what they typed.
+
+        The prompt only appears when a terminal is attached. In an unattended
+        run (``--password-stdin`` from a CI job or a piped invocation) there is
+        nobody to answer, so the field is left blank instead of blocking.
+
+        Args:
+            provided: The ``--email`` value, or the empty string.
+
+        Returns:
+            A validated address, or the empty string when none was given.
+
+        Raises:
+            CommandError: Never; an invalid entry is re-prompted or skipped.
+        """
+        if provided:
+            return provided
+        if not sys.stdin.isatty():
+            return ""
+        while True:
+            try:
+                email = input("Email (optional, for records — leave blank to skip): ").strip()
+            except EOFError:
+                return ""
+            if not email:
+                return ""
+            try:
+                validate_email(email)
+                return email
+            except ValidationError:
+                self.stderr.write("That is not a valid email address. Try again, or leave it blank.")
 
     def _existing_owners(self) -> list[str]:
         """Return the usernames of every existing Owner."""
@@ -217,16 +257,31 @@ class Command(BaseCommand):
             The created user.
 
         Raises:
-            CommandError: If the username is taken, or the roles are not seeded.
+            CommandError: If an Owner already exists, the username is taken, or
+                the roles are not seeded.
         """
         try:
-            owner_role = Role.objects.for_code(Role.Code.OWNER)
+            # Lock the Owner role row for the duration of the transaction before
+            # deciding whether an Owner exists. Two concurrent invocations both
+            # reach this method, but only one can hold the lock at a time; the
+            # second waits until the first commits and then sees the row it
+            # created. Checking and inserting without the lock is a check-then-act
+            # race in which both callers pass the check and two Owners are born.
+            owner_role = Role.objects.select_for_update().for_code(Role.Code.OWNER)
         except Role.DoesNotExist as exc:
             raise CommandError(
                 "The Owner role does not exist, so there is nothing to grant. "
                 "Run `python manage.py migrate` (roles seed on post_migrate) or "
                 "`python manage.py bootstrap_roles` first."
             ) from exc
+
+        existing = self._existing_owners()
+        if existing:
+            raise CommandError(
+                "An Owner already exists: " + ", ".join(existing) + "\n"
+                "Only one Owner account is permitted. To reset its password, run "
+                "`python manage.py changepassword <username>`."
+            )
 
         if User.objects.filter(username=username).exists():
             raise CommandError(
@@ -259,7 +314,7 @@ class Command(BaseCommand):
         generate: bool = options["generate_password"]
 
         if options["check"]:
-            self._report(options["force"])
+            self._report()
             return
 
         if not username:
@@ -271,15 +326,19 @@ class Command(BaseCommand):
         if from_stdin and generate:
             raise CommandError("--password-stdin and --generate-password both supply a password.")
 
+        # Fast, friendly failure. The authoritative check runs inside
+        # _create_owner under a row lock, because only there can it be made
+        # race-free; this one exists so the common case does not read a secret
+        # before being told it is pointless.
         existing = self._existing_owners()
-        if existing and not options["force"]:
+        if existing:
             raise CommandError(
-                "An Owner already exists: "
-                + ", ".join(existing)
-                + "\nA second Owner has full authority over payroll, cash and audit. "
-                "If that is genuinely intended, re-run with --force and a note in the "
-                "deployment record."
+                "An Owner already exists: " + ", ".join(existing) + "\n"
+                "Only one Owner account is permitted. To reset its password, run "
+                "`python manage.py changepassword <username>`."
             )
+
+        email = self._read_email(options["email"])
 
         temporary = False
         password = ""
@@ -292,7 +351,7 @@ class Command(BaseCommand):
         owner = self._create_owner(
             username,
             password,
-            email=options["email"],
+            email=email,
             full_name=options["full_name"],
             temporary=temporary,
         )
@@ -317,24 +376,15 @@ class Command(BaseCommand):
         if temporary:
             self.stdout.write("  The Owner must change this password before normal use.")
 
-    def _report(self, force: bool) -> None:
+    def _report(self) -> None:
         """Implement ``--check`` for CI.
 
-        Args:
-            force: When true, an existing Owner is reported as acceptable.
-
         Raises:
-            CommandError: If roles are unseeded, or an Owner exists and
-                ``--force`` was not given.
+            CommandError: If roles are unseeded, or an Owner already exists.
         """
         if not Role.objects.filter(code=Role.Code.OWNER).exists():
             raise CommandError("The Owner role is not seeded. Run migrate or bootstrap_roles.")
         existing = self._existing_owners()
-        if existing and not force:
-            raise CommandError("An Owner already exists: " + ", ".join(existing))
         if existing:
-            self.stdout.write(
-                self.style.SUCCESS(f"Owner(s) present: {', '.join(existing)} (--force accepted).")
-            )
-            return
+            raise CommandError("An Owner already exists: " + ", ".join(existing))
         self.stdout.write(self.style.SUCCESS("No Owner yet. Roles are seeded and ready."))

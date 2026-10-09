@@ -73,14 +73,24 @@ docker compose --env-file .env -f docker-compose.prod.yml exec api python manage
 ### 5. Create the Owner Account
 
 Roles are seeded automatically by a `post_migrate` receiver, so only the Owner
-account needs explicit creation. `create_owner` prompts for a password in a
-terminal, or accepts `--from-stdin` for unattended environments and
-`--generate-password` to print a random one exactly once:
+account needs explicit creation. `create_owner` prompts for the email and the
+password on a terminal (the password is never echoed and never accepted as an
+argument), or accepts `--password-stdin` for unattended environments and
+`--generate-password` to print a random one exactly once. There is exactly one
+Owner: once one exists the command refuses, and the database enforces it too
+(`0002_single_owner`).
 
 ```bash
 docker compose --env-file .env -f docker-compose.prod.yml exec -it api python manage.py create_owner owner
 # Non-interactive (generates a random password, printed once):
 docker compose --env-file .env -f docker-compose.prod.yml exec -T api python manage.py create_owner owner --generate-password
+```
+
+To reset the Owner's password later, use Django's own command — it reads a
+no-echo prompt and never puts the secret in the shell history:
+
+```bash
+docker compose --env-file .env -f docker-compose.prod.yml exec -it api python manage.py changepassword owner
 ```
 
 `seed_e2e` is for test environments only, never production data.

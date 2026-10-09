@@ -228,6 +228,21 @@ def test_duplicate_username_is_refused(
     assert "username" in error["details"]
 
 
+def test_a_second_owner_cannot_be_created(
+    client: Client, staff_login: Callable[..., Any]
+) -> None:
+    """Barkot has exactly one Owner; the API refuses a second with a clear code."""
+    staff_login(client, Role.Code.OWNER)
+    before = user_count()
+
+    response = post_json(client, USERS_URL, {"username": "owner2", "role": "OWNER"})
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "owner_exists"
+    assert user_count() == before
+    assert not User.objects.filter(username="owner2").exists()
+
+
 # ── Users: update ───────────────────────────────────────────────────────────────
 
 
@@ -259,6 +274,33 @@ def test_owner_can_change_role_and_contact_fields(
     assert entry.after is not None
     assert entry.before["role"] == "BARMAN"
     assert entry.after["role"] == "CASHIER"
+
+
+def test_a_staff_user_cannot_be_promoted_to_a_second_owner(
+    client: Client, staff_login: Callable[..., Any], make_staff_user: Callable[..., Any]
+) -> None:
+    """Changing a role to OWNER when one exists is refused the same way."""
+    staff_login(client, Role.Code.OWNER)
+    barman = make_staff_user(Role.Code.BARMAN, suffix="2")
+
+    response = patch_json(client, f"{USERS_URL}{barman.pk}/", {"role": "OWNER"})
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "owner_exists"
+    barman.refresh_from_db()
+    assert barman.role.code == Role.Code.BARMAN
+
+
+def test_the_owner_may_resubmit_their_own_role(
+    client: Client, staff_login: Callable[..., Any]
+) -> None:
+    """Re-submitting OWNER for the Owner is not mistaken for a second Owner."""
+    owner = staff_login(client, Role.Code.OWNER)
+
+    response = patch_json(client, f"{USERS_URL}{owner.pk}/", {"role": "OWNER"})
+
+    assert response.status_code == 200
+    assert response.json()["role"] == "OWNER"
 
 
 def test_deactivating_turns_off_both_staff_and_active(

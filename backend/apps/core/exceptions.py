@@ -199,6 +199,25 @@ class IdempotencyKeyReuse(BARKOTDomainError):
     default_message = "That idempotency key was already used for a different request."
 
 
+class OwnerAlreadyExists(BARKOTDomainError):
+    """A second Owner account was requested (roadmap A7).
+
+    Barkot has exactly one Owner, who holds the whole permission catalogue and is
+    the sole approver of payroll. A second Owner is not a convenience: it is a
+    second person who can approve their own payroll and rewrite the audit-visible
+    configuration, so the invariant is enforced rather than merely documented.
+    The bootstrap command and the account-admin service both refuse one, and a
+    database trigger refuses one behind them (migration ``0002_single_owner``).
+
+    409 rather than 400: the submitted role is valid, and it is the state of the
+    system - an Owner already exists - that makes the request impossible.
+    """
+
+    code = "owner_exists"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "An Owner account already exists."
+
+
 class IdempotencyInFlight(BARKOTDomainError):
     """A concurrent request holds the same idempotency key and has not finished.
 

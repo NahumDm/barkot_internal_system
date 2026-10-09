@@ -167,10 +167,14 @@ did not choose, and flags the account temporary so A6 forces a change at first l
 asserts on `caplog`, `stderr`, stdout, and the raw database column, since a leak here is invisible in
 normal use — the command works perfectly and the only symptom is a secret sitting in a log.
 
-Two things it refuses by default: a username that already exists, and a *second* Owner without
-`--force`. A second Owner is a grant of full authority over payroll and cash, so it has to be asked
-for deliberately. `--check` runs as a bare preflight (`manage.py create_owner --check`) and exits
-non-zero when an Owner already exists, which is the signal a deployment runbook wants.
+Two things it refuses: a username that already exists, and a *second* Owner, unconditionally — there
+is no `--force`. A second Owner is a grant of full authority over payroll and cash, and Barkot has
+exactly one, so the command checks for an existing Owner inside the same transaction as the insert,
+behind a `SELECT … FOR UPDATE` lock on the Owner role, and a PostgreSQL constraint trigger
+(`0002_single_owner`) refuses a second one behind that. The account-admin service refuses one too,
+returning a clean `409 owner_exists` rather than a database error. `--check` runs as a bare preflight
+(`manage.py create_owner --check`) and exits non-zero when an Owner already exists, which is the
+signal a deployment runbook wants.
 
 Building it surfaced a bug that predates it: `Role.objects` was assigned a bare `RoleQuerySet()`
 instance, which does **not** give you a manager carrying that queryset's methods — Django falls back

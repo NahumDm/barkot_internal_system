@@ -32,7 +32,7 @@ from django.db import transaction
 
 from apps.accounts.models import Role, SiteSetting, User
 from apps.audit.models import AuditLog
-from apps.core.exceptions import BARKOTDomainError
+from apps.core.exceptions import BARKOTDomainError, OwnerAlreadyExists
 
 #: The stringly-typed object label the audit log uses for staff accounts.
 AUTH_OBJECT_TYPE = "accounts.User"
@@ -53,6 +53,40 @@ def _require_staff_role(role: Role) -> None:
         raise BARKOTDomainError(
             f"Role {role.code} is a service identity and cannot log in.",
             code="non_staff_role",
+        )
+
+
+def _owner_exists(*, excluding_pk: int | None = None) -> bool:
+    """Whether an Owner account already exists.
+
+    Args:
+        excluding_pk: A user id to ignore, so promoting a user who is already the
+            Owner is not mistaken for creating a second one.
+
+    Returns:
+        True when at least one non-excluded user holds the Owner role.
+    """
+    owners = User.objects.filter(role__code=Role.Code.OWNER)
+    if excluding_pk is not None:
+        owners = owners.exclude(pk=excluding_pk)
+    return owners.exists()
+
+
+def _require_no_existing_owner(*, excluding_pk: int | None = None) -> None:
+    """Refuse a write that would create a second Owner (roadmap A7).
+
+    Args:
+        excluding_pk: A user id to ignore, for an update that keeps the Owner's
+            own role.
+
+    Raises:
+        OwnerAlreadyExists: If an Owner other than ``excluding_pk`` exists.
+    """
+    if _owner_exists(excluding_pk=excluding_pk):
+        raise OwnerAlreadyExists(
+            "An Owner account already exists. Barkot has exactly one Owner; "
+            "deactivate a departing Owner and edit that account instead of "
+            "creating a second."
         )
 
 
@@ -107,8 +141,11 @@ def create_user(
     Raises:
         BARKOTDomainError: If ``role`` is not a staff role, or
             ``UserManager.create_staff_user`` refuses the request.
+        OwnerAlreadyExists: If a second Owner is requested.
     """
     _require_staff_role(role)
+    if role.code == Role.Code.OWNER:
+        _require_no_existing_owner()
     # create_staff_user raises ValueError for a role or username it will not
     # accept; surfacing that as a bare 500 would hide a data-entry mistake.
     try:
@@ -164,9 +201,12 @@ def update_user(
     Raises:
         BARKOTDomainError: If the actor changes their own role or their own
             active flag, or a non-staff role is assigned.
+        OwnerAlreadyExists: If the update would promote a user to a second Owner.
     """
     if role is not None:
         _require_staff_role(role)
+        if role.code == Role.Code.OWNER and role.pk != user.role_id:
+            _require_no_existing_owner(excluding_pk=user.pk)
     if actor is not None and user.pk == actor.pk:
         if role is not None and role.pk != user.role_id:
             raise BARKOTDomainError(

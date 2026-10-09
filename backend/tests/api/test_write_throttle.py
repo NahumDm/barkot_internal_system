@@ -516,22 +516,24 @@ class TestTheLoadTest:
             f"sign-in was {response.status_code} on a spent write budget"
         )
 
-    def test_only_the_spending_address_is_refused(self, staff_login, make_staff_user) -> None:
+    def test_only_the_spending_address_is_refused(self, staff_login) -> None:
         """One address's flood must not refuse the next customer's order.
 
-        Two real clients on two addresses, both signed in: the noisy one is
-        at its limit, the quiet one is untouched. ``quiet.login`` is Django's
-        session helper, not the login endpoint, so this second sign-in does
-        not touch the login budget either.
+        Two real clients on two addresses, both signed in as the same account
+        (Barkot has one Owner): the noisy one is at its limit, the quiet one is
+        untouched. ``quiet.login`` is Django's session helper, not the login
+        endpoint, so this second sign-in does not touch the login budget either.
         """
         noisy = Client()
-        staff_login(noisy, Role.Code.OWNER)
+        owner = staff_login(noisy, Role.Code.OWNER)
         spend_over_http(noisy)
         assert post_users(noisy).status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
-        other_user = make_staff_user(Role.Code.OWNER, suffix="2")
+        # The same account from a second address, because Barkot permits exactly
+        # one Owner: the point is that the throttle is keyed by address, not by
+        # account, so one client's flood cannot spend another client's budget.
         quiet = Client()
-        assert quiet.login(username=other_user.username, password=TEST_PASSWORD)
+        assert quiet.login(username=owner.username, password=TEST_PASSWORD)
 
         allowed = post_users(quiet, ip=OTHER_IP)
         assert allowed.status_code == status.HTTP_400_BAD_REQUEST, (

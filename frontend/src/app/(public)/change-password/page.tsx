@@ -66,7 +66,7 @@ export default function ChangePasswordPage() {
           : "Choose a new password for your account."
       }
     >
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="auth-form">
         <FormError error={error} />
         <Field
           label="Current password"
@@ -99,7 +99,6 @@ export default function ChangePasswordPage() {
         <button
           type="submit"
           disabled={busy}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface disabled:opacity-60"
         >
           {busy ? "Saving…" : "Set password"}
         </button>

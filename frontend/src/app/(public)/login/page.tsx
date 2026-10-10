@@ -52,7 +52,7 @@ function SignInForm() {
 
   return (
     <FormShell title="Sign in" subtitle="Barkot Bar & Restaurant internal operations.">
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form onSubmit={onSubmit} className="auth-form">
         <FormError error={error} />
         <Field
           label="Username"
@@ -61,6 +61,7 @@ function SignInForm() {
           onChange={setUsername}
           errors={fieldErrors["username"] ?? []}
           autoComplete="username"
+          placeholder="Enter your username"
           autoFocus
           disabled={busy}
         />
@@ -71,12 +72,12 @@ function SignInForm() {
           onChange={setPassword}
           errors={fieldErrors["password"] ?? []}
           autoComplete="current-password"
+          placeholder="Enter your password"
           disabled={busy}
         />
         <button
           type="submit"
           disabled={busy}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface disabled:opacity-60"
         >
           {busy ? "Signing in…" : "Sign in"}
         </button>

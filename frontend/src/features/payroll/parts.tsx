@@ -25,8 +25,8 @@ export function PageHeader({
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">{eyebrow}</p>
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
-      <p className="mt-1 text-sm text-ink-secondary">{blurb}</p>
+      <h1 className="page-title text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+      <p className="page-subtitle mt-1 text-sm text-ink-secondary">{blurb}</p>
     </div>
   );
 }
@@ -86,7 +86,7 @@ export function LoadingNote({ label }: { label: string }) {
 
 /** The empty state, which is a real state and not just a blank table. */
 export function EmptyNote({ children }: { children: React.ReactNode }) {
-  return <p className="p-6 text-center text-sm text-ink-secondary">{children}</p>;
+  return <p className="empty-text p-6 text-center text-sm text-ink-secondary">{children}</p>;
 }
 
 /**

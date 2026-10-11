@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -47,16 +48,25 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col bg-sidebar text-white">
-      <div className="border-b border-white/10 px-4 py-5">
-        <p className="text-lg font-bold tracking-widest">BARKOT</p>
-        <p className="text-sm text-white/60">Bar &amp; Restaurant</p>
+    <aside className="sidebar flex h-screen w-64 shrink-0 flex-col bg-sidebar text-white">
+      <div className="brand border-b border-white/10 px-4 py-5">
+        <span className="brand-logo">
+          <Image
+            src="/images/barkot-mark.png"
+            alt="Barkot logo"
+            width={44}
+            height={44}
+            unoptimized
+          />
+        </span>
+        <p className="brand-name text-lg font-bold tracking-widest">BARKOT</p>
+        <p className="brand-sub text-sm text-white/60">Bar &amp; Restaurant</p>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {navGroups.map((group, groupIndex) => (
           <div key={groupIndex} className="mb-4">
             {group.heading ? (
-              <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/40">
+              <p className="nav-group px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/40">
                 {group.heading}
               </p>
             ) : null}
@@ -69,9 +79,9 @@ export function Sidebar() {
                     <Link
                       href={item.href}
                       className={[
-                        "mb-1 flex items-center gap-3 rounded px-2 py-2 text-sm",
+                        "nav-item mb-1 flex items-center gap-3 rounded px-2 py-2 text-sm",
                         active
-                          ? "bg-white/10 font-medium text-white"
+                          ? "active bg-white/10 font-medium text-white"
                           : "text-white/70 hover:bg-white/5 hover:text-white",
                       ].join(" ")}
                     >

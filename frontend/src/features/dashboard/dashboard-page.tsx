@@ -105,7 +105,7 @@ export default function DashboardPage() {
         <button
           type="button"
           onClick={resetToMonth}
-          className="rounded bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:text-ink-secondary"
+          className="period-btn rounded bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:text-ink-secondary"
         >
           This month
         </button>
@@ -115,7 +115,7 @@ export default function DashboardPage() {
       {data && !loading && (
         <>
           <MetricsGrid data={data} />
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="panels grid gap-4 lg:grid-cols-2">
             {data.sales ? (
               <SalesPanel sales={data.sales} />
             ) : canViewSales ? (
@@ -182,7 +182,7 @@ function MetricsGrid({ data }: { data: DashboardResponse }) {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="kpi-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {metrics.map((metric) => (
         <Metric key={metric.label} label={metric.label} value={metric.value} />
       ))}
@@ -192,16 +192,19 @@ function MetricsGrid({ data }: { data: DashboardResponse }) {
 
 function SalesPanel({ sales }: { sales: DashboardSales }) {
   return (
-    <section className="rounded border border-border bg-surface p-4">
+    <section className="panel rounded border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">Sales</h2>
-          <p className="text-xs text-ink-secondary">
+          <h2 className="panel-title text-sm font-semibold text-ink">Sales</h2>
+          <p className="panel-sub text-xs text-ink-secondary">
             {sales.transactions} transaction{sales.transactions === 1 ? "" : "s"} totalling{" "}
             {money(sales.total)}
           </p>
         </div>
-        <a href="/sales" className="text-sm font-medium text-ink hover:text-ink-secondary">
+        <a
+          href="/sales"
+          className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
+        >
           Open sales
         </a>
       </div>
@@ -212,14 +215,16 @@ function SalesPanel({ sales }: { sales: DashboardSales }) {
           {sales.recent.map((sale) => (
             <div
               key={sale.id}
-              className="flex items-center justify-between gap-3 border-b border-border pb-2 last:border-0 last:pb-0"
+              className="panel-row flex items-center justify-between gap-3 border-b border-border pb-2 last:border-0 last:pb-0"
             >
               <div className="text-sm">
                 <p className="font-medium text-ink">{sale.reference}</p>
                 <p className="text-xs text-ink-secondary">{dateStamp(sale.sold_at)}</p>
               </div>
               <div className="text-right text-sm">
-                <p className="font-medium text-ink">{money(sale.total, sale.currency)}</p>
+                <p className="panel-row-value font-medium text-ink">
+                  {money(sale.total, sale.currency)}
+                </p>
                 <p className="text-xs text-ink-secondary">{sale.payment_status_display}</p>
               </div>
             </div>
@@ -232,17 +237,20 @@ function SalesPanel({ sales }: { sales: DashboardSales }) {
 
 function InventoryPanel({ inventory }: { inventory: DashboardInventory }) {
   return (
-    <section className="rounded border border-border bg-surface p-4">
+    <section className="panel rounded border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">Inventory</h2>
-          <p className="text-xs text-ink-secondary">As of {dateStamp(inventory.as_of)}</p>
+          <h2 className="panel-title text-sm font-semibold text-ink">Inventory</h2>
+          <p className="panel-sub text-xs text-ink-secondary">As of {dateStamp(inventory.as_of)}</p>
         </div>
-        <a href="/inventory" className="text-sm font-medium text-ink hover:text-ink-secondary">
+        <a
+          href="/inventory"
+          className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
+        >
           Open inventory
         </a>
       </div>
-      <dl className="mt-3 space-y-3 text-sm">
+      <dl className="panel-list-lg mt-3 space-y-3 text-sm">
         <Line label="In stock" value={inventory.in_stock_total} />
         <Line label="Products" value={String(inventory.products)} />
       </dl>
@@ -252,15 +260,18 @@ function InventoryPanel({ inventory }: { inventory: DashboardInventory }) {
 
 function FinancePanel({ finance }: { finance: FinanceBalance }) {
   return (
-    <section className="rounded border border-border bg-surface p-4">
+    <section className="panel rounded border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">Finance</h2>
-          <p className="text-xs text-ink-secondary">
+          <h2 className="panel-title text-sm font-semibold text-ink">Finance</h2>
+          <p className="panel-sub text-xs text-ink-secondary">
             {dateStamp(finance.period_start)} – {dateStamp(finance.period_end)}
           </p>
         </div>
-        <a href="/reports" className="text-sm font-medium text-ink hover:text-ink-secondary">
+        <a
+          href="/reports"
+          className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
+        >
           Open reports
         </a>
       </div>
@@ -288,13 +299,16 @@ function FinancePanel({ finance }: { finance: FinanceBalance }) {
 
 function PayrollPanel({ payroll }: { payroll: DashboardPayroll }) {
   return (
-    <section className="rounded border border-border bg-surface p-4">
+    <section className="panel rounded border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-ink">Payroll</h2>
-          <p className="text-xs text-ink-secondary">{monthLabel(payroll.period_month)}</p>
+          <h2 className="panel-title text-sm font-semibold text-ink">Payroll</h2>
+          <p className="panel-sub text-xs text-ink-secondary">{monthLabel(payroll.period_month)}</p>
         </div>
-        <a href="/payroll/runs" className="text-sm font-medium text-ink hover:text-ink-secondary">
+        <a
+          href="/payroll/runs"
+          className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
+        >
           Open payroll
         </a>
       </div>
@@ -325,7 +339,7 @@ function PayrollPanel({ payroll }: { payroll: DashboardPayroll }) {
  */
 function SectionNote({ children }: { children: ReactNode }) {
   return (
-    <section className="rounded border border-dashed border-border bg-surface/50 p-4 text-sm text-ink-secondary">
+    <section className="section-note rounded border border-dashed border-border bg-surface/50 p-4 text-sm text-ink-secondary">
       {children}
     </section>
   );
@@ -333,16 +347,20 @@ function SectionNote({ children }: { children: ReactNode }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <article className="rounded border border-border bg-surface p-4">
-      <p className="text-xs font-medium uppercase tracking-wider text-ink-secondary">{label}</p>
-      <p className="mt-2 text-xl font-semibold text-ink">{value}</p>
+    <article
+      className={`kpi ${label === "Takings" ? "takings" : ""} rounded border border-border bg-surface p-4`.trim()}
+    >
+      <p className="kpi-label text-xs font-medium uppercase tracking-wider text-ink-secondary">
+        {label}
+      </p>
+      <p className="kpi-value mt-2 text-xl font-semibold text-ink">{value}</p>
     </article>
   );
 }
 
 function Line({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-border pb-2 last:border-0 last:pb-0">
+    <div className="panel-row flex items-center justify-between border-b border-border pb-2 last:border-0 last:pb-0">
       <dt className="text-ink-secondary">{label}</dt>
       <dd className="font-medium text-ink">{value}</dd>
     </div>
@@ -359,13 +377,13 @@ function DateInput({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="text-xs font-medium text-ink-secondary">
+    <label className="date-label text-xs font-medium text-ink-secondary">
       {label}
       <input
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 block rounded border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+        className="date-input mt-1 block rounded border border-border bg-surface px-2 py-1.5 text-sm text-ink"
       />
     </label>
   );

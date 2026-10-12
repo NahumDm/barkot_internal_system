@@ -375,13 +375,13 @@ export default function PayrollRuns() {
             </p>
           </div>
 
-          <label className="block text-sm text-ink">
+          <label className="field-label">
             Notes (optional)
             <input
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               placeholder="Anything unusual about this month"
-              className="control mt-1"
+              className="control mt-1.5"
             />
           </label>
 

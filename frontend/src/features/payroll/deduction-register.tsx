@@ -199,13 +199,13 @@ export default function DeductionRegister() {
               onSubmit={submit}
               className="grid gap-3 rounded border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-3"
             >
-              <label className="text-sm text-ink">
+              <label className="field-label">
                 Run being adjusted
                 <select
                   required
                   value={runId}
                   onChange={(event) => setRunChoice(event.target.value)}
-                  className="control mt-1"
+                  className="control mt-1.5"
                 >
                   <option value="" disabled>
                     Select run
@@ -218,14 +218,14 @@ export default function DeductionRegister() {
                 </select>
               </label>
 
-              <label className="text-sm text-ink">
+              <label className="field-label">
                 Employee
                 <select
                   required
                   disabled={itemsLoading || shownItems.length === 0}
                   value={itemId}
                   onChange={(event) => setItemChoice(event.target.value)}
-                  className="control mt-1"
+                  className="control mt-1.5"
                 >
                   <option value="" disabled>
                     {itemsLoading ? "Loading employees..." : "Select employee"}
@@ -238,13 +238,13 @@ export default function DeductionRegister() {
                 </select>
               </label>
 
-              <label className="text-sm text-ink">
+              <label className="field-label">
                 Type
                 <select
                   required
                   value={type}
                   onChange={(event) => setType(event.target.value as PayrollDeductionType)}
-                  className="control mt-1"
+                  className="control mt-1.5"
                 >
                   {DEDUCTION_TYPES.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -254,7 +254,7 @@ export default function DeductionRegister() {
                 </select>
               </label>
 
-              <label className="text-sm text-ink">
+              <label className="field-label">
                 Amount (ETB)
                 <input
                   required
@@ -263,27 +263,27 @@ export default function DeductionRegister() {
                   type="number"
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
-                  className="control mt-1"
+                  className="control mt-1.5"
                 />
               </label>
 
-              <label className="text-sm text-ink">
+              <label className="field-label">
                 Reason
                 <input
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
                   placeholder="Why this was taken"
-                  className="control mt-1"
+                  className="control mt-1.5"
                 />
               </label>
 
-              <label className="text-sm text-ink">
+              <label className="field-label">
                 Date (optional)
                 <input
                   type="date"
                   value={occurredOn}
                   onChange={(event) => setOccurredOn(event.target.value)}
-                  className="control mt-1"
+                  className="control mt-1.5"
                 />
               </label>
 

@@ -111,34 +111,34 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
       {!count && (
         <form onSubmit={submit} className="space-y-4 rounded border border-border bg-surface p-4">
           {mode === "receive" && (
-            <label className="block text-sm text-ink">
+            <label className="field-label">
               Supplier
               <input
                 required
                 value={supplier}
                 onChange={(event) => setSupplier(event.target.value)}
-                className="control mt-1"
+                className="control mt-1.5"
               />
             </label>
           )}
           {mode === "breakage" && (
-            <label className="block text-sm text-ink">
+            <label className="field-label">
               Reason
               <input
                 required
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                className="control mt-1"
+                className="control mt-1.5"
               />
             </label>
           )}
-          <label className="block text-sm text-ink">
+          <label className="field-label">
             Product
             <select
               required
               value={product}
               onChange={(event) => setProduct(event.target.value)}
-              className="control mt-1"
+              className="control mt-1.5"
             >
               {products.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -148,7 +148,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
             </select>
           </label>
           {mode !== "count" && (
-            <label className="block text-sm text-ink">
+            <label className="field-label">
               {mode === "receive" ? "Quantity" : "Quantity wasted"}
               <input
                 required
@@ -157,12 +157,12 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 type="number"
                 value={quantity}
                 onChange={(event) => setQuantity(event.target.value)}
-                className="control mt-1"
+                className="control mt-1.5"
               />
             </label>
           )}
           {mode === "receive" && (
-            <label className="block text-sm text-ink">
+            <label className="field-label">
               Unit cost (ETB)
               <input
                 required
@@ -171,7 +171,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 type="number"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
-                className="control mt-1"
+                className="control mt-1.5"
               />
             </label>
           )}
@@ -210,7 +210,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
           </div>
           {count.status === "DRAFT" && (
             <>
-              <label className="block text-sm text-ink">
+              <label className="field-label">
                 Physical quantity
                 <input
                   required
@@ -219,7 +219,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                   type="number"
                   value={quantity}
                   onChange={(event) => setQuantity(event.target.value)}
-                  className="control mt-1"
+                  className="control mt-1.5"
                 />
               </label>
               <button

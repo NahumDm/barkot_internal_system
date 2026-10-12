@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { DateRangeFilter } from "@/components/date-range-filter";
 import { getFinanceBalance, type FinanceBalance } from "@/lib/api/finance";
 import { type ApiError } from "@/lib/api/errors";
 
@@ -45,6 +46,15 @@ export default function BalanceOverview() {
     };
   }, [start, end]);
 
+  const changeStart = (value: string) => {
+    setLoading(true);
+    setStart(value);
+  };
+  const changeEnd = (value: string) => {
+    setLoading(true);
+    setEnd(value);
+  };
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -57,32 +67,7 @@ export default function BalanceOverview() {
             Income less approved expenses and payroll.
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-xs font-medium text-ink-secondary">
-            From
-            <input
-              type="date"
-              value={start}
-              onChange={(event) => {
-                setLoading(true);
-                setStart(event.target.value);
-              }}
-              className="control control--inline"
-            />
-          </label>
-          <label className="text-xs font-medium text-ink-secondary">
-            To
-            <input
-              type="date"
-              value={end}
-              onChange={(event) => {
-                setLoading(true);
-                setEnd(event.target.value);
-              }}
-              className="control control--inline"
-            />
-          </label>
-        </div>
+        <DateRangeFilter start={start} end={end} onStart={changeStart} onEnd={changeEnd} />
       </div>
 
       {error && <p className="form-error">{error.message}</p>}

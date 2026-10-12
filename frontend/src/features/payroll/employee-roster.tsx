@@ -125,13 +125,13 @@ export default function EmployeeRoster() {
           onSubmit={submit}
           className="grid gap-3 rounded border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4"
         >
-          <label className="text-sm text-ink sm:col-span-2">
+          <label className="field-label sm:col-span-2">
             Staff member
             <select
               required
               value={profileId}
               onChange={(event) => setProfileChoice(event.target.value)}
-              className="control mt-1"
+              className="control mt-1.5"
             >
               <option value="" disabled>
                 Select staff member
@@ -143,7 +143,7 @@ export default function EmployeeRoster() {
               ))}
             </select>
           </label>
-          <label className="text-sm text-ink">
+          <label className="field-label">
             Monthly wage (ETB)
             <input
               required
@@ -152,7 +152,7 @@ export default function EmployeeRoster() {
               type="number"
               value={wage}
               onChange={(event) => setWage(event.target.value)}
-              className="control mt-1"
+              className="control mt-1.5"
             />
           </label>
           <div className="flex items-end">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
+import { DateRangeFilter } from "@/components/date-range-filter";
 import {
   getDashboard,
   type DashboardInventory,
@@ -97,11 +98,8 @@ export default function DashboardPage() {
         title="Dashboard"
         blurb="The position of the business for the period, read straight from each domain."
       />
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <DateInput label="From" value={start} onChange={changeStart} />
-          <DateInput label="To" value={end} onChange={changeEnd} />
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <DateRangeFilter start={start} end={end} onStart={changeStart} onEnd={changeEnd} />
         <button type="button" onClick={resetToMonth} className="btn btn-secondary">
           This month
         </button>
@@ -360,27 +358,5 @@ function Line({ label, value }: { label: string; value: string }) {
       <dt className="text-ink-secondary">{label}</dt>
       <dd className="font-medium text-ink">{value}</dd>
     </div>
-  );
-}
-
-function DateInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="date-label text-xs font-medium text-ink-secondary">
-      {label}
-      <input
-        type="date"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="control control--inline"
-      />
-    </label>
   );
 }

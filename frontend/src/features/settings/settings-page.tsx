@@ -225,29 +225,31 @@ function UsersSection({ selfId }: { selfId: number }) {
             <EmptyNote>No staff accounts match.</EmptyNote>
           )}
           {!loading && users && users.length > 0 && (
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs text-ink-secondary">
-                  <Th>User</Th>
-                  <Th>Role</Th>
-                  <Th>Contact</Th>
-                  <Th>Status</Th>
-                  <Th>Last login</Th>
-                  <Th className="text-right">Actions</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <UserRow
-                    key={user.id}
-                    user={user}
-                    roles={roles}
-                    isSelf={user.id === selfId}
-                    onChanged={applyUpdated}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs text-ink-secondary">
+                    <Th>User</Th>
+                    <Th>Role</Th>
+                    <Th>Contact</Th>
+                    <Th>Status</Th>
+                    <Th>Last login</Th>
+                    <Th className="text-right">Actions</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <UserRow
+                      key={user.id}
+                      user={user}
+                      roles={roles}
+                      isSelf={user.id === selfId}
+                      onChanged={applyUpdated}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
@@ -648,14 +650,14 @@ function TextInput({
   type?: "text" | "email" | "password";
 }) {
   return (
-    <label className="text-xs font-medium text-ink-secondary">
+    <label className="field-label">
       {label}
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="control mt-1"
+        className="control mt-1.5"
       />
     </label>
   );
@@ -673,14 +675,14 @@ function NumberInput({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="text-xs font-medium text-ink-secondary">
+    <label className="field-label">
       {label}
       <input
         type="number"
         min={min}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="control mt-1"
+        className="control mt-1.5"
       />
     </label>
   );
@@ -702,13 +704,13 @@ function Select({
   placeholder?: string;
 }) {
   return (
-    <label className="text-xs font-medium text-ink-secondary">
+    <label className="field-label">
       {label}
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="control mt-1"
+        className="control mt-1.5"
       >
         {placeholder !== undefined && (
           <option value="" disabled>

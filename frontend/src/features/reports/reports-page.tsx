@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
+import { DateField, DateRangeFilter } from "@/components/date-range-filter";
 import {
   financialCsvUrl,
   getFinancialReport,
@@ -128,47 +129,6 @@ function TabButton({
     >
       {label}
     </button>
-  );
-}
-
-function DateRangeFilter({
-  start,
-  end,
-  onStart,
-  onEnd,
-}: {
-  start: string;
-  end: string;
-  onStart: (value: string) => void;
-  onEnd: (value: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap items-end gap-3">
-      <DateInput label="From" value={start} onChange={onStart} />
-      <DateInput label="To" value={end} onChange={onEnd} />
-    </div>
-  );
-}
-
-function DateInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="text-xs font-medium text-ink-secondary">
-      {label}
-      <input
-        type="date"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="control control--inline"
-      />
-    </label>
   );
 }
 
@@ -360,7 +320,7 @@ function InventoryTab({
             <p className="text-xs text-ink-secondary">Ledger stock vs the latest approved count.</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
-            <DateInput label="As of" value={asOf} onChange={changeAsOf} />
+            <DateField label="As of" value={asOf} onChange={changeAsOf} />
             <DownloadCsv href={stockBalanceCsvUrl(asOf)} />
           </div>
         </div>
@@ -375,36 +335,38 @@ function InventoryTab({
             {balance.rows.length === 0 ? (
               <EmptyNote>No stock movements before this date.</EmptyNote>
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs text-ink-secondary">
-                    <Th>SKU</Th>
-                    <Th>Product</Th>
-                    <Th className="text-right">Ledger</Th>
-                    <Th className="text-right">Last counted</Th>
-                    <Th>Last counted on</Th>
-                    <Th className="text-right">Delta</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {balance.rows.map((row) => (
-                    <tr key={row.product_id} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-3 text-ink-secondary">{row.sku}</td>
-                      <td className="py-2 pr-3 text-ink">{row.name}</td>
-                      <td className="py-2 pr-3 text-right text-ink">{row.ledger_balance}</td>
-                      <td className="py-2 pr-3 text-right text-ink">
-                        {row.last_counted ?? (
-                          <span className="text-ink-secondary">not counted</span>
-                        )}
-                      </td>
-                      <td className="py-2 pr-3 text-ink-secondary">
-                        {row.last_counted_on ? dateStamp(row.last_counted_on) : "—"}
-                      </td>
-                      <td className="py-2 pr-3 text-right text-ink">{row.delta ?? "—"}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs text-ink-secondary">
+                      <Th>SKU</Th>
+                      <Th>Product</Th>
+                      <Th className="text-right">Ledger</Th>
+                      <Th className="text-right">Last counted</Th>
+                      <Th>Last counted on</Th>
+                      <Th className="text-right">Delta</Th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {balance.rows.map((row) => (
+                      <tr key={row.product_id} className="border-b border-border last:border-0">
+                        <td className="py-2 pr-3 text-ink-secondary">{row.sku}</td>
+                        <td className="py-2 pr-3 text-ink">{row.name}</td>
+                        <td className="py-2 pr-3 text-right text-ink">{row.ledger_balance}</td>
+                        <td className="py-2 pr-3 text-right text-ink">
+                          {row.last_counted ?? (
+                            <span className="text-ink-secondary">not counted</span>
+                          )}
+                        </td>
+                        <td className="py-2 pr-3 text-ink-secondary">
+                          {row.last_counted_on ? dateStamp(row.last_counted_on) : "—"}
+                        </td>
+                        <td className="py-2 pr-3 text-right text-ink">{row.delta ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </>
         )}
@@ -435,38 +397,44 @@ function InventoryTab({
             {variance.lines === 0 ? (
               <EmptyNote>No approved variances in this period.</EmptyNote>
             ) : (
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs text-ink-secondary">
-                    <Th>Count</Th>
-                    <Th>Status</Th>
-                    <Th>Counted on</Th>
-                    <Th>SKU</Th>
-                    <Th>Product</Th>
-                    <Th className="text-right">Expected</Th>
-                    <Th className="text-right">Counted</Th>
-                    <Th className="text-right">Variance</Th>
-                    <Th>Note</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {variance.rows.map((row) => (
-                    <tr key={row.stock_count_id} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-3 text-ink-secondary">#{row.stock_count_id}</td>
-                      <td className="py-2 pr-3">
-                        <StatusChip status={row.status} display={row.status} />
-                      </td>
-                      <td className="py-2 pr-3 text-ink-secondary">{dateStamp(row.counted_on)}</td>
-                      <td className="py-2 pr-3 text-ink-secondary">{row.sku}</td>
-                      <td className="py-2 pr-3 text-ink">{row.name}</td>
-                      <td className="py-2 pr-3 text-right text-ink">{row.expected_quantity}</td>
-                      <td className="py-2 pr-3 text-right text-ink">{row.counted_quantity}</td>
-                      <td className="py-2 pr-3 text-right font-medium text-ink">{row.variance}</td>
-                      <td className="py-2 pr-3 text-ink-secondary">{row.note || "—"}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs text-ink-secondary">
+                      <Th>Count</Th>
+                      <Th>Status</Th>
+                      <Th>Counted on</Th>
+                      <Th>SKU</Th>
+                      <Th>Product</Th>
+                      <Th className="text-right">Expected</Th>
+                      <Th className="text-right">Counted</Th>
+                      <Th className="text-right">Variance</Th>
+                      <Th>Note</Th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {variance.rows.map((row) => (
+                      <tr key={row.stock_count_id} className="border-b border-border last:border-0">
+                        <td className="py-2 pr-3 text-ink-secondary">#{row.stock_count_id}</td>
+                        <td className="py-2 pr-3">
+                          <StatusChip status={row.status} display={row.status} />
+                        </td>
+                        <td className="py-2 pr-3 text-ink-secondary">
+                          {dateStamp(row.counted_on)}
+                        </td>
+                        <td className="py-2 pr-3 text-ink-secondary">{row.sku}</td>
+                        <td className="py-2 pr-3 text-ink">{row.name}</td>
+                        <td className="py-2 pr-3 text-right text-ink">{row.expected_quantity}</td>
+                        <td className="py-2 pr-3 text-right text-ink">{row.counted_quantity}</td>
+                        <td className="py-2 pr-3 text-right font-medium text-ink">
+                          {row.variance}
+                        </td>
+                        <td className="py-2 pr-3 text-ink-secondary">{row.note || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </>
         )}
@@ -546,38 +514,40 @@ function PayrollTab({
           ) : (
             <section className="rounded border border-border bg-surface p-4">
               <h2 className="text-sm font-semibold text-ink">Runs</h2>
-              <table className="mt-3 w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-border text-xs text-ink-secondary">
-                    <Th>Month</Th>
-                    <Th>Status</Th>
-                    <Th className="text-right">Employees</Th>
-                    <Th className="text-right">Gross</Th>
-                    <Th className="text-right">Deductions</Th>
-                    <Th className="text-right">Net</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.rows.map((row) => (
-                    <tr key={row.run_id} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-3 text-ink">{monthLabel(row.period_month)}</td>
-                      <td className="py-2 pr-3">
-                        <StatusChip status={row.status} display={row.status_display} />
-                      </td>
-                      <td className="py-2 pr-3 text-right text-ink">{row.employees}</td>
-                      <td className="py-2 pr-3 text-right text-ink">
-                        {money(row.gross_total, row.currency)}
-                      </td>
-                      <td className="py-2 pr-3 text-right text-ink">
-                        {money(row.deduction_total, row.currency)}
-                      </td>
-                      <td className="py-2 pr-3 text-right font-medium text-ink">
-                        {money(row.net_total, row.currency)}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="mt-3 w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs text-ink-secondary">
+                      <Th>Month</Th>
+                      <Th>Status</Th>
+                      <Th className="text-right">Employees</Th>
+                      <Th className="text-right">Gross</Th>
+                      <Th className="text-right">Deductions</Th>
+                      <Th className="text-right">Net</Th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {report.rows.map((row) => (
+                      <tr key={row.run_id} className="border-b border-border last:border-0">
+                        <td className="py-2 pr-3 text-ink">{monthLabel(row.period_month)}</td>
+                        <td className="py-2 pr-3">
+                          <StatusChip status={row.status} display={row.status_display} />
+                        </td>
+                        <td className="py-2 pr-3 text-right text-ink">{row.employees}</td>
+                        <td className="py-2 pr-3 text-right text-ink">
+                          {money(row.gross_total, row.currency)}
+                        </td>
+                        <td className="py-2 pr-3 text-right text-ink">
+                          {money(row.deduction_total, row.currency)}
+                        </td>
+                        <td className="py-2 pr-3 text-right font-medium text-ink">
+                          {money(row.net_total, row.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </section>
           )}
           <div className="grid gap-4 lg:grid-cols-2">

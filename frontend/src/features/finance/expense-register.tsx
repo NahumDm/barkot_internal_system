@@ -82,16 +82,16 @@ export default function ExpenseRegister() {
         onSubmit={submit}
         className="grid gap-3 rounded border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        <label className="text-sm text-ink">
+        <label className="field-label">
           Description
           <input
             required
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            className="control mt-1"
+            className="control mt-1.5"
           />
         </label>
-        <label className="text-sm text-ink">
+        <label className="field-label">
           Amount (ETB)
           <input
             required
@@ -100,16 +100,16 @@ export default function ExpenseRegister() {
             type="number"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            className="control mt-1"
+            className="control mt-1.5"
           />
         </label>
-        <label className="text-sm text-ink">
+        <label className="field-label">
           Category
           <select
             required
             value={category}
             onChange={(event) => setCategory(event.target.value)}
-            className="control mt-1"
+            className="control mt-1.5"
           >
             <option value="" disabled>
               Select category
@@ -121,14 +121,14 @@ export default function ExpenseRegister() {
             ))}
           </select>
         </label>
-        <label className="text-sm text-ink">
+        <label className="field-label">
           Incurred on
           <input
             required
             type="date"
             value={incurredOn}
             onChange={(event) => setIncurredOn(event.target.value)}
-            className="control mt-1"
+            className="control mt-1.5"
           />
         </label>
         <button

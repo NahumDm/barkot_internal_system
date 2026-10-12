@@ -117,7 +117,7 @@ export default function NewProductPage() {
             onChange={(e) => handleChange("category", e.target.value)}
             autoComplete="off"
             className="control"
-            aria-invalid={fieldErrors.category.length > 0}
+            aria-invalid={(fieldErrors.category?.length ?? 0) > 0}
           >
             <option value="">Select a category</option>
             {categories.map((cat) => (
@@ -126,7 +126,7 @@ export default function NewProductPage() {
               </option>
             ))}
           </select>
-          {fieldErrors.category.map((message) => (
+          {(fieldErrors.category ?? []).map((message) => (
             <p key={message} className="field-error">
               {message}
             </p>
@@ -190,9 +190,9 @@ export default function NewProductPage() {
             autoComplete="off"
             disabled={submitting}
             className="control"
-            aria-invalid={fieldErrors.description.length > 0}
+            aria-invalid={(fieldErrors.description?.length ?? 0) > 0}
           />
-          {fieldErrors.description.map((message) => (
+          {(fieldErrors.description ?? []).map((message) => (
             <p key={message} className="field-error">
               {message}
             </p>

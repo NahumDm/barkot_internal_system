@@ -22,7 +22,8 @@ import {
   Wallet,
   type LucideIcon,
 } from "lucide-react";
-import { navGroups } from "./nav";
+import { useAuth } from "@/features/auth/auth-provider";
+import { visibleNavGroups } from "./nav";
 
 const iconByHref: Record<string, LucideIcon> = {
   "/dashboard": LayoutDashboard,
@@ -46,6 +47,8 @@ const iconByHref: Record<string, LucideIcon> = {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const groups = visibleNavGroups(user?.permissions ?? []);
 
   return (
     <aside className="sidebar flex h-screen w-64 shrink-0 flex-col bg-sidebar text-white">
@@ -54,8 +57,8 @@ export function Sidebar() {
           <Image
             src="/images/barkot-mark.png"
             alt="Barkot logo"
-            width={44}
-            height={44}
+            width={48}
+            height={48}
             unoptimized
           />
         </span>
@@ -63,7 +66,7 @@ export function Sidebar() {
         <p className="brand-sub text-sm text-white/60">Bar &amp; Restaurant</p>
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {navGroups.map((group, groupIndex) => (
+        {groups.map((group, groupIndex) => (
           <div key={groupIndex} className="mb-4">
             {group.heading ? (
               <p className="nav-group px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/40">

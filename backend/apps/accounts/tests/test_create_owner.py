@@ -316,9 +316,7 @@ class TestRefusesUnsafeInput:
         with pytest.raises(TypeError, match="force"):
             _call("owner2", password_stdin=True, force=True)
 
-    def test_the_email_is_prompted_for_on_a_terminal(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_the_email_is_prompted_for_on_a_terminal(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """An interactive setup asks for the email before it asks for the password.
 
         The two values share stdin in this test, in the order the command reads

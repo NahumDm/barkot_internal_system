@@ -228,9 +228,7 @@ def test_duplicate_username_is_refused(
     assert "username" in error["details"]
 
 
-def test_a_second_owner_cannot_be_created(
-    client: Client, staff_login: Callable[..., Any]
-) -> None:
+def test_a_second_owner_cannot_be_created(client: Client, staff_login: Callable[..., Any]) -> None:
     """Barkot has exactly one Owner; the API refuses a second with a clear code."""
     staff_login(client, Role.Code.OWNER)
     before = user_count()

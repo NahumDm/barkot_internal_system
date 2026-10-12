@@ -228,10 +228,7 @@ async function fetchWithDeadline(
   });
 
   try {
-    return await Promise.race([
-      fetch(input, { ...init, signal: controller.signal }),
-      deadline,
-    ]);
+    return await Promise.race([fetch(input, { ...init, signal: controller.signal }), deadline]);
   } catch (error) {
     // The underlying fetch may reject with an AbortError a tick after the
     // deadline did; both mean the deadline passed, so whatever settles the race

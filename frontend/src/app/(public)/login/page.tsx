@@ -75,10 +75,7 @@ function SignInForm() {
           placeholder="Enter your password"
           disabled={busy}
         />
-        <button
-          type="submit"
-          disabled={busy}
-        >
+        <button type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
       </form>

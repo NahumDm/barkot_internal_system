@@ -109,8 +109,6 @@ test("a refused logout keeps the user signed in and says so", async ({ page }) =
 
   // Scoped to the menu: the dashboard behind it may carry its own alerts (it
   // does here, because the stubbed run has no API to load the sales list from).
-  await expect(page.getByRole("menu").getByRole("alert")).toContainText(
-    "Could not sign you out.",
-  );
+  await expect(page.getByRole("menu").getByRole("alert")).toContainText("Could not sign you out.");
   await expect(page).toHaveURL(/\/sales$/);
 });

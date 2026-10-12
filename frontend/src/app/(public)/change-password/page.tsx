@@ -96,10 +96,7 @@ export default function ChangePasswordPage() {
           autoComplete="new-password"
           disabled={busy}
         />
-        <button
-          type="submit"
-          disabled={busy}
-        >
+        <button type="submit" disabled={busy}>
           {busy ? "Saving…" : "Set password"}
         </button>
       </form>

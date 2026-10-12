@@ -175,8 +175,8 @@ describe("logout", () => {
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
 
-    const logoutCall = fetchMock().mock.calls
-      .map(([input, init]) => ({
+    const logoutCall = fetchMock()
+      .mock.calls.map(([input, init]) => ({
         url: String(input),
         method: (init as RequestInit | undefined)?.method ?? "GET",
         csrf: new Headers((init as RequestInit | undefined)?.headers).get("X-CSRFToken"),
@@ -192,10 +192,7 @@ describe("logout", () => {
     // session the server still holds is not abandoned client-side.
     mockApi({
       logout: () =>
-        jsonResponse(
-          { error: { code: "server_error", message: "Could not sign you out." } },
-          500,
-        ),
+        jsonResponse({ error: { code: "server_error", message: "Could not sign you out." } }, 500),
     });
 
     renderMenu();

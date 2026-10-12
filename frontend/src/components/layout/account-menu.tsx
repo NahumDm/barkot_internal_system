@@ -175,12 +175,7 @@ export function AccountMenu() {
           className="account-menu-panel"
           onKeyDown={onMenuKeyDown}
         >
-          <button
-            type="button"
-            role="menuitem"
-            className="account-menu-item"
-            onClick={openProfile}
-          >
+          <button type="button" role="menuitem" className="account-menu-item" onClick={openProfile}>
             <UserIcon aria-hidden="true" />
             My Profile
           </button>

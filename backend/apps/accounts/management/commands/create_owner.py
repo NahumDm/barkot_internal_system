@@ -232,7 +232,9 @@ class Command(BaseCommand):
                 validate_email(email)
                 return email
             except ValidationError:
-                self.stderr.write("That is not a valid email address. Try again, or leave it blank.")
+                self.stderr.write(
+                    "That is not a valid email address. Try again, or leave it blank."
+                )
 
     def _existing_owners(self) -> list[str]:
         """Return the usernames of every existing Owner."""

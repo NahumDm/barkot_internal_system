@@ -170,8 +170,8 @@ export function FormShell({
               className="auth-mark"
               src="/images/barkot-mark.png"
               alt="Barkot logo"
-              width={240}
-              height={120}
+              width={169}
+              height={169}
               priority
               unoptimized
             />

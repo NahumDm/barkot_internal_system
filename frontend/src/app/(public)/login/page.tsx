@@ -51,7 +51,7 @@ function SignInForm() {
   const fieldErrors = error?.details ?? {};
 
   return (
-    <FormShell title="Sign in" subtitle="Barkot Bar & Restaurant internal operations.">
+    <FormShell title="Sign in" subtitle="Barkot Bar & Restaurant">
       <form onSubmit={onSubmit} className="auth-form">
         <FormError error={error} variant="auth" />
         <Field
@@ -87,11 +87,7 @@ function SignInForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <FormShell title="Sign in" subtitle="Barkot Bar & Restaurant internal operations." />
-      }
-    >
+    <Suspense fallback={<FormShell title="Sign in" subtitle="Barkot Bar & Restaurant" />}>
       <SignInForm />
     </Suspense>
   );

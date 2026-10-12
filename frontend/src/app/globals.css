@@ -388,6 +388,155 @@
   font-variant-numeric: tabular-nums lining-nums;
 }
 
+/* ------------------------------------------------------------------ *
+ * App form controls.
+ *
+ * One height, radius, border and focus treatment for every input,
+ * select and textarea on a white surface, so a field looks the same
+ * wherever it appears - a wide search box, a compact date filter, a
+ * four-column form grid. The auth card keeps its own dark `.auth-*`
+ * chrome; nothing here reaches inside it.
+ * ------------------------------------------------------------------ */
+:root {
+  --control-height: 44px;
+  --control-radius: 10px;
+  --control-border: #bcae96;
+  --control-border-hover: #a6957c;
+  --control-bg: #ffffff;
+  --control-bg-disabled: #f4efe8;
+  --control-disabled-text: #9a8c86;
+  --control-focus-ring: rgba(142, 25, 47, 0.14);
+}
+
+.control {
+  box-sizing: border-box;
+  height: var(--control-height);
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: var(--control-bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.3;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+.control::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.control:hover:not(:disabled) {
+  border-color: var(--control-border-hover);
+}
+.control:focus-visible {
+  outline: none;
+  border-color: var(--wine);
+  box-shadow: 0 0 0 3px var(--control-focus-ring);
+}
+.control:disabled {
+  background: var(--control-bg-disabled);
+  color: var(--control-disabled-text);
+  cursor: not-allowed;
+}
+select.control {
+  padding-right: 34px;
+}
+textarea.control {
+  height: auto;
+  min-height: 88px;
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+.control--inline {
+  width: auto;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.field-label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.field-error {
+  margin: 0;
+  color: #8a3b3b;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.form-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(160, 72, 72, 0.35);
+  border-radius: var(--control-radius);
+  background: rgba(160, 72, 72, 0.08);
+  color: #8a3b3b;
+  font-size: 0.875rem;
+}
+
+/* Buttons: one height and radius for the actions that sit beside a
+ * control or head a form. Small in-table actions keep their own scale. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.btn-primary {
+  background: var(--ink);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--ink-hover);
+}
+.btn-secondary {
+  background: var(--cream);
+  border-color: var(--border);
+  color: var(--ink);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #e3d5bf;
+}
+.btn-ghost {
+  background: transparent;
+  border-color: var(--control-border);
+  color: var(--ink);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--cream);
+}
+
 /* Sidebar */
 .sidebar .brand {
   display: grid;
@@ -458,33 +607,52 @@
 .account-menu-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0.25rem 0.5rem;
-  border: 0;
-  border-radius: 999px;
+  gap: 10px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 .account-menu-trigger:hover {
   background: var(--cream);
+  border-color: var(--border);
+}
+.account-menu-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--wine);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 .account-menu-identity {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  line-height: 1.15;
-  max-width: 200px;
+  line-height: 1.2;
+  max-width: 180px;
 }
 .account-menu-name {
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 200px;
+  max-width: 180px;
 }
 .account-menu-role {
+  font-size: 0.75rem;
   color: var(--muted);
 }
 .account-menu-chevron {

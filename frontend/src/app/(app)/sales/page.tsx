@@ -207,8 +207,8 @@ function SalesFilters({
   onPaymentStatusFilterChange: (value: "all" | string) => void;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row gap-3 mb-4">
-      <div className="flex-1 min-w-0">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
         <Field
           label="Search"
           type="search"
@@ -223,7 +223,7 @@ function SalesFilters({
         <select
           value={statusFilter}
           onChange={(e) => onStatusFilterChange(e.target.value as "all" | "COMPLETED" | "VOIDED")}
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+          className="control control--inline"
         >
           <option value="all">All statuses</option>
           <option value="COMPLETED">Completed</option>
@@ -232,7 +232,7 @@ function SalesFilters({
         <select
           value={paymentStatusFilter}
           onChange={(e) => onPaymentStatusFilterChange(e.target.value)}
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+          className="control control--inline"
         >
           <option value="all">All payment statuses</option>
           <option value="PAID">Paid</option>
@@ -334,16 +334,17 @@ export default function SalesPage() {
           <p className="text-sm text-ink-secondary">View and manage sales transactions.</p>
         </div>
         <button
+          type="button"
           onClick={handleCreateClick}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface hover:bg-ink/90"
+          className="btn btn-primary self-start sm:self-auto"
         >
           New Sale
         </button>
       </div>
 
-      <form onSubmit={handleSearchSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 min-w-0">
+      <form onSubmit={handleSearchSubmit} className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
             <Field
               label="Search"
               type="search"
@@ -358,7 +359,7 @@ export default function SalesPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as "all" | "COMPLETED" | "VOIDED")}
-              className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+              className="control control--inline"
             >
               <option value="all">All statuses</option>
               <option value="COMPLETED">Completed</option>

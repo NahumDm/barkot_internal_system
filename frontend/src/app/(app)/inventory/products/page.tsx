@@ -176,8 +176,8 @@ function ProductFilters({
   categories: Array<{ id: number; name: string }>;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row gap-3 mb-4">
-      <div className="flex-1 min-w-0">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="min-w-0 flex-1">
         <Field
           label="Search"
           type="search"
@@ -192,7 +192,7 @@ function ProductFilters({
         <select
           value={activeFilter}
           onChange={(e) => onActiveFilterChange(e.target.value as "all" | "true" | "false")}
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+          className="control control--inline"
         >
           <option value="all">All statuses</option>
           <option value="true">Active only</option>
@@ -201,7 +201,7 @@ function ProductFilters({
         <select
           value={stockTrackedFilter}
           onChange={(e) => onStockTrackedFilterChange(e.target.value as "all" | "true" | "false")}
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+          className="control control--inline"
         >
           <option value="all">All stock tracking</option>
           <option value="true">Tracked only</option>
@@ -212,7 +212,7 @@ function ProductFilters({
           onChange={(e) =>
             onCategoryFilterChange(e.target.value === "all" ? "all" : Number(e.target.value))
           }
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+          className="control control--inline"
         >
           <option value="all">All categories</option>
           {categories.map((cat) => (
@@ -319,8 +319,9 @@ export default function ProductsPage() {
           </p>
         </div>
         <button
+          type="button"
           onClick={handleCreateClick}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface hover:bg-ink/90"
+          className="btn btn-primary self-start sm:self-auto"
         >
           Add Product
         </button>

@@ -35,11 +35,7 @@ export default function InventoryOverview() {
           Current quantities are calculated from the movement ledger.
         </p>
       </div>
-      {error && (
-        <p className="rounded border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
-          {error.message}
-        </p>
-      )}
+      {error && <p className="form-error">{error.message}</p>}
       <div className="overflow-x-auto rounded border border-border bg-surface">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">

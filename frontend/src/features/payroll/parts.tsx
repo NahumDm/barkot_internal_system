@@ -41,10 +41,7 @@ export function ErrorBanner({ error }: { error: ApiError | null }) {
   );
 
   return (
-    <div
-      role="alert"
-      className="rounded border border-danger/30 bg-danger/10 p-3 text-sm text-danger"
-    >
+    <div role="alert" className="form-error">
       <p>{error.message}</p>
       {specifics.length > 0 && (
         <ul className="mt-2 list-disc space-y-1 pl-5">

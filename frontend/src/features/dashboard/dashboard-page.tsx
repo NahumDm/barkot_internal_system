@@ -102,11 +102,7 @@ export default function DashboardPage() {
           <DateInput label="From" value={start} onChange={changeStart} />
           <DateInput label="To" value={end} onChange={changeEnd} />
         </div>
-        <button
-          type="button"
-          onClick={resetToMonth}
-          className="period-btn rounded bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:text-ink-secondary"
-        >
+        <button type="button" onClick={resetToMonth} className="btn btn-secondary">
           This month
         </button>
       </div>
@@ -383,7 +379,7 @@ function DateInput({
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="date-input mt-1 block rounded border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+        className="control control--inline"
       />
     </label>
   );

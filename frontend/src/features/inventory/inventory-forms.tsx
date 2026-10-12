@@ -107,11 +107,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
           All changes are recorded in the authoritative movement ledger.
         </p>
       </div>
-      {error && (
-        <p className="rounded border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
-          {error.message}
-        </p>
-      )}
+      {error && <p className="form-error">{error.message}</p>}
       {!count && (
         <form onSubmit={submit} className="space-y-4 rounded border border-border bg-surface p-4">
           {mode === "receive" && (
@@ -121,7 +117,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 required
                 value={supplier}
                 onChange={(event) => setSupplier(event.target.value)}
-                className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                className="control mt-1"
               />
             </label>
           )}
@@ -132,7 +128,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 required
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                className="control mt-1"
               />
             </label>
           )}
@@ -142,7 +138,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
               required
               value={product}
               onChange={(event) => setProduct(event.target.value)}
-              className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+              className="control mt-1"
             >
               {products.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -161,7 +157,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 type="number"
                 value={quantity}
                 onChange={(event) => setQuantity(event.target.value)}
-                className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                className="control mt-1"
               />
             </label>
           )}
@@ -175,7 +171,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 type="number"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
-                className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                className="control mt-1"
               />
             </label>
           )}
@@ -186,7 +182,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
           )}
           <button
             disabled={saving || !product}
-            className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+            className="btn btn-primary self-start"
             type="submit"
           >
             {saving ? "Saving..." : mode === "count" ? "Open count" : "Save record"}
@@ -223,13 +219,13 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                   type="number"
                   value={quantity}
                   onChange={(event) => setQuantity(event.target.value)}
-                  className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                  className="control mt-1"
                 />
               </label>
               <button
                 disabled={saving || quantity === ""}
                 onClick={finishCount}
-                className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+                className="btn btn-primary self-start"
               >
                 Complete count
               </button>
@@ -239,7 +235,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
             <button
               disabled={saving}
               onClick={approveCount}
-              className="rounded bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="btn bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
             >
               Approve adjustment
             </button>

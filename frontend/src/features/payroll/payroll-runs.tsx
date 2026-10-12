@@ -202,7 +202,7 @@ export default function PayrollRuns() {
             type="button"
             aria-label="Previous month"
             onClick={() => setMonth((current) => shiftMonthKey(current, -1))}
-            className="rounded border border-border bg-surface p-2 text-ink hover:border-ink"
+            className="flex h-11 w-11 items-center justify-center rounded border border-border bg-surface text-ink hover:border-ink"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -213,13 +213,13 @@ export default function PayrollRuns() {
             onChange={(event) => {
               if (event.target.value) setMonth(event.target.value);
             }}
-            className="rounded border border-border bg-canvas px-3 py-2 text-sm text-ink"
+            className="control control--inline"
           />
           <button
             type="button"
             aria-label="Next month"
             onClick={() => setMonth((current) => shiftMonthKey(current, 1))}
-            className="rounded border border-border bg-surface p-2 text-ink hover:border-ink"
+            className="flex h-11 w-11 items-center justify-center rounded border border-border bg-surface text-ink hover:border-ink"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -291,7 +291,7 @@ export default function PayrollRuns() {
                     type="button"
                     disabled={busy !== null}
                     onClick={() => void perform("approve", () => approvePayrollRun(run.id))}
-                    className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+                    className="btn btn-primary"
                   >
                     {busy === "approve" ? "Approving..." : "Approve run"}
                   </button>
@@ -307,7 +307,7 @@ export default function PayrollRuns() {
                     type="button"
                     disabled={busy !== null}
                     onClick={() => void perform("paid", () => markPayrollRunPaid(run.id))}
-                    className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
+                    className="btn btn-primary"
                   >
                     {busy === "paid" ? "Recording..." : "Mark as paid"}
                   </button>
@@ -381,16 +381,12 @@ export default function PayrollRuns() {
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               placeholder="Anything unusual about this month"
-              className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+              className="control mt-1"
             />
           </label>
 
           {canGenerate ? (
-            <button
-              type="submit"
-              disabled={busy !== null}
-              className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:opacity-50"
-            >
+            <button type="submit" disabled={busy !== null} className="btn btn-primary">
               {busy === "generate" ? "Generating..." : "Generate run"}
             </button>
           ) : (

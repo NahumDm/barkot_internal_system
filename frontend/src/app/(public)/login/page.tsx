@@ -53,7 +53,7 @@ function SignInForm() {
   return (
     <FormShell title="Sign in" subtitle="Barkot Bar & Restaurant internal operations.">
       <form onSubmit={onSubmit} className="auth-form">
-        <FormError error={error} />
+        <FormError error={error} variant="auth" />
         <Field
           label="Username"
           type="text"
@@ -64,6 +64,7 @@ function SignInForm() {
           placeholder="Enter your username"
           autoFocus
           disabled={busy}
+          variant="auth"
         />
         <Field
           label="Password"
@@ -74,6 +75,7 @@ function SignInForm() {
           autoComplete="current-password"
           placeholder="Enter your password"
           disabled={busy}
+          variant="auth"
         />
         <button type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}

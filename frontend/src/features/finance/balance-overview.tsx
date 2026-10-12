@@ -67,7 +67,7 @@ export default function BalanceOverview() {
                 setLoading(true);
                 setStart(event.target.value);
               }}
-              className="mt-1 block rounded border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+              className="control control--inline"
             />
           </label>
           <label className="text-xs font-medium text-ink-secondary">
@@ -79,17 +79,13 @@ export default function BalanceOverview() {
                 setLoading(true);
                 setEnd(event.target.value);
               }}
-              className="mt-1 block rounded border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+              className="control control--inline"
             />
           </label>
         </div>
       </div>
 
-      {error && (
-        <p className="rounded border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
-          {error.message}
-        </p>
-      )}
+      {error && <p className="form-error">{error.message}</p>}
       {loading && <p className="text-sm text-ink-secondary">Loading balance...</p>}
       {balance && !loading && (
         <>

@@ -205,7 +205,7 @@ export default function DeductionRegister() {
                   required
                   value={runId}
                   onChange={(event) => setRunChoice(event.target.value)}
-                  className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                  className="control mt-1"
                 >
                   <option value="" disabled>
                     Select run
@@ -225,7 +225,7 @@ export default function DeductionRegister() {
                   disabled={itemsLoading || shownItems.length === 0}
                   value={itemId}
                   onChange={(event) => setItemChoice(event.target.value)}
-                  className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="control mt-1"
                 >
                   <option value="" disabled>
                     {itemsLoading ? "Loading employees..." : "Select employee"}
@@ -244,7 +244,7 @@ export default function DeductionRegister() {
                   required
                   value={type}
                   onChange={(event) => setType(event.target.value as PayrollDeductionType)}
-                  className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                  className="control mt-1"
                 >
                   {DEDUCTION_TYPES.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -263,7 +263,7 @@ export default function DeductionRegister() {
                   type="number"
                   value={amount}
                   onChange={(event) => setAmount(event.target.value)}
-                  className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                  className="control mt-1"
                 />
               </label>
 
@@ -273,7 +273,7 @@ export default function DeductionRegister() {
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
                   placeholder="Why this was taken"
-                  className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                  className="control mt-1"
                 />
               </label>
 
@@ -283,7 +283,7 @@ export default function DeductionRegister() {
                   type="date"
                   value={occurredOn}
                   onChange={(event) => setOccurredOn(event.target.value)}
-                  className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+                  className="control mt-1"
                 />
               </label>
 
@@ -296,7 +296,7 @@ export default function DeductionRegister() {
               <button
                 type="submit"
                 disabled={saving || !itemId}
-                className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 lg:col-span-3 lg:justify-self-end"
+                className="btn btn-primary sm:col-span-2 lg:col-span-3 lg:justify-self-end"
               >
                 {saving ? "Recording..." : "Record deduction"}
               </button>

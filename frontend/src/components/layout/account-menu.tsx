@@ -36,6 +36,13 @@ function describeLogoutError(error: unknown): string {
   return "Signing out failed. Check your connection and try again.";
 }
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export function AccountMenu() {
   const { user, signOut } = useAuth();
   const router = useRouter();
@@ -159,6 +166,9 @@ export function AccountMenu() {
         aria-controls={open ? `${menuId}-menu` : undefined}
         onClick={() => setOpen((value) => !value)}
       >
+        <span className="account-menu-avatar" aria-hidden="true">
+          {initials(user.display_name || user.username)}
+        </span>
         <span className="account-menu-identity">
           <span className="account-menu-name">{user.display_name || user.username}</span>
           <span className="account-menu-role">{user.role_name || user.role}</span>

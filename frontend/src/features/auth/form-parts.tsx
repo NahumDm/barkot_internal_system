@@ -21,10 +21,13 @@ import { ErrorCode, type ApiError } from "@/lib/api";
  * user pressed the button, when their focus is still on the control they just
  * used and nothing else would be read out.
  */
-export function FormError({ error }: Readonly<{ error: ApiError | null }>) {
+export function FormError({
+  error,
+  variant = "app",
+}: Readonly<{ error: ApiError | null; variant?: "app" | "auth" }>) {
   if (error === null) return null;
   return (
-    <p role="alert" className="auth-error">
+    <p role="alert" className={variant === "auth" ? "auth-error" : "form-error"}>
       {describe(error)}
     </p>
   );
@@ -60,6 +63,7 @@ export function Field({
   disabled,
   hint,
   placeholder,
+  variant = "app",
 }: Readonly<{
   label: string;
   type: string;
@@ -71,13 +75,23 @@ export function Field({
   disabled?: boolean;
   hint?: string;
   placeholder?: string;
+  /**
+   * `"app"` styles the field for a white application surface (the default);
+   * `"auth"` keeps the dark chrome that belongs to the sign-in card. The same
+   * component serves both because the markup and the label/error wiring are
+   * identical - only the surface it sits on differs.
+   */
+  variant?: "app" | "auth";
 }>) {
   const id = useId();
   const errorId = `${id}-error`;
+  const isAuth = variant === "auth";
 
   return (
-    <div className="auth-field">
-      <label htmlFor={id}>{label}</label>
+    <div className={isAuth ? "auth-field" : "field"}>
+      <label htmlFor={id} className={isAuth ? undefined : "field-label"}>
+        {label}
+      </label>
       <input
         id={id}
         type={type}
@@ -89,11 +103,13 @@ export function Field({
         placeholder={placeholder}
         aria-invalid={errors.length > 0}
         aria-describedby={errors.length > 0 ? errorId : undefined}
-        className="auth-input"
+        className={isAuth ? "auth-input" : "control"}
       />
-      {hint !== undefined && errors.length === 0 ? <p className="auth-hint">{hint}</p> : null}
+      {hint !== undefined && errors.length === 0 ? (
+        <p className={isAuth ? "auth-hint" : "field-hint"}>{hint}</p>
+      ) : null}
       {errors.map((message) => (
-        <p key={message} id={errorId} className="auth-field-error">
+        <p key={message} id={errorId} className={isAuth ? "auth-field-error" : "field-error"}>
           {message}
         </p>
       ))}

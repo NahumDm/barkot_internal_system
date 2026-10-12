@@ -131,7 +131,7 @@ export default function EmployeeRoster() {
               required
               value={profileId}
               onChange={(event) => setProfileChoice(event.target.value)}
-              className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+              className="control mt-1"
             >
               <option value="" disabled>
                 Select staff member
@@ -152,14 +152,14 @@ export default function EmployeeRoster() {
               type="number"
               value={wage}
               onChange={(event) => setWage(event.target.value)}
-              className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+              className="control mt-1"
             />
           </label>
           <div className="flex items-end">
             <button
               disabled={saving || noOneWaiting || !profileId}
               type="submit"
-              className="w-full rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50"
+              className="btn btn-primary w-full"
             >
               {saving ? "Adding..." : "Add to payroll"}
             </button>

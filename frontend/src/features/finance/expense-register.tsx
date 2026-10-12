@@ -77,11 +77,7 @@ export default function ExpenseRegister() {
           Record expenses, then approve them before they affect the balance.
         </p>
       </div>
-      {error && (
-        <p className="rounded border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
-          {error.message}
-        </p>
-      )}
+      {error && <p className="form-error">{error.message}</p>}
       <form
         onSubmit={submit}
         className="grid gap-3 rounded border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4"
@@ -92,7 +88,7 @@ export default function ExpenseRegister() {
             required
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+            className="control mt-1"
           />
         </label>
         <label className="text-sm text-ink">
@@ -104,7 +100,7 @@ export default function ExpenseRegister() {
             type="number"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+            className="control mt-1"
           />
         </label>
         <label className="text-sm text-ink">
@@ -113,7 +109,7 @@ export default function ExpenseRegister() {
             required
             value={category}
             onChange={(event) => setCategory(event.target.value)}
-            className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+            className="control mt-1"
           >
             <option value="" disabled>
               Select category
@@ -132,13 +128,13 @@ export default function ExpenseRegister() {
             type="date"
             value={incurredOn}
             onChange={(event) => setIncurredOn(event.target.value)}
-            className="mt-1 w-full rounded border border-border bg-canvas px-3 py-2"
+            className="control mt-1"
           />
         </label>
         <button
           disabled={saving || !category}
           type="submit"
-          className="rounded bg-ink px-4 py-2 text-sm font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2 lg:col-span-4 lg:justify-self-end"
+          className="btn btn-primary sm:col-span-2 lg:col-span-4 lg:justify-self-end"
         >
           {saving ? "Saving..." : "Record expense"}
         </button>

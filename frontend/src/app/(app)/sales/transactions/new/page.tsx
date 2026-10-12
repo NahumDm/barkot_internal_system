@@ -11,7 +11,7 @@ import {
   isValidationError,
   ApiError as ApiErrorClass,
 } from "@/lib/api/errors";
-import { Field, FormError, FormShell } from "@/features/auth/form-parts";
+import { Field, FormError } from "@/features/auth/form-parts";
 
 interface GroupedProduct {
   categoryId: number;
@@ -19,7 +19,7 @@ interface GroupedProduct {
   products: ProductListItem[];
 }
 
-const selectClasses = "rounded border border-border bg-surface px-3 py-2 text-sm text-ink";
+const selectClasses = "control";
 
 export default function NewSalePage() {
   const router = useRouter();
@@ -159,14 +159,20 @@ export default function NewSalePage() {
 
   if (productsLoading) {
     return (
-      <FormShell title="New Sale" subtitle="Loading products…">
-        <div className="flex items-center justify-center py-8 text-ink-secondary">Loading…</div>
-      </FormShell>
+      <section className="flex items-center justify-center py-8 text-ink-secondary">
+        Loading…
+      </section>
     );
   }
 
   return (
-    <FormShell title="New Sale" subtitle="Record a sale with lines and payments.">
+    <section className="flex flex-col gap-6">
+      <header>
+        <h1 className="page-title text-2xl font-semibold tracking-tight text-ink">New Sale</h1>
+        <p className="page-subtitle mt-1 text-sm text-ink-secondary">
+          Record a sale with lines and payments.
+        </p>
+      </header>
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
         <FormError
           error={
@@ -183,7 +189,7 @@ export default function NewSalePage() {
               <div key={index} className="flex flex-col sm:flex-row gap-3 items-end">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-ink">Product</label>
+                    <label className="field-label">Product</label>
                     <select
                       value={String(line.product)}
                       onChange={(e) => handleLineChange(index, "product", Number(e.target.value))}
@@ -206,7 +212,7 @@ export default function NewSalePage() {
                       ))}
                     </select>
                     {(fieldErrors[`lines.${index}.product`] ?? []).map((message) => (
-                      <p key={message} className="text-xs text-danger">
+                      <p key={message} className="field-error">
                         {message}
                       </p>
                     ))}
@@ -245,11 +251,7 @@ export default function NewSalePage() {
               </div>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={addLine}
-            className="rounded border border-border bg-surface px-4 py-2 text-sm text-ink hover:bg-surface/50 self-start"
-          >
+          <button type="button" onClick={addLine} className="btn btn-ghost self-start">
             Add Line
           </button>
         </section>
@@ -261,7 +263,7 @@ export default function NewSalePage() {
               <div key={index} className="flex flex-col sm:flex-row gap-3 items-end">
                 <div className="w-48">
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-ink">Method</label>
+                    <label className="field-label">Method</label>
                     <select
                       value={payment.method}
                       onChange={(e) => handlePaymentChange(index, "method", e.target.value)}
@@ -272,7 +274,7 @@ export default function NewSalePage() {
                       <option value="MOBILE_BANKING">Mobile Banking</option>
                     </select>
                     {(fieldErrors[`payments.${index}.method`] ?? []).map((message) => (
-                      <p key={message} className="text-xs text-danger">
+                      <p key={message} className="field-error">
                         {message}
                       </p>
                     ))}
@@ -300,11 +302,7 @@ export default function NewSalePage() {
               </div>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={addPayment}
-            className="rounded border border-border bg-surface px-4 py-2 text-sm text-ink hover:bg-surface/50 self-start"
-          >
+          <button type="button" onClick={addPayment} className="btn btn-ghost self-start">
             Add Payment
           </button>
         </section>
@@ -317,14 +315,10 @@ export default function NewSalePage() {
           }
         />
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface disabled:opacity-60 disabled:cursor-not-allowed"
-        >
+        <button type="submit" disabled={submitting} className="btn btn-primary self-start">
           {submitting ? "Recording Sale…" : "Record Sale"}
         </button>
       </form>
-    </FormShell>
+    </section>
   );
 }

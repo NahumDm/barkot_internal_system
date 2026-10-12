@@ -166,7 +166,7 @@ function DateInput({
         type="date"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 block rounded border border-border bg-surface px-2 py-1.5 text-sm text-ink"
+        className="control control--inline"
       />
     </label>
   );
@@ -174,10 +174,7 @@ function DateInput({
 
 function DownloadCsv({ href, label = "Download CSV" }: { href: string; label?: string }) {
   return (
-    <a
-      href={href}
-      className="inline-block rounded bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:text-ink-secondary"
-    >
+    <a href={href} className="btn btn-secondary">
       {label}
     </a>
   );

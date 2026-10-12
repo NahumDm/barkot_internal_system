@@ -67,11 +67,7 @@ function GuardNotice({
         <p className="max-w-md text-sm text-ink-secondary">
           {problem ?? "The session could not be checked."} This is usually temporary.
         </p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="rounded border border-border bg-surface px-4 py-2 text-sm font-medium text-ink"
-        >
+        <button type="button" onClick={onRetry} className="btn btn-secondary">
           Try again
         </button>
       </div>

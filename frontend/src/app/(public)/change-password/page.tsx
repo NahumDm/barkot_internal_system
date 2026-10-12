@@ -67,7 +67,7 @@ export default function ChangePasswordPage() {
       }
     >
       <form onSubmit={onSubmit} className="auth-form">
-        <FormError error={error} />
+        <FormError error={error} variant="auth" />
         <Field
           label="Current password"
           type="password"
@@ -77,6 +77,7 @@ export default function ChangePasswordPage() {
           autoComplete="current-password"
           autoFocus
           disabled={busy}
+          variant="auth"
         />
         <Field
           label="New password"
@@ -86,6 +87,7 @@ export default function ChangePasswordPage() {
           errors={fieldErrors["new_password"] ?? []}
           autoComplete="new-password"
           disabled={busy}
+          variant="auth"
         />
         <Field
           label="Confirm new password"
@@ -95,6 +97,7 @@ export default function ChangePasswordPage() {
           errors={fieldErrors["new_password_confirm"] ?? []}
           autoComplete="new-password"
           disabled={busy}
+          variant="auth"
         />
         <button type="submit" disabled={busy}>
           {busy ? "Saving…" : "Set password"}

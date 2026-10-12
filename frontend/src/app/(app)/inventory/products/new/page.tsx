@@ -10,7 +10,7 @@ import {
   isValidationError,
   ApiError as ApiErrorClass,
 } from "@/lib/api/errors";
-import { Field, FormError, FormShell } from "@/features/auth/form-parts";
+import { Field, FormError } from "@/features/auth/form-parts";
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -87,14 +87,20 @@ export default function NewProductPage() {
 
   if (categoriesLoading) {
     return (
-      <FormShell title="Add Product" subtitle="Loading categories…">
-        <div className="flex items-center justify-center py-8 text-ink-secondary">Loading…</div>
-      </FormShell>
+      <section className="flex items-center justify-center py-8 text-ink-secondary">
+        Loading…
+      </section>
     );
   }
 
   return (
-    <FormShell title="Add Product" subtitle="Create a new sellable product in the catalogue.">
+    <section className="flex flex-col gap-6">
+      <header>
+        <h1 className="page-title text-2xl font-semibold tracking-tight text-ink">Add Product</h1>
+        <p className="page-subtitle mt-1 text-sm text-ink-secondary">
+          Create a new sellable product in the catalogue.
+        </p>
+      </header>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <FormError
           error={
@@ -104,13 +110,13 @@ export default function NewProductPage() {
           }
         />
 
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-ink">Category</label>
+        <div className="field">
+          <label className="field-label">Category</label>
           <select
             value={formData.category}
             onChange={(e) => handleChange("category", e.target.value)}
             autoComplete="off"
-            className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+            className="control"
             aria-invalid={fieldErrors.category.length > 0}
           >
             <option value="">Select a category</option>
@@ -121,7 +127,7 @@ export default function NewProductPage() {
             ))}
           </select>
           {fieldErrors.category.map((message) => (
-            <p key={message} className="text-xs text-danger">
+            <p key={message} className="field-error">
               {message}
             </p>
           ))}
@@ -176,18 +182,18 @@ export default function NewProductPage() {
           </label>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-ink">Description</label>
+        <div className="field">
+          <label className="field-label">Description</label>
           <textarea
             value={formData.description}
             onChange={(e) => handleChange("description", e.target.value)}
             autoComplete="off"
             disabled={submitting}
-            className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+            className="control"
             aria-invalid={fieldErrors.description.length > 0}
           />
           {fieldErrors.description.map((message) => (
-            <p key={message} className="text-xs text-danger">
+            <p key={message} className="field-error">
               {message}
             </p>
           ))}
@@ -196,11 +202,11 @@ export default function NewProductPage() {
         <button
           type="submit"
           disabled={submitting || !formData.category}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface disabled:opacity-60 disabled:cursor-not-allowed"
+          className="btn btn-primary self-start"
         >
           {submitting ? "Creating…" : "Create Product"}
         </button>
       </form>
-    </FormShell>
+    </section>
   );
 }

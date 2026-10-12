@@ -363,9 +363,7 @@ function UserRow({
       {error && (
         <tr>
           <td colSpan={6} className="py-2">
-            <p className="rounded border border-danger/30 bg-danger/10 p-2 text-sm text-danger">
-              {error.message}
-            </p>
+            <p className="form-error">{error.message}</p>
           </td>
         </tr>
       )}
@@ -657,7 +655,7 @@ function TextInput({
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 block w-full rounded border border-border bg-canvas px-2 py-1.5 text-sm text-ink"
+        className="control mt-1"
       />
     </label>
   );
@@ -682,7 +680,7 @@ function NumberInput({
         min={min}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 block w-full rounded border border-border bg-canvas px-2 py-1.5 text-sm text-ink"
+        className="control mt-1"
       />
     </label>
   );
@@ -710,7 +708,7 @@ function Select({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 block w-full rounded border border-border bg-canvas px-2 py-1.5 text-sm text-ink disabled:opacity-50"
+        className="control mt-1"
       >
         {placeholder !== undefined && (
           <option value="" disabled>
@@ -743,11 +741,7 @@ function ActionButton({
       type={onClick ? "button" : "submit"}
       onClick={onClick}
       disabled={disabled}
-      className={
-        secondary
-          ? "rounded border border-border bg-canvas px-3 py-1.5 text-sm font-medium text-ink hover:text-ink-secondary disabled:opacity-50"
-          : "rounded bg-ink px-3 py-1.5 text-sm font-medium text-canvas disabled:opacity-50"
-      }
+      className={secondary ? "btn btn-secondary" : "btn btn-primary"}
     >
       {children}
     </button>

@@ -19,6 +19,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import {
+  ApiError,
+  isRequestTimeout,
   isSessionEnded,
   type AuthUser,
   type LoginInput,
@@ -28,6 +30,18 @@ import {
 } from "@/lib/api";
 
 export type AuthStatus = "checking" | "authenticated" | "anonymous" | "unavailable";
+
+/**
+ * How long the first-load session check may take before the request is given
+ * up as lost.
+ *
+ * The number is a judgement call. Fifteen seconds is far beyond what a healthy
+ * `/auth/me/` round trip needs on the same network - the stall the user sees is
+ * measured in minutes, not seconds - and short enough that a dead backend makes
+ * the app fail with a "try again" prompt instead of a blank "Checking your
+ * session…" wall the user cannot act on.
+ */
+export const SESSION_CHECK_TIMEOUT_MS = 15_000;
 
 export interface AuthContextValue {
   status: AuthStatus;
@@ -68,10 +82,16 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
       setStatus("anonymous");
       return;
     }
+    // A deadline or a refused connection is not a sign-out. Telling the user "your
+    // session expired" would send them to sign in, which cannot fix a server that
+    // is slow or down. The timeout gets its own wording because the remedy - wait,
+    // then retry - is what "taking too long" actually means.
     setProblem(
-      error instanceof Error
-        ? error.message
-        : "The session could not be checked. Try again in a moment.",
+      isRequestTimeout(error)
+        ? "The server is taking too long to respond. Try again in a moment."
+        : error instanceof ApiError
+          ? error.message
+          : "Cannot reach the server. Check your connection and try again.",
     );
     setStatus("unavailable");
   }, []);
@@ -79,11 +99,14 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   // State is only touched from the promise's own callbacks, never synchronously
   // in the effect body, so mounting does not render twice before the request is
   // even sent. The `cancelled` flag covers StrictMode's double-mount and an
-  // unmount mid-flight, which would otherwise set state on a dead component.
+  // unmount mid-flight, which would otherwise set state on a dead component;
+  // the abort controller makes that cleanup real, cancelling the wire request
+  // instead of only ignoring its answer.
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
-    void currentUser().then(
+    void currentUser({ signal: controller.signal, timeoutMs: SESSION_CHECK_TIMEOUT_MS }).then(
       (signedIn) => {
         if (!cancelled) acceptUser(signedIn);
       },
@@ -94,13 +117,14 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [acceptUser, rejectSession]);
 
   const refresh = useCallback(async () => {
     setStatus("checking");
     try {
-      acceptUser(await currentUser());
+      acceptUser(await currentUser({ timeoutMs: SESSION_CHECK_TIMEOUT_MS }));
     } catch (error) {
       rejectSession(error);
     }
@@ -116,7 +140,9 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   );
 
   const signOut = useCallback(async () => {
-    await logout();
+    // Bounded like the session check: a logout that hangs must fail visibly so
+    // the menu can say so, rather than spin while the session quietly survives.
+    await logout({ timeoutMs: SESSION_CHECK_TIMEOUT_MS });
     setUser(null);
     setProblem(null);
     setStatus("anonymous");

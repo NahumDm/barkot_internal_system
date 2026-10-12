@@ -8,7 +8,7 @@
  * one request where the user is guaranteed to be waiting.
  */
 
-import { get, post } from "./client";
+import { get, post, type RequestOptions } from "./client";
 
 /** Who is signed in, and what the UI may offer them. */
 export interface AuthUser {
@@ -46,14 +46,26 @@ export async function login(input: LoginInput): Promise<AuthUser> {
   return user;
 }
 
-/** Ends the session server-side. The client holds nothing to clear. */
-export async function logout(): Promise<void> {
-  await post<void>("/auth/logout/");
+/**
+ * Ends the session server-side. The client holds nothing to clear.
+ *
+ * Accepts request options so logout participates in the session check's timeout
+ * and abort strategy: a logout that hangs must surface as an error the menu can
+ * show, never as a frozen menu with no way to retry.
+ */
+export async function logout(options: RequestOptions = {}): Promise<void> {
+  await post<void>("/auth/logout/", undefined, options);
 }
 
-/** The current session's user, or an `ApiError` with `not_authenticated`. */
-export async function currentUser(): Promise<AuthUser> {
-  const { user } = await get<UserEnvelope>("/auth/me/");
+/**
+ * The current session's user, or an `ApiError` with `not_authenticated`.
+ *
+ * Options let the auth provider bound this check with a deadline and cancel it
+ * when it unmounts; without those the first-load guard has nothing to show
+ * while a stalled request keeps it on "Checking your session…".
+ */
+export async function currentUser(options: RequestOptions = {}): Promise<AuthUser> {
+  const { user } = await get<UserEnvelope>("/auth/me/", options);
   return user;
 }
 

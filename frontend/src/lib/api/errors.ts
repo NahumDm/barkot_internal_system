@@ -28,6 +28,11 @@ export const ErrorCode = {
   NotFound: "not_found",
   Throttled: "throttled",
   ServerError: "server_error",
+  /** The client gave up before a response arrived. Raised locally, never by the
+   * API: a request that is answered but slow is not a timeout, and the two must
+   * stay distinguishable because a timeout is retryable while an answered 5xx
+   * may need a fix first. Status 0 stands for "no HTTP status exists". */
+  Timeout: "request_timeout",
   /**
    * A write was refused because the record is not in the state the action
    * needs. Raised by `BARKOTDomainError` subclasses as 409, so it is a
@@ -44,7 +49,7 @@ export const ErrorCode = {
   ExcessiveDeduction: "excessive_deduction",
   /** Zero or negative deduction amount (400). */
   InvalidDeductionAmount: "invalid_deduction_amount",
-  /** The response was not the error envelope the API promises. */
+  /** True when the response was not the error envelope the API promises. */
   Malformed: "malformed_response",
 } as const;
 
@@ -94,6 +99,11 @@ export function isSessionEnded(error: unknown): error is ApiError {
     error instanceof ApiError &&
     (error.code === ErrorCode.NotAuthenticated || error.code === ErrorCode.SessionExpired)
   );
+}
+
+/** True when the request was abandoned client-side because it exceeded its deadline. */
+export function isRequestTimeout(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === ErrorCode.Timeout;
 }
 
 /** True when the failure was a permission denied error. */

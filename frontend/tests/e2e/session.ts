@@ -237,3 +237,28 @@ export async function stubPasswordChangeAccepted(
     }),
   );
 }
+
+const LOGOUT_URL = "**/api/v1/auth/logout/";
+
+/**
+ * Accept a logout, answering 204 with no body exactly as the view does.
+ *
+ * Signing out is a CSRF-protected write, so a spec using this also needs
+ * `stubCsrf` unless a real cookie was set earlier in the same session.
+ */
+export async function stubLogout(page: Page): Promise<void> {
+  await page.route(LOGOUT_URL, (route) => route.fulfill({ status: 204, body: "" }));
+}
+
+/** Refuse a logout with a server failure, so the menu must keep the session. */
+export async function stubLogoutFailed(page: Page): Promise<void> {
+  await page.route(LOGOUT_URL, (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { code: "server_error", message: "Could not sign you out." },
+      }),
+    }),
+  );
+}

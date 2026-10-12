@@ -91,6 +91,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -289,6 +290,52 @@ describe("failures", () => {
     fetchMock().mockImplementation(noContentResponse);
 
     await expect(logout()).resolves.toBeUndefined();
+  });
+});
+
+describe("deadlines", () => {
+  it("abandons a request that outlives its deadline with a typed timeout", async () => {
+    vi.useFakeTimers();
+    // A connection that is accepted but never answered: the failure mode behind
+    // the "Checking your session…" stall. Left alone, nothing here ever rejects.
+    fetchMock().mockImplementation(() => new Promise<Response>(() => undefined));
+
+    const request = currentUser({ timeoutMs: 1_000 });
+    const outcome = expect(request).rejects.toMatchObject({
+      code: ErrorCode.Timeout,
+      status: 0,
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await outcome;
+  });
+
+  it("leaves a request without a deadline to the browser's own timeouts", async () => {
+    fetchMock().mockImplementation(() => jsonResponse({ user: { id: 1 } }));
+
+    await expect(currentUser()).resolves.toEqual({ id: 1 });
+  });
+
+  it("tells a request the caller cancelled apart from one that timed out", async () => {
+    // The session check aborts on unmount. That abort must stay an AbortError:
+    // a deliberate cancellation is not a slow server and must not be reported as
+    // a retryable timeout.
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    fetchMock().mockImplementation(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+    );
+
+    const request = currentUser({ signal: controller.signal, timeoutMs: 1_000 });
+    const outcome = expect(request).rejects.toMatchObject({ name: "AbortError" });
+
+    controller.abort();
+    await outcome;
   });
 });
 

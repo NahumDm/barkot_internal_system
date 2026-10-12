@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { stubSessionUnreachable, stubSignedIn, stubSignedOut } from "./e2e/session";
+import {
+  stubCsrf,
+  stubLogout,
+  stubLogoutFailed,
+  stubSessionUnreachable,
+  stubSignedIn,
+  stubSignedOut,
+} from "./e2e/session";
 
 /**
  * B2's gate, in a real browser.
@@ -68,4 +75,42 @@ test("the login page is reachable without a session", async ({ page }) => {
   await page.goto("/login");
 
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+});
+
+test("signing out from the account menu ends the session and returns to /login", async ({
+  page,
+}) => {
+  await stubSignedIn(page);
+  await stubCsrf(page);
+  await stubLogout(page);
+
+  await page.goto("/sales");
+  await expect(page.getByRole("heading", { name: "Sales" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Selam Bekele/ }).click();
+  await page.getByRole("menuitem", { name: "Log Out" }).click();
+
+  await expect(page).toHaveURL(/\/login/);
+});
+
+test("a refused logout keeps the user signed in and says so", async ({ page }) => {
+  // The failure this guards against is a sign-out that only happened in the
+  // browser: the session would still be live server-side, and the next protected
+  // navigation would silently sign the user back in.
+  await stubSignedIn(page);
+  await stubCsrf(page);
+  await stubLogoutFailed(page);
+
+  await page.goto("/sales");
+  await expect(page.getByRole("heading", { name: "Sales" })).toBeVisible();
+
+  await page.getByRole("button", { name: /Selam Bekele/ }).click();
+  await page.getByRole("menuitem", { name: "Log Out" }).click();
+
+  // Scoped to the menu: the dashboard behind it may carry its own alerts (it
+  // does here, because the stubbed run has no API to load the sales list from).
+  await expect(page.getByRole("menu").getByRole("alert")).toContainText(
+    "Could not sign you out.",
+  );
+  await expect(page).toHaveURL(/\/sales$/);
 });

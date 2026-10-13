@@ -44,8 +44,10 @@ services:
     environment: &api-env
       # `api` is the compose-internal hostname: Next's rewrite forwards the
       # request to http://api:8000 and Django validates that Host header too.
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,api
-      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:3000
+      # Overridable so a public tunnel origin can be trusted without editing
+      # this file - see .env.example, DJANGO_CSRF_TRUSTED_ORIGINS.
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,api}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-http://localhost:3000}
       DJANGO_DB_NAME: ${DJANGO_DB_NAME:-barkot}
       DJANGO_DB_USER: ${DJANGO_DB_USER:-barkot}
       DJANGO_DB_PASSWORD: ${DJANGO_DB_PASSWORD:-barkot}
@@ -71,6 +73,9 @@ services:
       # `next dev` proxies /api/v1/ to Django (frontend/next.config.ts); on the
       # compose network Django answers as `api`, not as localhost.
       API_PROXY_TARGET: http://api:8000
+      # Comma-separated hostnames allowed to load dev assets, so a public tunnel
+      # can hydrate the app. Set to the tunnel host, e.g. *.trycloudflare.com.
+      ALLOWED_DEV_ORIGINS: ${ALLOWED_DEV_ORIGINS:-}
     volumes:
       - ./frontend:/app
       # Container-owned node_modules so Windows host node_modules never leaks in.

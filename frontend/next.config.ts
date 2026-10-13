@@ -67,8 +67,26 @@ const devApiProxy = proxyEnabled
     }
   : {};
 
+/**
+ * Extra hostnames allowed to load `next dev` assets (spec §20.2).
+ *
+ * Next's dev server refuses cross-origin requests to its own dev resources -
+ * the JS chunks, the RSC endpoints and the HMR socket - unless the request's
+ * hostname is `localhost` or is listed here. A public tunnel is a different
+ * origin, so without this the page's JavaScript downloads but never hydrates
+ * and the server-rendered "Checking your session…" placeholder stays on screen
+ * forever. Entries are hostnames only: no scheme, no port. `*`/`**` wildcards
+ * are supported. Read from the environment rather than hardcoded because a
+ * Cloudflare Quick Tunnel hostname changes on every run.
+ */
+const allowedDevOrigins = (process.env.ALLOWED_DEV_ORIGINS ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  ...(allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
   ...devApiProxy,
 };
 

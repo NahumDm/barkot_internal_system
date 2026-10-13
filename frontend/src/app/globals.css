@@ -938,3 +938,103 @@ textarea.control {
 .sidebar :focus-visible {
   outline-color: var(--cream);
 }
+
+/* ------------------------------------------------------------------ *
+ * Responsive frame (mandatory 960px breakpoint).
+ *
+ * Above 960px nothing changes: the sidebar is the persistent column it
+ * has always been, and the three drawer-only controls stay out of the
+ * way. At 959px and below the sidebar becomes an off-canvas drawer that
+ * slides in over the content, with a dismissible backdrop.
+ * ------------------------------------------------------------------ */
+.nav-toggle,
+.sidebar-close,
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 959.98px) {
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    margin-left: -6px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .nav-toggle:hover {
+    background: var(--cream);
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 50;
+    height: 100vh;
+    height: 100dvh;
+    transform: translateX(-100%);
+    visibility: hidden;
+    box-shadow: 0 0 40px rgba(43, 15, 23, 0.35);
+    /* `visibility` is delayed only when hiding, so the slide-out finishes before
+     * the drawer leaves the accessibility tree. On show the delay is dropped
+     * (below), which is what lets focus land in the drawer immediately instead
+     * of sitting on a still-`hidden` element that cannot take it. */
+    transition:
+      transform 200ms ease,
+      visibility 0s linear 200ms;
+  }
+  .sidebar.is-open {
+    transform: translateX(0);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .sidebar-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    cursor: pointer;
+  }
+  .sidebar-close:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(43, 15, 23, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  .sidebar-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-backdrop {
+    transition: none;
+  }
+}

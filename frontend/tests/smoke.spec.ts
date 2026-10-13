@@ -17,15 +17,23 @@ test("home redirects to the dashboard", async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test("sidebar exposes all 17 normative sidebar links (spec §7.4)", async ({ page }) => {
+test("sidebar exposes all 18 sidebar links (spec §7.4 plus the category manager)", async ({
+  page,
+}) => {
   await stubSignedIn(page);
   await page.goto("/dashboard");
   await expect(page).toHaveTitle(/Barkot/);
-  await expect(page.locator("aside nav a")).toHaveCount(17);
+  await expect(page.locator("aside nav a")).toHaveCount(18);
 });
 
 test("product maintenance route renders its shell", async ({ page }) => {
   await stubSignedIn(page);
   await page.goto("/inventory/products");
   await expect(page.getByRole("heading", { name: "Products" })).toBeVisible();
+});
+
+test("category manager route renders its shell", async ({ page }) => {
+  await stubSignedIn(page);
+  await page.goto("/inventory/categories");
+  await expect(page.getByRole("heading", { name: "Categories", level: 1 })).toBeVisible();
 });

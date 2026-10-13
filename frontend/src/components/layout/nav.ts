@@ -39,6 +39,11 @@ export const navGroups: NavGroup[] = [
       { label: "Overview", href: "/inventory", permissions: ["inventory.view_inventory"] },
       { label: "Products", href: "/inventory/products", permissions: ["products.view_products"] },
       {
+        label: "Categories",
+        href: "/inventory/categories",
+        permissions: ["products.manage_categories"],
+      },
+      {
         label: "Receive Stock",
         href: "/inventory/receive",
         permissions: ["inventory.receive_stock"],

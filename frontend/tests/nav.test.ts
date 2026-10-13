@@ -4,11 +4,11 @@ import { navGroups, visibleNavGroups } from "@/components/layout/nav";
 describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
   const flat = navGroups.flatMap((group) => group.items);
 
-  it("defines exactly 17 nav items", () => {
-    expect(flat).toHaveLength(17);
+  it("defines exactly 18 nav items", () => {
+    expect(flat).toHaveLength(18);
   });
 
-  it("covers every normative route of spec §7.4", () => {
+  it("covers every normative route of spec §7.4 plus the category manager", () => {
     const routes = new Set(flat.map((item) => item.href));
     expect(routes).toEqual(
       new Set([
@@ -17,6 +17,7 @@ describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
         "/sales/transactions",
         "/inventory",
         "/inventory/products",
+        "/inventory/categories",
         "/inventory/receive",
         "/inventory/counts",
         "/inventory/movements",
@@ -135,7 +136,7 @@ describe("sidebar visibility by role", () => {
   });
 
   it("gives the owner every destination (spec §7.4)", () => {
-    expect(hrefsFor(PERMISSIONS.owner)).toHaveLength(17);
+    expect(hrefsFor(PERMISSIONS.owner)).toHaveLength(18);
   });
 
   it("hides settings from a manager but keeps their finance, payroll and reports work", () => {

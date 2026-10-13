@@ -76,6 +76,7 @@ export default function ChangePasswordPage() {
           errors={fieldErrors["current_password"] ?? []}
           autoComplete="current-password"
           autoFocus
+          revealable
           disabled={busy}
           variant="auth"
         />
@@ -86,6 +87,7 @@ export default function ChangePasswordPage() {
           onChange={setNewPassword}
           errors={fieldErrors["new_password"] ?? []}
           autoComplete="new-password"
+          revealable
           disabled={busy}
           variant="auth"
         />
@@ -96,6 +98,7 @@ export default function ChangePasswordPage() {
           onChange={setConfirmation}
           errors={fieldErrors["new_password_confirm"] ?? []}
           autoComplete="new-password"
+          revealable
           disabled={busy}
           variant="auth"
         />

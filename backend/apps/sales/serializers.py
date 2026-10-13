@@ -186,6 +186,7 @@ class SaleListSerializer(serializers.ModelSerializer):
     total = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     currency = serializers.CharField(max_length=3, read_only=True)
     item_count = serializers.IntegerField(read_only=True)
+    payments = PaymentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Sale
@@ -200,6 +201,7 @@ class SaleListSerializer(serializers.ModelSerializer):
             "payment_status",
             "payment_status_display",
             "item_count",
+            "payments",
             "created_at",
         ]
         read_only_fields = fields

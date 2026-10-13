@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 
 import {
   createStaffUser,
@@ -649,14 +650,50 @@ function TextInput({
   placeholder?: string;
   type?: "text" | "email" | "password";
 }) {
+  const [revealed, setRevealed] = useState(false);
+  const revealable = type === "password";
+  const resolvedType = revealable ? (revealed ? "text" : "password") : type;
+  const id = useId();
+
+  if (revealable) {
+    return (
+      <div className="field-label">
+        <label htmlFor={id}>{label}</label>
+        <span className="control-wrap mt-1.5">
+          <input
+            id={id}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={placeholder}
+            type={resolvedType}
+            className="control"
+          />
+          <button
+            type="button"
+            className="password-toggle"
+            onClick={() => setRevealed((current) => !current)}
+            aria-pressed={revealed}
+          >
+            {revealed ? (
+              <EyeOff aria-hidden="true" size={18} />
+            ) : (
+              <Eye aria-hidden="true" size={18} />
+            )}
+            <span className="sr-only">{revealed ? "Hide password" : "Show password"}</span>
+          </button>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <label className="field-label">
       {label}
       <input
-        type={type}
         value={value}
-        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        type={type}
         className="control mt-1.5"
       />
     </label>

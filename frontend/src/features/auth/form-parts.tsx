@@ -10,6 +10,7 @@
 "use client";
 
 import Image from "next/image";
+import { Copyright, Eye, EyeOff } from "lucide-react";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { ErrorCode, type ApiError } from "@/lib/api";
@@ -63,6 +64,10 @@ export function Field({
   disabled,
   hint,
   placeholder,
+  min,
+  step,
+  inputMode,
+  revealable = false,
   variant = "app",
 }: Readonly<{
   label: string;
@@ -75,6 +80,15 @@ export function Field({
   disabled?: boolean;
   hint?: string;
   placeholder?: string;
+  min?: number;
+  step?: number | string;
+  inputMode?: "text" | "decimal" | "numeric";
+  /**
+   * Render a show/hide control inside the input for secret fields. The type is
+   * switched between `password` and `text`; the value and caret are preserved by
+   * React's controlled input, so toggling mid-typing does not lose the entry.
+   */
+  revealable?: boolean;
   /**
    * `"app"` styles the field for a white application surface (the default);
    * `"auth"` keeps the dark chrome that belongs to the sign-in card. The same
@@ -86,25 +100,54 @@ export function Field({
   const id = useId();
   const errorId = `${id}-error`;
   const isAuth = variant === "auth";
+  const [revealed, setRevealed] = useState(false);
+  const resolvedType = revealable ? (revealed ? "text" : "password") : type;
+
+  const input = (
+    <input
+      id={id}
+      type={resolvedType}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      autoComplete={autoComplete}
+      autoFocus={autoFocus}
+      disabled={disabled}
+      placeholder={placeholder}
+      min={min}
+      step={step}
+      inputMode={inputMode}
+      aria-invalid={errors.length > 0}
+      aria-describedby={errors.length > 0 ? errorId : undefined}
+      className={isAuth ? "auth-input" : "control"}
+    />
+  );
 
   return (
     <div className={isAuth ? "auth-field" : "field"}>
       <label htmlFor={id} className={isAuth ? undefined : "field-label"}>
         {label}
       </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        autoComplete={autoComplete}
-        autoFocus={autoFocus}
-        disabled={disabled}
-        placeholder={placeholder}
-        aria-invalid={errors.length > 0}
-        aria-describedby={errors.length > 0 ? errorId : undefined}
-        className={isAuth ? "auth-input" : "control"}
-      />
+      {revealable ? (
+        <div className={isAuth ? "control-wrap control-wrap--auth" : "control-wrap"}>
+          {input}
+          <button
+            type="button"
+            className="password-toggle"
+            onClick={() => setRevealed((current) => !current)}
+            disabled={disabled}
+            aria-pressed={revealed}
+          >
+            {revealed ? (
+              <EyeOff aria-hidden="true" size={18} />
+            ) : (
+              <Eye aria-hidden="true" size={18} />
+            )}
+            <span className="sr-only">{revealed ? "Hide password" : "Show password"}</span>
+          </button>
+        </div>
+      ) : (
+        input
+      )}
       {hint !== undefined && errors.length === 0 ? (
         <p className={isAuth ? "auth-hint" : "field-hint"}>{hint}</p>
       ) : null}
@@ -131,7 +174,10 @@ export function FormShell({
         return;
       }
 
-      setScale(Math.min(1, (window.innerWidth - 32) / 900, (window.innerHeight - 32) / 563));
+      // The footer sits below the card, so its height comes off the vertical
+      // budget before the card is scaled. Without it a short viewport would
+      // scale the card to fill the screen and push the footer out of sight.
+      setScale(Math.min(1, (window.innerWidth - 32) / 900, (window.innerHeight - 32 - 52) / 563));
     };
 
     updateScale();
@@ -149,49 +195,55 @@ export function FormShell({
         <span className="auth-bubble auth-bubble-three" />
         <span className="auth-bubble auth-bubble-four" />
       </div>
-      <div
-        className="auth-card-frame"
-        style={{
-          width: scale > 0.99 ? 900 : 900 * scale,
-          height: scale > 0.99 ? 563 : 563 * scale,
-        }}
-      >
-        <section className="auth-card" style={{ transform: `scale(${scale})` }}>
-          <svg
-            className="auth-wave"
-            viewBox="0 0 900 563"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <path d="M0 0H350C360 70 420 110 470 170C530 240 575 300 545 380C520 450 490 500 490 563H0Z" />
-          </svg>
-          <div className="auth-left">
-            <Image
-              className="auth-mark"
-              src="/images/barkot-mark.png"
-              alt="Barkot logo"
-              width={169}
-              height={169}
-              priority
-              unoptimized
-            />
-            <Image
-              className="auth-lockup"
-              src="/images/barkot-lockup.png"
-              alt="MURAA FI KITIFOO ISPEESHAALII BAARKOOT"
-              width={900}
-              height={300}
-              priority
-              unoptimized
-            />
-          </div>
-          <div className="auth-form-panel">
-            <h1>{title}</h1>
-            {subtitle ? <p className="auth-subtitle">{subtitle}</p> : null}
-            {children}
-          </div>
-        </section>
+      <div className="auth-stage">
+        <div
+          className="auth-card-frame"
+          style={{
+            width: scale > 0.99 ? 900 : 900 * scale,
+            height: scale > 0.99 ? 563 : 563 * scale,
+          }}
+        >
+          <section className="auth-card" style={{ transform: `scale(${scale})` }}>
+            <svg
+              className="auth-wave"
+              viewBox="0 0 900 563"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <path d="M0 0H350C360 70 420 110 470 170C530 240 575 300 545 380C520 450 490 500 490 563H0Z" />
+            </svg>
+            <div className="auth-left">
+              <Image
+                className="auth-mark"
+                src="/images/barkot-mark.png"
+                alt="Barkot logo"
+                width={169}
+                height={169}
+                priority
+                unoptimized
+              />
+              <Image
+                className="auth-lockup"
+                src="/images/barkot-lockup.png"
+                alt="MURAA FI KITIFOO ISPEESHAALII BAARKOOT"
+                width={900}
+                height={300}
+                priority
+                unoptimized
+              />
+            </div>
+            <div className="auth-form-panel">
+              <h1>{title}</h1>
+              {subtitle ? <p className="auth-subtitle">{subtitle}</p> : null}
+              {children}
+            </div>
+          </section>
+        </div>
       </div>
+      <footer className="auth-page-footer">
+        <Copyright aria-hidden="true" size={13} />
+        <span>2026 Barkot Bar &amp; Restaurant</span>
+      </footer>
     </main>
   );
 }

@@ -180,13 +180,11 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
               Open a count to snapshot expected stock, then enter the physical quantity.
             </p>
           )}
-          <button
-            disabled={saving || !product}
-            className="btn btn-primary self-start"
-            type="submit"
-          >
-            {saving ? "Saving..." : mode === "count" ? "Open count" : "Save record"}
-          </button>
+          <div className="form-actions">
+            <button disabled={saving || !product} className="btn btn-primary" type="submit">
+              {saving ? "Saving..." : mode === "count" ? "Open count" : "Save record"}
+            </button>
+          </div>
         </form>
       )}
       {count && (

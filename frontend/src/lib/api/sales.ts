@@ -65,7 +65,9 @@ export interface SaleListItem {
   total: string;
   currency: string;
   payment_status: string;
+  payment_status_display: string;
   item_count: number;
+  payments: Payment[];
   created_at: string;
 }
 

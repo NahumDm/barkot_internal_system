@@ -3,17 +3,20 @@
 import { useEffect, useState, type FormEvent, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import { createProduct, listCategories, type Category } from "@/lib/api/products";
+import { createProduct, listCategories, setProductPrice, type Category } from "@/lib/api/products";
 import {
   type ApiError,
   type ErrorDetails,
   isValidationError,
   ApiError as ApiErrorClass,
 } from "@/lib/api/errors";
+import { useAuth } from "@/features/auth/auth-provider";
 import { Field, FormError } from "@/features/auth/form-parts";
 
 export default function NewProductPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canChangePrices = user?.permissions.includes("products.change_prices") ?? false;
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -25,6 +28,7 @@ export default function NewProductPage() {
     unit: "bottle",
     is_stock_tracked: true,
     description: "",
+    price: "",
   });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
@@ -66,12 +70,35 @@ export default function NewProductPage() {
     setFormError(null);
     setFieldErrors({});
 
+    const price = formData.price.trim();
+    if (canChangePrices && price !== "" && !/^\d+(\.\d{1,2})?$/.test(price)) {
+      setFieldErrors({ price: ["Enter a price like 120.00."] });
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const product = await createProduct({
-        ...formData,
         category: Number(formData.category),
+        name: formData.name,
+        sku: formData.sku,
+        unit: formData.unit,
         is_stock_tracked: formData.is_stock_tracked,
+        description: formData.description,
       });
+      if (canChangePrices && price !== "") {
+        try {
+          await setProductPrice(product.id, { unit_price: price, currency: "ETB" });
+        } catch (caught) {
+          const error = caught as ApiError;
+          setFormError(
+            `The product was created, but its price could not be saved: ${error.message} ` +
+              "Open the product to set the price.",
+          );
+          setSubmitting(false);
+          return;
+        }
+      }
       router.push(`/inventory/products`);
     } catch (caught) {
       const error = caught as ApiError;
@@ -167,6 +194,22 @@ export default function NewProductPage() {
           hint="e.g. bottle, crate, kg, litre"
         />
 
+        {canChangePrices && (
+          <Field
+            label="Selling price (ETB)"
+            type="number"
+            value={formData.price}
+            onChange={(value) => handleChange("price", value)}
+            errors={fieldErrors.price ?? []}
+            autoComplete="off"
+            disabled={submitting}
+            min={0}
+            step="0.01"
+            inputMode="decimal"
+            hint="Optional. A product needs a price before it can be sold."
+          />
+        )}
+
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -199,13 +242,15 @@ export default function NewProductPage() {
           ))}
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting || !formData.category}
-          className="btn btn-primary self-start"
-        >
-          {submitting ? "Creating…" : "Create Product"}
-        </button>
+        <div className="form-actions">
+          <button
+            type="submit"
+            disabled={submitting || !formData.category}
+            className="btn btn-primary"
+          >
+            {submitting ? "Creating…" : "Create Product"}
+          </button>
+        </div>
       </form>
     </section>
   );

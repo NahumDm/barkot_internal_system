@@ -3,18 +3,34 @@
 import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import { listProducts, listCategories, type ProductListItem } from "@/lib/api/products";
-import { type ApiError } from "@/lib/api/errors";
+import {
+  getProduct,
+  listProducts,
+  listCategories,
+  setProductPrice,
+  updateProduct,
+  type ProductListItem,
+} from "@/lib/api/products";
+import { type ApiError, ApiError as ApiErrorClass, isValidationError } from "@/lib/api/errors";
+import { useAuth } from "@/features/auth/auth-provider";
 import { Field, FormError } from "@/features/auth/form-parts";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 function formatPrice(price: { unit_price: string; currency: string } | null): string {
-  if (!price) return "—";
+  if (!price) return "Not set";
   return `${Number(price.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${price.currency}`;
 }
 
-function ProductRow({ product }: { product: ProductListItem }) {
+function ProductRow({
+  product,
+  canManage,
+  onEdit,
+}: {
+  product: ProductListItem;
+  canManage: boolean;
+  onEdit: (id: number) => void;
+}) {
   return (
     <tr className="border-b border-border hover:bg-surface/50">
       <td className="px-3 py-2 text-sm text-ink">{product.sku}</td>
@@ -31,15 +47,30 @@ function ProductRow({ product }: { product: ProductListItem }) {
           {product.is_active ? "Active" : "Retired"}
         </span>
       </td>
+      <td className="px-3 py-2 text-sm">
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => onEdit(product.id)}
+            className="rounded border border-border bg-surface px-2 py-1 text-xs font-medium text-ink hover:bg-surface/50"
+          >
+            Edit
+          </button>
+        )}
+      </td>
     </tr>
   );
 }
 
 function ProductsTable({
   products,
+  canManage,
+  onEdit,
   emptyMessage = "No products found.",
 }: {
   products: ProductListItem[];
+  canManage: boolean;
+  onEdit: (id: number) => void;
   emptyMessage?: string;
 }) {
   if (products.length === 0) {
@@ -69,11 +100,14 @@ function ProductsTable({
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
               Status
             </th>
+            <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody>
           {products.map((product) => (
-            <ProductRow key={product.id} product={product} />
+            <ProductRow key={product.id} product={product} canManage={canManage} onEdit={onEdit} />
           ))}
         </tbody>
       </table>
@@ -226,8 +260,263 @@ function ProductFilters({
   );
 }
 
+interface EditProductForm {
+  name: string;
+  unit: string;
+  is_stock_tracked: boolean;
+  is_active: boolean;
+  description: string;
+  price: string;
+  currency: string;
+}
+
+/**
+ * Edit one catalogue product.
+ *
+ * The fields are exactly the ones `ProductUpdateSerializer` accepts. The price
+ * is separate on purpose: prices are versioned rows, not a column, so a change
+ * is written through `/products/{id}/prices/` and only when it differs from the
+ * current one - editing a name must not mint a redundant price row. SKU and
+ * category are shown nowhere because the API treats both as immutable.
+ */
+function EditProductDialog({
+  productId,
+  canChangePrices,
+  onClose,
+  onSaved,
+}: {
+  productId: number;
+  canChangePrices: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<EditProductForm | null>(null);
+  const [originalPrice, setOriginalPrice] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    getProduct(productId)
+      .then((product) => {
+        if (!mounted) return;
+        setForm({
+          name: product.name,
+          unit: product.unit,
+          is_stock_tracked: product.is_stock_tracked,
+          is_active: product.is_active,
+          description: product.description,
+          price: product.current_price?.unit_price ?? "",
+          currency: product.current_price?.currency ?? "ETB",
+        });
+        setOriginalPrice(product.current_price?.unit_price ?? "");
+        setLoading(false);
+      })
+      .catch((caught: unknown) => {
+        if (!mounted) return;
+        setFormError((caught as ApiError).message);
+        setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [productId]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const update = (patch: Partial<EditProductForm>) => {
+    setForm((prev) => (prev ? { ...prev, ...patch } : prev));
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (saving || !form) return;
+
+    setFormError(null);
+    setFieldErrors({});
+
+    const price = form.price.trim();
+    if (canChangePrices && price !== "" && !/^\d+(\.\d{1,2})?$/.test(price)) {
+      setFieldErrors({ price: ["Enter a price like 120.00."] });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateProduct(productId, {
+        name: form.name.trim(),
+        unit: form.unit.trim(),
+        is_stock_tracked: form.is_stock_tracked,
+        is_active: form.is_active,
+        description: form.description,
+      });
+      if (canChangePrices && price !== "" && price !== originalPrice) {
+        await setProductPrice(productId, { unit_price: price, currency: form.currency || "ETB" });
+      }
+      onSaved();
+    } catch (caught) {
+      const error = caught as ApiError;
+      if (isValidationError(error) && error.details) {
+        setFieldErrors(error.details);
+      } else {
+        setFormError(error.message);
+      }
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Edit product"
+        className="mt-12 w-full max-w-lg rounded border border-border bg-surface p-5 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h2 className="text-lg font-semibold text-ink">Edit product</h2>
+
+        {loading ? (
+          <p className="py-6 text-sm text-ink-secondary">Loading…</p>
+        ) : !form ? (
+          <div className="mt-4 flex flex-col gap-4">
+            {formError && (
+              <FormError
+                error={
+                  new ApiErrorClass(0, {
+                    code: "form_error",
+                    message: formError,
+                    details: null,
+                  })
+                }
+              />
+            )}
+            <div className="form-actions">
+              <button type="button" className="btn btn-ghost" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4" noValidate>
+            {formError && (
+              <FormError
+                error={
+                  new ApiErrorClass(0, {
+                    code: "form_error",
+                    message: formError,
+                    details: null,
+                  })
+                }
+              />
+            )}
+
+            <Field
+              label="Name"
+              type="text"
+              value={form.name}
+              onChange={(value) => update({ name: value })}
+              errors={fieldErrors.name ?? []}
+              autoComplete="off"
+              disabled={saving}
+              autoFocus
+            />
+
+            <Field
+              label="Unit"
+              type="text"
+              value={form.unit}
+              onChange={(value) => update({ unit: value })}
+              errors={fieldErrors.unit ?? []}
+              autoComplete="off"
+              disabled={saving}
+            />
+
+            {canChangePrices && (
+              <Field
+                label="Selling price (ETB)"
+                type="number"
+                value={form.price}
+                onChange={(value) => update({ price: value })}
+                errors={fieldErrors.price ?? []}
+                autoComplete="off"
+                disabled={saving}
+                min={0}
+                step="0.01"
+                inputMode="decimal"
+                hint="Saving a new price keeps the previous one in history"
+              />
+            )}
+
+            <div className="field">
+              <label htmlFor="edit-product-description" className="field-label">
+                Description
+              </label>
+              <textarea
+                id="edit-product-description"
+                value={form.description}
+                onChange={(event) => update({ description: event.target.value })}
+                className="control"
+                disabled={saving}
+              />
+              {(fieldErrors.description ?? []).map((message) => (
+                <p key={message} className="field-error">
+                  {message}
+                </p>
+              ))}
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={form.is_stock_tracked}
+                onChange={(event) => update({ is_stock_tracked: event.target.checked })}
+                disabled={saving}
+              />
+              Track stock
+            </label>
+
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(event) => update({ is_active: event.target.checked })}
+                disabled={saving}
+              />
+              Active (available for sale)
+            </label>
+
+            <div className="form-actions">
+              <button type="submit" className="btn btn-primary" disabled={saving}>
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canManage = user?.permissions.includes("products.manage_products") ?? false;
+  const canChangePrices = user?.permissions.includes("products.change_prices") ?? false;
 
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([]);
@@ -242,6 +531,7 @@ export default function ProductsPage() {
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(false);
   const [categoriesError, setCategoriesError] = useState<ApiError | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -350,7 +640,7 @@ export default function ProductsPage() {
         </div>
       ) : (
         <>
-          <ProductsTable products={products} />
+          <ProductsTable products={products} canManage={canManage} onEdit={setEditingId} />
           {pages > 1 && (
             <PaginationControls
               page={page}
@@ -362,6 +652,18 @@ export default function ProductsPage() {
             />
           )}
         </>
+      )}
+
+      {editingId !== null && (
+        <EditProductDialog
+          productId={editingId}
+          canChangePrices={canChangePrices}
+          onClose={() => setEditingId(null)}
+          onSaved={() => {
+            setEditingId(null);
+            void fetchProducts();
+          }}
+        />
       )}
     </section>
   );

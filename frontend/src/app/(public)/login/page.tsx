@@ -74,6 +74,7 @@ function SignInForm() {
           errors={fieldErrors["password"] ?? []}
           autoComplete="current-password"
           placeholder="Enter your password"
+          revealable
           disabled={busy}
           variant="auth"
         />

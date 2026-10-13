@@ -41,14 +41,21 @@
 
 @layer components {
   .auth-page {
-    align-items: center;
     background: #eeeae5;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     min-height: 100svh;
     overflow: hidden;
-    padding: 16px;
     position: relative;
+  }
+
+  .auth-stage {
+    align-items: center;
+    display: flex;
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 0;
+    padding: 16px;
   }
 
   .auth-decoration {
@@ -146,7 +153,6 @@
 
   .auth-mark,
   .auth-lockup,
-  .auth-footer,
   .auth-form-panel {
     position: absolute;
     z-index: 2;
@@ -168,15 +174,6 @@
     object-fit: contain;
     top: 222px;
     width: 340px;
-  }
-
-  .auth-footer {
-    bottom: 26px;
-    color: #4a3b3e;
-    font-size: 11px;
-    left: 33px;
-    line-height: 14px;
-    margin: 0;
   }
 
   .auth-form-panel {
@@ -280,6 +277,90 @@
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * Password reveal, auth footer and form action spacing.
+ *
+ * Declared outside `@layer` so these rules win over the utility classes
+ * already on the elements. The reveal control is positioned inside the
+ * field so the input keeps its full width and the caret never jumps.
+ * ------------------------------------------------------------------ */
+
+.control-wrap {
+  display: block;
+  position: relative;
+}
+.control-wrap > .control,
+.control-wrap > .auth-input {
+  padding-right: 44px;
+}
+.password-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+}
+.password-toggle:hover:not(:disabled) {
+  background: rgba(43, 15, 23, 0.06);
+  color: var(--ink);
+}
+.password-toggle:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 1px;
+}
+.password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.control-wrap--auth .password-toggle {
+  color: #a98c92;
+  height: 28px;
+  right: 4px;
+  width: 28px;
+}
+.control-wrap--auth .password-toggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.control-wrap--auth .password-toggle:focus-visible {
+  outline: 2px solid #ece0cd;
+  outline-offset: 1px;
+}
+
+.auth-page-footer {
+  align-items: center;
+  color: #6b5a5e;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  gap: 6px;
+  justify-content: center;
+  line-height: 1.4;
+  padding: 0 16px 14px;
+}
+
+/* A divider and breathing room above a form's primary action, so the
+ * submit button is not crowded against the last field's border. */
+.form-actions {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+  margin-top: 4px;
+  padding-top: 16px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auth-form button {
     transition: none;
@@ -288,9 +369,10 @@
 
 @media (max-width: 720px) {
   .auth-page {
-    align-items: flex-start;
-    min-height: 100svh;
     overflow: auto;
+  }
+  .auth-page-footer {
+    padding-bottom: 18px;
   }
 
   .auth-card-frame {
@@ -325,12 +407,6 @@
     mix-blend-mode: multiply;
     position: static;
     width: 100%;
-  }
-  .auth-footer {
-    bottom: auto;
-    left: auto;
-    position: static;
-    text-align: center;
   }
   .auth-form-panel {
     background: #2b0f17;

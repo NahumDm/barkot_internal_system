@@ -300,32 +300,43 @@ def test_cashier_cannot_generate_a_run(
     assert response.json()["error"]["code"] == "permission_denied"
 
 
-def test_manager_records_a_payroll_employee_from_a_profile(
-    client: Client, staff_login: Any, profile: EmployeeProfile
+def test_manager_records_a_payroll_employee_from_a_user(
+    client: Client, staff_login: Any, make_staff_user: Any
 ) -> None:
     staff_login(client, Role.Code.MANAGER)
+    hire = make_staff_user(Role.Code.BARMAN, suffix="hire")
 
     response = client.post(
         EMPLOYEES_URL,
-        {"profile": profile.pk, "monthly_wage": "22000.00", "currency": "ETB"},
+        {"user": hire.pk, "monthly_wage": "22000.00", "currency": "ETB"},
         content_type="application/json",
     )
 
     assert response.status_code == 201, response.content
     body = response.json()
-    assert body["full_name"] == "Selam Bekele"
+    assert body["full_name"] == hire.display_name
     assert body["monthly_wage"] == "22000.00"
     assert body["status"] == "ACTIVE"
+    # The staff profile is created on the way in, with a placeholder position.
+    hire.refresh_from_db()
+    assert hire.employee_profile.position == "Staff"
 
 
-def test_a_profile_can_only_have_one_payroll_employee(
-    client: Client, staff_login: Any, employee: Employee
+def test_an_account_can_only_have_one_payroll_employee(
+    client: Client, staff_login: Any, make_staff_user: Any
 ) -> None:
     staff_login(client, Role.Code.MANAGER)
+    hire = make_staff_user(Role.Code.BARMAN, suffix="once")
+    first = client.post(
+        EMPLOYEES_URL,
+        {"user": hire.pk, "monthly_wage": "22000.00"},
+        content_type="application/json",
+    )
+    assert first.status_code == 201, first.content
 
     response = client.post(
         EMPLOYEES_URL,
-        {"profile": employee.profile_id, "monthly_wage": "22000.00"},
+        {"user": hire.pk, "monthly_wage": "23000.00"},
         content_type="application/json",
     )
 
@@ -420,53 +431,61 @@ def test_deductions_can_be_filtered_to_one_run(
     assert second_item.total_deductions == Decimal("0.00")
 
 
-def test_the_roster_offers_only_staff_not_already_on_payroll(
-    client: Client, staff_login: Any, employee: Employee
+def test_the_roster_offers_only_active_staff_not_already_on_payroll(
+    client: Client, staff_login: Any, make_staff_user: Any
 ) -> None:
-    """The list behind the create form: one entry per person still to be added."""
+    """The list behind the create form: one entry per account still to be added."""
 
-    available = EmployeeProfile.objects.create(
-        full_name="Dawit Alemu", position="Barman", start_date="2026-03-02"
+    manager = staff_login(client, Role.Code.MANAGER)
+    available = make_staff_user(Role.Code.BARMAN, suffix="available")
+    left = make_staff_user(Role.Code.CASHIER, suffix="left")
+    EmployeeProfile.objects.create(
+        full_name="Hana Girma",
+        position="Waitress",
+        start_date="2025-06-01",
+        is_archived=True,
+        user=left,
     )
-    archived = EmployeeProfile.objects.create(
-        full_name="Hana Girma", position="Waitress", start_date="2025-06-01", is_archived=True
-    )
-    staff_login(client, Role.Code.MANAGER)
 
     response = client.get(PROFILES_URL)
 
     assert response.status_code == 200, response.content
     body = response.json()
-    assert body["count"] == 1
-    assert body["page_size"] == 20
-    assert body["results"][0]["id"] == available.pk
-    # The two fields the create form cannot get from anywhere else.
-    assert body["results"][0]["full_name"] == "Dawit Alemu"
-    assert body["results"][0]["position"] == "Barman"
-    assert body["results"][0]["phone_number"] == ""
-    assert body["results"][0]["start_date"] == "2026-03-02"
-    # The `employee` fixture put Selam on payroll and `archived` left; neither
-    # belongs in a list whose only job is to be offered.
-    assert employee.profile_id not in {row["id"] for row in body["results"]}
-    assert archived.pk not in {row["id"] for row in body["results"]}
+    usernames = {row["username"] for row in body["results"]}
+    assert available.username in usernames
+    assert manager.username in usernames  # the signed-in manager is a staff account too
+    # An archived profile records that someone left, so it is not offered again.
+    assert left.username not in usernames
+
+    entry = next(row for row in body["results"] if row["username"] == available.username)
+    # The fields the create form cannot get from anywhere else yet.
+    assert entry["full_name"] == available.display_name
+    assert entry["position"] == ""
+    assert entry["phone_number"] == ""
+    assert entry["start_date"] is None
 
 
-def test_the_roster_still_hides_a_voided_employee(
-    client: Client, staff_login: Any, employee: Employee
+def test_the_roster_hides_an_account_already_on_payroll(
+    client: Client, staff_login: Any, make_staff_user: Any
 ) -> None:
-    """The link is a OneToOne, so a voided row still occupies the profile.
+    """A payroll row, voided or not, occupies the one-to-one link, so it is hidden."""
 
-    Offered anyway, the create would fail on a uniqueness the serializer cannot
-    express as a field error — the form would show a refusal with nothing to fix.
-    """
-
-    employee.void(reason="Record corrected", actor=None)
     staff_login(client, Role.Code.MANAGER)
+    hire = make_staff_user(Role.Code.BARMAN, suffix="onpayroll")
+    assert (
+        client.post(
+            EMPLOYEES_URL,
+            {"user": hire.pk, "monthly_wage": "22000.00"},
+            content_type="application/json",
+        ).status_code
+        == 201
+    )
 
     response = client.get(PROFILES_URL)
 
-    assert response.status_code == 200
-    assert response.json()["count"] == 0
+    assert response.status_code == 200, response.content
+    usernames = {row["username"] for row in response.json()["results"]}
+    assert hire.username not in usernames
 
 
 def test_a_cashier_cannot_read_the_roster(client: Client, staff_login: Any) -> None:

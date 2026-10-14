@@ -203,6 +203,7 @@ test("creating a staff member posts the screen's values and refetches the list",
   await form.getByLabel("Login name").fill("new-barman");
   await form.getByLabel("Role").selectOption("barman");
   await form.getByLabel("Email").fill("new@barkot.test");
+  await form.getByLabel("Phone").fill("+251911000001");
   await form.getByLabel("Temporary password", { exact: true }).fill("S3cret!");
   await form.getByRole("button", { name: "Create staff account" }).click();
 

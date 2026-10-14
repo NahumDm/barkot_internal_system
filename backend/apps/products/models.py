@@ -93,6 +93,16 @@ class Product(TimeStampedModel):
         default="bottle",
         help_text=_("Selling and stocking unit, e.g. bottle, crate, kg, litre."),
     )
+    quantity_mode = models.CharField(
+        _("quantity mode"),
+        max_length=10,
+        choices=[("WHOLE", _("Whole units")), ("FRACTIONAL", _("Fractional units"))],
+        default="WHOLE",
+        help_text=_(
+            "Whole units are counted in whole numbers (e.g. crates, bottles); "
+            "fractional units allow decimals (e.g. kg, litre)."
+        ),
+    )
     is_stock_tracked = models.BooleanField(_("is stock tracked"), default=True)
     is_active = models.BooleanField(
         _("is active"),
@@ -120,6 +130,15 @@ class Product(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.unit})"
+
+    @property
+    def requires_whole_quantity(self) -> bool:
+        """Whether quantities of this product must be whole numbers.
+
+        A ``WHOLE`` product (crates, bottles) cannot be sold or stocked in
+        fractions; a ``FRACTIONAL`` product (kg, litre) can.
+        """
+        return self.quantity_mode == "WHOLE"
 
     def current_price(self, *, at: datetime | None = None) -> ProductPrice | None:
         """Return the price in effect at ``at`` (default: now).

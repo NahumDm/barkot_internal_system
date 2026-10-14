@@ -4,9 +4,11 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import {
   approveExpense,
+  archiveExpenseCategory,
   createExpense,
   listExpenseCategories,
   listExpenses,
+  updateExpenseCategory,
   type Expense,
   type ExpenseCategory,
 } from "@/lib/api/finance";
@@ -14,6 +16,157 @@ import { type ApiError } from "@/lib/api/errors";
 
 function money(value: string, currency: string): string {
   return `${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+}
+
+function CategoryManager({
+  categories,
+  onChanged,
+  onError,
+}: {
+  categories: ExpenseCategory[];
+  onChanged: () => Promise<void>;
+  onError: (error: ApiError | null) => void;
+}) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (category: ExpenseCategory) => {
+    setEditingId(category.id);
+    setName(category.name);
+    setDescription(category.description);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setName("");
+    setDescription("");
+  };
+
+  async function saveEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (editingId === null || saving) return;
+    setSaving(true);
+    try {
+      await updateExpenseCategory(editingId, { name, description });
+      await onChanged();
+      cancelEdit();
+      onError(null);
+    } catch (value) {
+      onError(value as ApiError);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleActive(category: ExpenseCategory) {
+    setSaving(true);
+    try {
+      if (category.is_active) {
+        await archiveExpenseCategory(category.id);
+      } else {
+        await updateExpenseCategory(category.id, { is_active: true });
+      }
+      await onChanged();
+    } catch (value) {
+      onError(value as ApiError);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded border border-border bg-surface p-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+        <h2 className="text-lg font-semibold text-ink">Expense categories</h2>
+        <p className="text-sm text-ink-secondary">
+          Archiving hides a category from new expenses but keeps past ones.
+        </p>
+      </div>
+      {categories.length === 0 ? (
+        <p className="mt-3 text-sm text-ink-secondary">No categories yet.</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-border">
+          {categories.map((category) =>
+            editingId === category.id ? (
+              <li key={category.id} className="py-3">
+                <form onSubmit={saveEdit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <label className="field-label flex-1">
+                    Name
+                    <input
+                      value={name}
+                      onChange={(event) => setName(event.target.value)}
+                      required
+                      className="control mt-1.5"
+                    />
+                  </label>
+                  <label className="field-label flex-1">
+                    Description
+                    <input
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      className="control mt-1.5"
+                    />
+                  </label>
+                  <div className="form-actions">
+                    <button type="submit" className="btn btn-primary" disabled={saving}>
+                      {saving ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={cancelEdit}
+                      disabled={saving}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </li>
+            ) : (
+              <li
+                key={category.id}
+                className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-ink">
+                    {category.name}
+                    {!category.is_active && (
+                      <span className="ml-2 rounded bg-canvas px-2 py-0.5 text-xs font-semibold text-ink-secondary">
+                        Archived
+                      </span>
+                    )}
+                  </p>
+                  {category.description && (
+                    <p className="text-sm text-ink-secondary">{category.description}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => startEdit(category)}
+                    disabled={saving}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => toggleActive(category)}
+                    disabled={saving}
+                  >
+                    {category.is_active ? "Archive" : "Restore"}
+                  </button>
+                </div>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 export default function ExpenseRegister() {
@@ -30,7 +183,12 @@ export default function ExpenseRegister() {
     Promise.all([listExpenseCategories(), listExpenses()]).then(([categoryPage, expensePage]) => {
       setCategories(categoryPage.results);
       setExpenses(expensePage.results);
-      setCategory((current) => current || String(categoryPage.results[0]?.id ?? ""));
+      setCategory((current) => {
+        if (current && categoryPage.results.some((item) => String(item.id) === current)) {
+          return current;
+        }
+        return String(categoryPage.results.find((item) => item.is_active)?.id ?? "");
+      });
     });
 
   useEffect(() => {
@@ -114,11 +272,13 @@ export default function ExpenseRegister() {
             <option value="" disabled>
               Select category
             </option>
-            {categories.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
+            {categories
+              .filter((item) => item.is_active)
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
           </select>
         </label>
         <label className="field-label">
@@ -181,6 +341,7 @@ export default function ExpenseRegister() {
           <p className="p-6 text-center text-sm text-ink-secondary">No expenses recorded.</p>
         )}
       </div>
+      <CategoryManager categories={categories} onChanged={refresh} onError={setError} />
     </section>
   );
 }

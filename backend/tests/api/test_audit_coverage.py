@@ -340,23 +340,18 @@ def _prepare_target_user(
 
 
 def _prepare_profile(client: Client, owner: Any, make_staff: Callable[..., Any]) -> dict[str, Any]:
-    """An employee profile not yet on payroll, for ``POST /payroll/employees/``.
+    """A staff account not yet on payroll, for ``POST /payroll/employees/``.
 
     Args:
-        client: The Django test client.
+        client: The client.
         owner: The signed-in Owner.
-        make_staff: The user factory (unused).
+        make_staff: Factory for a staff account with a role.
 
     Returns:
-        Context with ``profile_pk``.
+        Context with ``user_pk``.
     """
-    profile = EmployeeProfile.objects.create(
-        full_name="Selam Bekele",
-        position="Head Cashier",
-        phone_number="+251911234567",
-        start_date=date(2026, 1, 5),
-    )
-    return {"profile_pk": profile.pk}
+    user = make_staff(Role.Code.BARMAN, suffix="payroll")
+    return {"user_pk": user.pk}
 
 
 def _prepare_employee(client: Client, owner: Any, make_staff: Callable[..., Any]) -> dict[str, Any]:
@@ -447,7 +442,7 @@ def _prepare_expense_category(
         make_staff: The user factory (unused).
 
     Returns:
-        Context with ``category_pk``.
+        Context with ``pk`` and ``category_pk``.
     """
     created = client.post(
         "/api/v1/finance/categories/",
@@ -455,7 +450,8 @@ def _prepare_expense_category(
         content_type="application/json",
     )
     assert created.status_code == 201, created.content
-    return {"category_pk": created.json()["id"]}
+    category_pk = created.json()["id"]
+    return {"pk": category_pk, "category_pk": category_pk}
 
 
 def _prepare_expense(client: Client, owner: Any, make_staff: Callable[..., Any]) -> dict[str, Any]:
@@ -657,10 +653,10 @@ def _run_deduction(client: Client, ctx: dict[str, Any]) -> Any:
 
 
 def _run_create_employee(client: Client, ctx: dict[str, Any]) -> Any:
-    """Put the prepared profile onto payroll."""
+    """Put the prepared staff account onto payroll."""
     return client.post(
         "/api/v1/payroll/employees/",
-        {"profile": ctx["profile_pk"], "monthly_wage": "22000.00"},
+        {"user": ctx["user_pk"], "monthly_wage": "22000.00"},
         content_type="application/json",
     )
 
@@ -721,6 +717,27 @@ SCENARIOS: dict[str, Scenario] = {
             "/api/v1/finance/categories/",
             {"name": "Maintenance", "description": "Repairs and upkeep"},
         ),
+    ),
+    "PATCH /api/v1/finance/categories/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="finance.ExpenseCategory",
+        prepare=_prepare_expense_category,
+        request=_patch("/api/v1/finance/categories/{pk}/", {"name": "Utilities and water"}),
+    ),
+    "PUT /api/v1/finance/categories/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="finance.ExpenseCategory",
+        prepare=_prepare_expense_category,
+        request=_put(
+            "/api/v1/finance/categories/{pk}/",
+            {"name": "Utilities and power", "description": "Power, water, internet"},
+        ),
+    ),
+    "POST /api/v1/finance/categories/{pk}/archive/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="finance.ExpenseCategory",
+        prepare=_prepare_expense_category,
+        request=_post("/api/v1/finance/categories/{pk}/archive/", {}),
     ),
     "POST /api/v1/finance/expenses/": Scenario(
         action=AuditLog.Action.CREATE,
@@ -881,7 +898,10 @@ SCENARIOS: dict[str, Scenario] = {
         action=AuditLog.Action.CREATE,
         object_type="accounts.User",
         prepare=_no_prerequisites,
-        request=_post("/api/v1/users/", {"username": "audit-new-staff", "role": "BARMAN"}),
+        request=_post(
+            "/api/v1/users/",
+            {"username": "audit-new-staff", "role": "BARMAN", "phone_number": "+251911000000"},
+        ),
     ),
     "PATCH /api/v1/users/{pk}/": Scenario(
         action=AuditLog.Action.UPDATE,

@@ -110,7 +110,7 @@ test("the Barman receives stock: receipt completed, cost recorded, stock up once
   expect(await readStock(page)).toBe(ON_SHELF);
 
   await page.goto("/inventory/receive");
-  await page.getByLabel("Supplier").fill("Barkot Brew Co.");
+  await page.getByLabel("Supplier", { exact: true }).fill("Barkot Brew Co.");
   await page.getByLabel("Product").selectOption(String(seed.product.id));
   await page.getByLabel("Quantity").fill(RECEIVED_QTY);
   await page.getByLabel("Unit cost (ETB)").fill("20");

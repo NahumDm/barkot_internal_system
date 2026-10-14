@@ -233,6 +233,7 @@ describe("payroll employees", () => {
 
   const PROFILE = {
     id: 12,
+    username: "tsehay",
     full_name: "Tsehay Girma",
     position: "Cashier",
     phone_number: "+251922334455",
@@ -249,7 +250,7 @@ describe("payroll employees", () => {
     await screen.findByText("Abebe Bekele");
 
     expect(screen.getByRole("button", { name: "Add to payroll" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Tsehay Girma — Cashier" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Tsehay Girma (tsehay)" })).toBeInTheDocument();
     expect(screen.getByText(money("18000.00"))).toBeInTheDocument();
   });
 

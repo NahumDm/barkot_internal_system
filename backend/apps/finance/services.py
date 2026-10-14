@@ -214,6 +214,81 @@ def create_expense_category(
 
 
 @transaction.atomic
+def update_expense_category(
+    *,
+    category: ExpenseCategory,
+    name: str | None = None,
+    description: str | None = None,
+    is_active: bool | None = None,
+    actor: User | None = None,
+) -> ExpenseCategory:
+    """Edit an expense category in place.
+
+    Only the supplied fields change. A rename is refused if another category
+    already uses the name, matching the create rule so the two paths cannot
+    leave the table with a duplicate the API would have rejected on create.
+    """
+    update_fields: list[str] = []
+
+    if name is not None:
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise BARKOTDomainError("Expense category name is required.")
+        clash = ExpenseCategory.objects.filter(name__iexact=normalized_name).exclude(pk=category.pk)
+        if clash.exists():
+            raise BARKOTDomainError(f"Expense category {normalized_name!r} already exists.")
+        category.name = normalized_name
+        update_fields.append("name")
+
+    if description is not None:
+        category.description = description.strip()
+        update_fields.append("description")
+
+    if is_active is not None:
+        category.is_active = is_active
+        update_fields.append("is_active")
+
+    if not update_fields:
+        return category
+
+    update_fields.append("updated_at")
+    category.save(update_fields=update_fields)
+
+    AuditLog.record(
+        action=AuditLog.Action.UPDATE,
+        object_type="finance.ExpenseCategory",
+        object_id=category.pk,
+        actor=actor,
+        summary=f"Updated expense category {category.name}",
+    )
+    return category
+
+
+@transaction.atomic
+def archive_expense_category(
+    *, category: ExpenseCategory, actor: User | None = None
+) -> ExpenseCategory:
+    """Retire an expense category without deleting it.
+
+    The category stays on the books so historic expenses keep their grouping;
+    it simply stops being offered when recording new expenses. Deactivating an
+    already-inactive category is a no-op rather than an error, so the action is
+    idempotent.
+    """
+    if category.is_active:
+        category.is_active = False
+        category.save(update_fields=["is_active", "updated_at"])
+        AuditLog.record(
+            action=AuditLog.Action.UPDATE,
+            object_type="finance.ExpenseCategory",
+            object_id=category.pk,
+            actor=actor,
+            summary=f"Archived expense category {category.name}",
+        )
+    return category
+
+
+@transaction.atomic
 def create_expense(
     *,
     category: ExpenseCategory,
@@ -272,8 +347,10 @@ __all__ = [
     "approved_expenses_by_category",
     "approved_expenses_total",
     "approved_payroll_total",
+    "archive_expense_category",
     "create_expense",
     "create_expense_category",
     "finance_balance",
     "income_by_method",
+    "update_expense_category",
 ]

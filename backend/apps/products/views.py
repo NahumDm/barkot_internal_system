@@ -163,6 +163,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
         description=(
             "Create a new sellable product. Requires ``products.manage_products`` (Manager, Owner)."
         ),
+        request=ProductCreateSerializer,
+        responses={201: ProductSerializer},
         tags=["products"],
     ),
     partial_update=extend_schema(
@@ -237,15 +239,34 @@ class ProductViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        create_product(
+        serializer.instance = create_product(
             category=serializer.validated_data["category"],
             name=serializer.validated_data["name"],
             sku=serializer.validated_data["sku"],
             unit=serializer.validated_data.get("unit", "bottle"),
+            quantity_mode=serializer.validated_data.get("quantity_mode", "WHOLE"),
             is_stock_tracked=serializer.validated_data.get("is_stock_tracked", True),
             description=serializer.validated_data.get("description", ""),
             actor=self.request.user,  # type: ignore[arg-type]
         )
+
+    def create(self, request: Request, *args, **kwargs) -> Response:
+        """Create a product and answer with its full representation.
+
+        ``ProductCreateSerializer`` is a plain ``Serializer`` - it carries only
+        the fields a caller sends, so it has no ``id``. The default create flow
+        would therefore answer with the input echoed back, and a client that
+        needs the new product's id to continue (setting its price is a second
+        request keyed by that id) would have nothing to key on. Serializing the
+        created instance with ``ProductSerializer`` returns that id, along with
+        the current price and stock the list and edit screens read.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        output = ProductSerializer(serializer.instance).data
+        headers = self.get_success_headers(output)
+        return Response(output, status=status.HTTP_201_CREATED, headers=headers)
 
     def perform_update(self, serializer):
         update_product(

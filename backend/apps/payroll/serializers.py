@@ -18,31 +18,55 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from apps.accounts.models import User
 from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, PayrollRun
-from apps.users.models import EmployeeProfile
 
 
 class PayrollProfileSerializer(serializers.ModelSerializer):
-    """A staff profile that can still be put on monthly payroll.
+    """An active staff account that can still be put on monthly payroll.
 
     Exposed only to whoever may add a payroll employee, because a roster of
     names and phone numbers is staff data and the only screen that needs it is
-    the form that fills ``PayrollEmployeeCreateSerializer.profile``. Without it
-    that form would have no options to offer: ``apps.users`` has no API of its
-    own, and payroll reaching into a different app's read surface would put the
-    dependency in the wrong direction.
+    the form that fills ``PayrollEmployeeCreateSerializer.user``. The option is a
+    login account rather than an ``EmployeeProfile`` because a staff member can
+    be created in Settings with no profile yet; payroll creates the profile on
+    the way in. Without this list that form would have no options to offer:
+    ``apps.users`` has no API of its own, and payroll reaching into a different
+    app's read surface would put the dependency in the wrong direction.
     """
 
+    full_name = serializers.CharField(source="display_name", read_only=True)
+    position = serializers.SerializerMethodField()
+    phone_number = serializers.SerializerMethodField()
+    start_date = serializers.SerializerMethodField()
+
     class Meta:
-        model = EmployeeProfile
+        model = User
         fields = [
             "id",
+            "username",
             "full_name",
             "position",
             "phone_number",
             "start_date",
         ]
         read_only_fields = fields
+
+    def get_position(self, user: User) -> str:
+        profile = getattr(user, "employee_profile", None)
+        return profile.position if profile is not None else ""
+
+    def get_phone_number(self, user: User) -> str:
+        profile = getattr(user, "employee_profile", None)
+        if profile is not None and profile.phone_number:
+            return profile.phone_number
+        return user.phone_number
+
+    def get_start_date(self, user: User) -> str | None:
+        profile = getattr(user, "employee_profile", None)
+        if profile is not None:
+            return profile.start_date.isoformat()
+        return None
 
 
 class PayrollEmployeeSerializer(serializers.ModelSerializer):
@@ -89,9 +113,15 @@ class PayrollEmployeeSerializer(serializers.ModelSerializer):
 
 
 class PayrollEmployeeCreateSerializer(serializers.Serializer):
-    """Body for putting an existing staff profile onto payroll."""
+    """Body for putting a staff account onto payroll.
 
-    profile = serializers.PrimaryKeyRelatedField(queryset=EmployeeProfile.objects.all())
+    The subject is the login account, not an ``EmployeeProfile``: a staff member
+    may have been created in Settings without a profile, and payroll creates the
+    profile (or reuses the linked one) on the way in, so the form never has to
+    know whether a profile already exists.
+    """
+
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(is_active=True))
     monthly_wage = serializers.DecimalField(max_digits=14, decimal_places=2)
     currency = serializers.CharField(max_length=3, default="ETB")
 
@@ -106,15 +136,15 @@ class PayrollEmployeeCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Only ETB payroll is supported.")
         return value
 
-    def validate_profile(self, value: EmployeeProfile) -> EmployeeProfile:
-        """Refuse a second payroll record for one person.
+    def validate_user(self, value: User) -> User:
+        """Refuse a second payroll record for one account.
 
         Checked against ``all_rows`` rather than ``objects`` so a voided record still
         blocks the create: the link is a ``OneToOne``, so the database would reject
         the insert anyway, and refusing here turns an IntegrityError into a field
         error the form can render.
         """
-        if Employee.all_rows.filter(profile=value).exists():
+        if Employee.all_rows.filter(profile__user=value).exists():
             raise serializers.ValidationError("This person already has a payroll employee record.")
         return value
 

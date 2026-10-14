@@ -125,10 +125,10 @@ class StaffUserCreateSerializer(serializers.Serializer):
         help_text="Optional; Barkot signs staff in by username.",
     )
     phone_number = serializers.CharField(
-        required=False,
-        allow_blank=True,
         max_length=32,
-        help_text="Optional contact number.",
+        trim_whitespace=True,
+        allow_blank=False,
+        help_text="Contact number. Required for every new staff account.",
     )
     password = serializers.CharField(
         required=False,
@@ -156,6 +156,17 @@ class StaffUserCreateSerializer(serializers.Serializer):
         """
         if User.objects.filter(username=value).exists():
             raise serializers.ValidationError("That login name is already in use.")
+        return value
+
+    def validate_phone_number(self, value: str) -> str:
+        """Refuse a phone number that is only whitespace.
+
+        ``trim_whitespace`` runs after DRF's blank check, so a value of spaces
+        would otherwise slip through as an empty string.
+        """
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("A phone number is required.")
         return value
 
 

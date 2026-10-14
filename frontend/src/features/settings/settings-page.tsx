@@ -162,7 +162,7 @@ function UsersSection({ selfId }: { selfId: number }) {
         username,
         role: newRole,
         email: email || undefined,
-        phone_number: phone || undefined,
+        phone_number: phone,
         password: password || undefined,
       });
       setUsername("");
@@ -258,7 +258,8 @@ function UsersSection({ selfId }: { selfId: number }) {
       <div className="rounded border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink">Add a staff member</h2>
         <p className="text-xs text-ink-secondary">
-          Pick a role from the catalogue. Leave the password blank to create a locked account.
+          Pick a role from the catalogue. A phone number is required for every new account. Leave
+          the password blank to create a locked account.
         </p>
         <form onSubmit={submitCreate} className="mt-3 space-y-3">
           <ErrorBanner error={createError} />
@@ -284,7 +285,13 @@ function UsersSection({ selfId }: { selfId: number }) {
               type="email"
               placeholder="Optional"
             />
-            <TextInput label="Phone" value={phone} onChange={setPhone} placeholder="Optional" />
+            <TextInput
+              label="Phone"
+              value={phone}
+              onChange={setPhone}
+              required
+              placeholder="Required"
+            />
             <TextInput
               label="Temporary password"
               value={password}
@@ -613,18 +620,30 @@ function SystemForm({
           value={sessionTimeout}
           min={1}
           onChange={setSessionTimeout}
+          hint="Idle minutes before a staff session must sign in again."
         />
-        <NumberInput label="Password max age (days)" value={maxAge} min={0} onChange={setMaxAge} />
+        <NumberInput
+          label="Password max age (days)"
+          value={maxAge}
+          min={0}
+          onChange={setMaxAge}
+          hint="New passwords expire after this many days. 0 means they never expire."
+        />
       </div>
-      <label className="flex items-center gap-2 text-sm text-ink">
-        <input
-          type="checkbox"
-          checked={forceChange}
-          onChange={(event) => setForceChange(event.target.checked)}
-          className="accent-ink"
-        />
-        Require new users to change their temporary password on first sign-in
-      </label>
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={forceChange}
+            onChange={(event) => setForceChange(event.target.checked)}
+            className="accent-ink"
+          />
+          Require new users to change their temporary password on first sign-in
+        </label>
+        <p className="field-hint pl-6">
+          Applies to accounts created with a temporary password. Existing users are unaffected.
+        </p>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-secondary">
           {settings.updated_by
@@ -643,12 +662,14 @@ function TextInput({
   onChange,
   placeholder,
   type = "text",
+  required = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   type?: "text" | "email" | "password";
+  required?: boolean;
 }) {
   const [revealed, setRevealed] = useState(false);
   const revealable = type === "password";
@@ -694,6 +715,7 @@ function TextInput({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         type={type}
+        required={required}
         className="control mt-1.5"
       />
     </label>
@@ -705,11 +727,13 @@ function NumberInput({
   value,
   min,
   onChange,
+  hint,
 }: {
   label: string;
   value: string;
   min: number;
   onChange: (value: string) => void;
+  hint?: string;
 }) {
   return (
     <label className="field-label">
@@ -721,6 +745,7 @@ function NumberInput({
         onChange={(event) => onChange(event.target.value)}
         className="control mt-1.5"
       />
+      {hint && <span className="field-hint mt-1 block font-normal">{hint}</span>}
     </label>
   );
 }

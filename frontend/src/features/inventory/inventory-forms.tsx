@@ -96,6 +96,8 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
 
   const title =
     mode === "receive" ? "Receive stock" : mode === "breakage" ? "Breakage & waste" : "Stock count";
+  const selectedProduct = products.find((item) => String(item.id) === product);
+  const wholeUnits = selectedProduct?.quantity_mode === "WHOLE";
   return (
     <section className="max-w-3xl space-y-6">
       <div>
@@ -152,13 +154,19 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
               {mode === "receive" ? "Quantity" : "Quantity wasted"}
               <input
                 required
-                min="0.001"
-                step="0.001"
+                min={wholeUnits ? "1" : "0.001"}
+                step={wholeUnits ? "1" : "0.001"}
+                inputMode={wholeUnits ? "numeric" : "decimal"}
                 type="number"
                 value={quantity}
                 onChange={(event) => setQuantity(event.target.value)}
                 className="control mt-1.5"
               />
+              <span className="field-hint">
+                {wholeUnits
+                  ? `Whole units only (${selectedProduct?.unit ?? "units"}).`
+                  : "Decimals allowed."}
+              </span>
             </label>
           )}
           {mode === "receive" && (
@@ -173,6 +181,9 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 onChange={(event) => setAmount(event.target.value)}
                 className="control mt-1.5"
               />
+              <span className="field-hint">
+                Price paid to the supplier for one {selectedProduct?.unit ?? "unit"}.
+              </span>
             </label>
           )}
           {mode === "count" && (
@@ -207,18 +218,24 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
             </div>
           </div>
           {count.status === "DRAFT" && (
-            <>
+            <div className="flex flex-col gap-4">
               <label className="field-label">
                 Physical quantity
                 <input
                   required
-                  min="0"
-                  step="0.001"
+                  min={wholeUnits ? "1" : "0.001"}
+                  step={wholeUnits ? "1" : "0.001"}
+                  inputMode={wholeUnits ? "numeric" : "decimal"}
                   type="number"
                   value={quantity}
                   onChange={(event) => setQuantity(event.target.value)}
                   className="control mt-1.5"
                 />
+                <span className="field-hint">
+                  {wholeUnits
+                    ? `Whole units only (${selectedProduct?.unit ?? "units"}).`
+                    : "Decimals allowed."}
+                </span>
               </label>
               <button
                 disabled={saving || quantity === ""}
@@ -227,7 +244,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
               >
                 Complete count
               </button>
-            </>
+            </div>
           )}
           {count.status === "COMPLETED" && (
             <button

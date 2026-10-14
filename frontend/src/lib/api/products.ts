@@ -28,12 +28,16 @@ export interface ProductPrice {
   created_at: string;
 }
 
+/** Whether a product is counted in whole units (crates, bottles) or allows decimals (kg, litre). */
+export type QuantityMode = "WHOLE" | "FRACTIONAL";
+
 export interface Product {
   id: number;
   category: Category;
   name: string;
   sku: string;
   unit: string;
+  quantity_mode: QuantityMode;
   is_stock_tracked: boolean;
   is_active: boolean;
   description: string;
@@ -50,6 +54,7 @@ export interface ProductListItem {
   name: string;
   sku: string;
   unit: string;
+  quantity_mode: QuantityMode;
   is_stock_tracked: boolean;
   is_active: boolean;
   current_price: ProductPrice | null;
@@ -69,6 +74,7 @@ export interface ProductCreateInput {
   name: string;
   sku: string;
   unit?: string;
+  quantity_mode?: QuantityMode;
   is_stock_tracked?: boolean;
   description?: string;
 }
@@ -76,6 +82,7 @@ export interface ProductCreateInput {
 export interface ProductUpdateInput {
   name?: string;
   unit?: string;
+  quantity_mode?: QuantityMode;
   is_stock_tracked?: boolean;
   is_active?: boolean;
   description?: string;

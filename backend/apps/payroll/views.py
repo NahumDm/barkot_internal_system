@@ -15,11 +15,11 @@ Generation and approval being separate actions on separate grants is what stops 
 account producing a payslip nobody else looked at (A8). Both roles could equally
 have been given both permissions, and the UI would still have shown two buttons.
 
-The roster read (``profiles``) is not a payroll resource: it lists
-:class:`apps.users.models.EmployeeProfile` rows so the create form has options to
-offer. It carries ``manage_payroll_employees`` rather than ``view_payroll`` because
-the only screen that needs it is the one that adds a payroll employee, and names
-with phone numbers are staff data rather than a payslip figure.
+The roster read (``profiles``) is not a payroll resource: it lists active staff
+accounts so the create form has options to offer. It carries
+``manage_payroll_employees`` rather than ``view_payroll`` because the only screen
+that needs it is the one that adds a payroll employee, and names with phone
+numbers are staff data rather than a payslip figure.
 
 No view branches on ``user.role``; :data:`apps.accounts.permissions.ROLE_MATRIX` is
 the only mapping, and ``get_permissions`` asks it per action.
@@ -35,6 +35,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.accounts.models import User
 from apps.accounts.permissions import (
     CanApprovePayrollRun,
     CanCreateDeduction,
@@ -107,7 +108,7 @@ class PayrollEmployeeViewSet(
         # one-to-one link, the initial status and the audit entry are always
         # set together (roadmap D1).
         employee = add_employee(
-            profile=serializer.validated_data["profile"],
+            user=serializer.validated_data["user"],
             monthly_wage=serializer.validated_data["monthly_wage"],
             actor=request.user,
         )
@@ -279,30 +280,36 @@ class PayrollDeductionViewSet(
     ),
 )
 class PayrollProfileViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
-    """Active staff profiles that are not on payroll yet.
+    """Active staff accounts that are not on payroll yet.
 
     This is the options list behind ``POST /payroll/employees/``: ``apps.users``
-    has no API of its own, so a form that asked for a ``profile`` id would have
+    has no API of its own, so a form that asked for a ``user`` id would have
     nothing to offer. The field is written here rather than in ``users`` so the
     dependency points at payroll's own need instead of payroll reaching into a
     different app's read surface.
 
-    A profile stays off the list once it has any payroll row, voided or not. The
-    link is a ``OneToOne``, so a voided employee still occupies it, and offering
-    the name again would only earn a create the server refuses.
-
-    Archived profiles are excluded for the reason archiving exists: it records
-    that someone left, so putting them back on a new month's payroll would be
-    paying a person who is no longer employed.
+    An account stays off the list once it has any payroll row, voided or not. The
+    profile/payroll link is a ``OneToOne``, so a voided employee still occupies
+    it, and offering the account again would only earn a create the server
+    refuses. Accounts whose profile has been archived are excluded too, for the
+    reason archiving exists: it records that someone left.
     """
 
     serializer_class = PayrollProfileSerializer
     pagination_class = BarkotPagination
     paginator = BarkotPagination()
 
-    def get_queryset(self) -> QuerySet[EmployeeProfile]:
-        already_on_payroll = Employee.all_rows.values("profile_id")
-        return EmployeeProfile.objects.filter(is_archived=False).exclude(pk__in=already_on_payroll)
+    def get_queryset(self) -> QuerySet[User]:
+        already_on_payroll = Employee.all_rows.values("profile__user_id")
+        archived = EmployeeProfile.objects.filter(is_archived=True, user__isnull=False).values(
+            "user_id"
+        )
+        return (
+            User.objects.filter(is_active=True, role__is_staff_role=True)
+            .exclude(pk__in=already_on_payroll)
+            .exclude(pk__in=archived)
+            .order_by("username")
+        )
 
     def get_permissions(self):
         return [IsAuthenticated(), CanManagePayrollEmployees()]

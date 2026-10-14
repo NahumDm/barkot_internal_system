@@ -77,6 +77,28 @@ export function createExpenseCategory(
   });
 }
 
+export function updateExpenseCategory(
+  id: number,
+  input: { name?: string; description?: string; is_active?: boolean },
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ExpenseCategory> {
+  return apiFetch<ExpenseCategory>(`/finance/categories/${id}/`, {
+    ...options,
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function archiveExpenseCategory(
+  id: number,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<ExpenseCategory> {
+  return apiFetch<ExpenseCategory>(`/finance/categories/${id}/archive/`, {
+    ...options,
+    method: "POST",
+  });
+}
+
 export function listExpenses(options: RequestOptions = {}): Promise<PaginatedResponse<Expense>> {
   return apiFetch<PaginatedResponse<Expense>>("/finance/expenses/", options);
 }

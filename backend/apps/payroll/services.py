@@ -27,7 +27,9 @@ from typing import Any
 from django.db import transaction
 from django.db.models import Max
 
+from apps.accounts.models import User
 from apps.audit.models import AuditLog
+from apps.core.business_time import business_timezone, now_utc
 from apps.core.enums import PayrollDeductionType, PayrollItemStatus, PayrollRunStatus
 from apps.core.exceptions import (
     ExcessiveDeduction,
@@ -37,6 +39,10 @@ from apps.core.exceptions import (
 from apps.core.money import ZERO_MONEY, quantize_money
 from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, PayrollRun
 from apps.users.models import EmployeeProfile
+
+#: Position given to a profile payroll creates for an account that had none.
+#: Deliberately generic: the real title is edited on the profile, not guessed.
+_DEFAULT_POSITION = "Staff"
 
 
 def _first_of_month(day: date) -> date:
@@ -229,20 +235,20 @@ def mark_payroll_run_paid(*, run: PayrollRun, actor: Any | None = None) -> Payro
 @transaction.atomic
 def add_employee(
     *,
-    profile: EmployeeProfile,
+    user: User,
     monthly_wage: Decimal,
     actor: Any | None = None,
 ) -> Employee:
-    """Put an existing staff profile onto payroll (roadmap D1).
+    """Put a staff account onto payroll (roadmap D1).
 
-    The create half of ``POST /payroll/employees/`` moved here from the view
-    so the write follows the rule every other payroll write follows: the
-    service validates, saves and audits in one transaction, and the view only
-    translates HTTP. ``Employee.from_profile`` is the documented constructor
-    that sets the one-to-one link and initial status together.
+    The subject is a login account rather than a profile because a staff member
+    can be created in Settings with no ``EmployeeProfile`` yet. The profile is
+    reused when the account already has one, un-archived if the person is being
+    brought back, and created with a placeholder position otherwise — so the
+    payroll roster always has a person to point at.
 
     Args:
-        profile: The staff profile to add.
+        user: The staff account to add.
         monthly_wage: Gross monthly wage. Zero is allowed and must be fixed in
             a later decision (spec §30 item 5), not guessed here.
         actor: The staff member adding it (permission
@@ -252,9 +258,10 @@ def add_employee(
         The created :class:`Employee`.
 
     Raises:
-        IntegrityError: If the profile already has a payroll row; the
-            serializer refuses that case before the service runs.
+        IntegrityError: If the account already has a payroll row; the serializer
+            refuses that case before the service runs.
     """
+    profile = _profile_for_user(user)
     employee = Employee.from_profile(profile, monthly_wage=monthly_wage)
 
     AuditLog.record(
@@ -265,6 +272,24 @@ def add_employee(
         summary=f"Added {employee.full_name} to payroll at {monthly_wage}/month",
     )
     return employee
+
+
+def _profile_for_user(user: User) -> EmployeeProfile:
+    """Return the account's staff profile, creating or reviving it if needed."""
+    profile = getattr(user, "employee_profile", None)
+    if profile is None:
+        return EmployeeProfile.objects.create(
+            full_name=user.display_name,
+            position=_DEFAULT_POSITION,
+            phone_number=user.phone_number,
+            start_date=now_utc().astimezone(business_timezone()).date(),
+            user=user,
+        )
+    if profile.is_archived:
+        profile.is_archived = False
+        profile.archived_at = None
+        profile.save(update_fields=["is_archived", "archived_at", "updated_at"])
+    return profile
 
 
 def latest_run_period() -> date | None:

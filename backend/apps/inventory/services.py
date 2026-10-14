@@ -37,7 +37,7 @@ from apps.core.enums import (
     StockCountStatus,
 )
 from apps.core.exceptions import InsufficientStock, InvalidStateTransition
-from apps.core.money import quantize_quantity
+from apps.core.money import quantize_quantity, validate_whole_quantity
 from apps.inventory.models import (
     BreakageItem,
     BreakageRecord,
@@ -131,6 +131,7 @@ def receive_stock(
             )
         if line.quantity <= 0:
             raise ValueError(f"Quantity for {line.product.sku!r} must be greater than zero.")
+        validate_whole_quantity(line.quantity, product=line.product)
 
     moment = received_at or now_utc()
     receipt = StockReceipt.objects.create(
@@ -224,6 +225,7 @@ def record_breakage(
             raise ValueError(f"Product {product.sku!r} appears twice on this breakage record.")
         seen.add(product.pk)
         quantised = quantize_quantity(quantity, field="quantity")
+        validate_whole_quantity(quantised, product=product)
         if quantised <= 0:
             raise ValueError(f"Quantity for {product.sku!r} must be greater than zero.")
         balance = balances.get(product.pk, None)
@@ -385,6 +387,7 @@ def complete_stock_count(
     for item_id, raw in counted_quantities.items():
         item = items[item_id]
         counted = quantize_quantity(raw, field="counted_quantity")
+        validate_whole_quantity(counted, product=item.product, field="counted_quantity")
         if counted < 0:
             raise ValueError(f"Counted quantity for {item.product.sku!r} cannot be negative.")
         item.counted_quantity = counted
@@ -512,6 +515,7 @@ def manual_stock_adjustment(
     quantised = quantize_quantity(quantity, field="quantity")
     if quantised <= 0:
         raise ValueError("Quantity must be greater than zero.")
+    validate_whole_quantity(quantised, product=product)
     if kind == MovementKind.STOCK_OUT and current_stock(product) < quantised:
         raise InsufficientStock(
             f"Cannot remove {quantised} of {product.sku!r}: only {current_stock(product)} in stock."

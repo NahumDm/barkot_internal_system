@@ -530,6 +530,17 @@ textarea.control {
   width: auto;
 }
 
+input.control[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input.control[type="number"]::-webkit-outer-spin-button,
+input.control[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
 .field {
   display: flex;
   flex-direction: column;

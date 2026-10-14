@@ -31,6 +31,30 @@ class ExpenseCategoryCreateSerializer(serializers.Serializer):
         return value
 
 
+class ExpenseCategoryUpdateSerializer(serializers.Serializer):
+    """Body for editing an expense category.
+
+    Every field is optional so a caller can rename, re-describe, or archive a
+    category on its own. A rename must still be unique, but the category's own
+    current name is not a clash with itself.
+    """
+
+    name = serializers.CharField(max_length=100, trim_whitespace=True, required=False)
+    description = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    is_active = serializers.BooleanField(required=False)
+
+    def validate_name(self, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Expense category name is required.")
+        existing = ExpenseCategory.objects.filter(name__iexact=value)
+        if self.instance is not None:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError("An expense category with this name already exists.")
+        return value
+
+
 class ExpenseSerializer(serializers.ModelSerializer):
     """An expense and its approval state."""
 

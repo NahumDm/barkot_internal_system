@@ -67,6 +67,7 @@ test("the Owner creates, deactivates and reads back a staff account, and patches
   await expect(form.getByLabel("Role")).not.toBeDisabled();
   await form.getByLabel("Login name").fill(BARMAN_USERNAME);
   await form.getByLabel("Role").selectOption("BARMAN");
+  await form.getByLabel("Phone").fill("+251911000000");
   await form.getByLabel("Temporary password", { exact: true }).fill(seed.owner.password);
   await form.getByRole("button", { name: "Create staff account" }).click();
 

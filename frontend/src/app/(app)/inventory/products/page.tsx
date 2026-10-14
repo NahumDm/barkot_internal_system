@@ -10,6 +10,7 @@ import {
   setProductPrice,
   updateProduct,
   type ProductListItem,
+  type QuantityMode,
 } from "@/lib/api/products";
 import { type ApiError, ApiError as ApiErrorClass, isValidationError } from "@/lib/api/errors";
 import { useAuth } from "@/features/auth/auth-provider";
@@ -263,6 +264,7 @@ function ProductFilters({
 interface EditProductForm {
   name: string;
   unit: string;
+  quantity_mode: QuantityMode;
   is_stock_tracked: boolean;
   is_active: boolean;
   description: string;
@@ -305,6 +307,7 @@ function EditProductDialog({
         setForm({
           name: product.name,
           unit: product.unit,
+          quantity_mode: product.quantity_mode,
           is_stock_tracked: product.is_stock_tracked,
           is_active: product.is_active,
           description: product.description,
@@ -354,6 +357,7 @@ function EditProductDialog({
       await updateProduct(productId, {
         name: form.name.trim(),
         unit: form.unit.trim(),
+        quantity_mode: form.quantity_mode,
         is_stock_tracked: form.is_stock_tracked,
         is_active: form.is_active,
         description: form.description,
@@ -442,6 +446,31 @@ function EditProductDialog({
               autoComplete="off"
               disabled={saving}
             />
+
+            <div className="field">
+              <label htmlFor="edit-product-quantity-mode" className="field-label">
+                Quantity mode
+              </label>
+              <select
+                id="edit-product-quantity-mode"
+                value={form.quantity_mode}
+                onChange={(event) => update({ quantity_mode: event.target.value as QuantityMode })}
+                className="control"
+                disabled={saving}
+                aria-invalid={(fieldErrors.quantity_mode?.length ?? 0) > 0}
+              >
+                <option value="WHOLE">Whole units (crates, bottles)</option>
+                <option value="FRACTIONAL">Fractional units (kg, litre)</option>
+              </select>
+              {(fieldErrors.quantity_mode ?? []).map((message) => (
+                <p key={message} className="field-error">
+                  {message}
+                </p>
+              ))}
+              <p className="field-hint">
+                Whole units are counted in whole numbers; fractional units allow decimals.
+              </p>
+            </div>
 
             {canChangePrices && (
               <Field

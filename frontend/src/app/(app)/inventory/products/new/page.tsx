@@ -3,7 +3,13 @@
 import { useEffect, useState, type FormEvent, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import { createProduct, listCategories, setProductPrice, type Category } from "@/lib/api/products";
+import {
+  createProduct,
+  listCategories,
+  setProductPrice,
+  type Category,
+  type QuantityMode,
+} from "@/lib/api/products";
 import {
   type ApiError,
   type ErrorDetails,
@@ -26,6 +32,7 @@ export default function NewProductPage() {
     name: "",
     sku: "",
     unit: "bottle",
+    quantity_mode: "WHOLE",
     is_stock_tracked: true,
     description: "",
     price: "",
@@ -83,6 +90,7 @@ export default function NewProductPage() {
         name: formData.name,
         sku: formData.sku,
         unit: formData.unit,
+        quantity_mode: formData.quantity_mode as QuantityMode,
         is_stock_tracked: formData.is_stock_tracked,
         description: formData.description,
       });
@@ -193,6 +201,28 @@ export default function NewProductPage() {
           disabled={submitting}
           hint="e.g. bottle, crate, kg, litre"
         />
+
+        <div className="field">
+          <label className="field-label">Quantity mode</label>
+          <select
+            value={formData.quantity_mode}
+            onChange={(e) => handleChange("quantity_mode", e.target.value)}
+            disabled={submitting}
+            className="control"
+            aria-invalid={(fieldErrors.quantity_mode?.length ?? 0) > 0}
+          >
+            <option value="WHOLE">Whole units (e.g. crates, bottles)</option>
+            <option value="FRACTIONAL">Fractional units (e.g. kg, litre)</option>
+          </select>
+          {(fieldErrors.quantity_mode ?? []).map((message) => (
+            <p key={message} className="field-error">
+              {message}
+            </p>
+          ))}
+          <p className="field-hint">
+            Whole units are counted in whole numbers only; fractional units allow decimals.
+          </p>
+        </div>
 
         {canChangePrices && (
           <Field

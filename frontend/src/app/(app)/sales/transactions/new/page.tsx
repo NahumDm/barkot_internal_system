@@ -268,6 +268,13 @@ export default function NewSalePage() {
         errors[`lines.${index}.quantity`] = ["Enter a quantity."];
       } else if (quantityMinor <= 0n) {
         errors[`lines.${index}.quantity`] = ["Quantity must be greater than zero."];
+      } else if (
+        productsById.get(line.product)?.quantity_mode === "WHOLE" &&
+        quantityMinor % QUANTITY_DIVISOR !== 0n
+      ) {
+        errors[`lines.${index}.quantity`] = [
+          "This product is counted in whole units; enter a whole number.",
+        ];
       }
 
       if (!errors[`lines.${index}.product`] && !errors[`lines.${index}.quantity`]) usableLines += 1;
@@ -442,9 +449,10 @@ export default function NewSalePage() {
                       onChange={(value) => handleLineChange(index, "quantity", value)}
                       errors={fieldErrors[`lines.${index}.quantity`] ?? []}
                       autoComplete="off"
-                      min={0.001}
-                      step="0.001"
-                      inputMode="decimal"
+                      min={product?.quantity_mode === "WHOLE" ? 1 : 0.001}
+                      step={product?.quantity_mode === "WHOLE" ? 1 : 0.001}
+                      inputMode={product?.quantity_mode === "WHOLE" ? "numeric" : "decimal"}
+                      hint={product?.quantity_mode === "WHOLE" ? "Whole units only" : undefined}
                     />
 
                     <div className="field">

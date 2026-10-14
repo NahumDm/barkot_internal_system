@@ -23,14 +23,17 @@ from apps.finance.serializers import (
     BalanceSerializer,
     ExpenseCategoryCreateSerializer,
     ExpenseCategorySerializer,
+    ExpenseCategoryUpdateSerializer,
     ExpenseCreateSerializer,
     ExpenseSerializer,
 )
 from apps.finance.services import (
     approve_expense,
+    archive_expense_category,
     create_expense,
     create_expense_category,
     finance_balance,
+    update_expense_category,
 )
 
 
@@ -56,11 +59,19 @@ class FinanceBalanceView(APIView):
     list=extend_schema(summary="List expense categories", tags=["finance"]),
     retrieve=extend_schema(summary="Get an expense category", tags=["finance"]),
     create=extend_schema(summary="Create an expense category", tags=["finance"]),
+    update=extend_schema(summary="Edit an expense category", tags=["finance"]),
+    archive=extend_schema(
+        summary="Archive an expense category",
+        request=None,
+        responses=ExpenseCategorySerializer,
+        tags=["finance"],
+    ),
 )
 class ExpenseCategoryViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
     queryset = ExpenseCategory.objects.all().order_by("name")
@@ -76,6 +87,8 @@ class ExpenseCategoryViewSet(
     def get_serializer_class(self):
         if self.action == "create":
             return ExpenseCategoryCreateSerializer
+        if self.action in {"update", "partial_update"}:
+            return ExpenseCategoryUpdateSerializer
         return ExpenseCategorySerializer
 
     def perform_create(self, serializer):
@@ -93,6 +106,32 @@ class ExpenseCategoryViewSet(
             ExpenseCategorySerializer(self._created_category).data,
             status=status.HTTP_201_CREATED,
         )
+
+    def update(self, request: Request, *args, **kwargs) -> Response:
+        category = self.get_object()
+        serializer = ExpenseCategoryUpdateSerializer(
+            instance=category,
+            data=request.data,
+            partial=kwargs.pop("partial", False),
+        )
+        serializer.is_valid(raise_exception=True)
+        updated = update_expense_category(
+            category=category,
+            name=serializer.validated_data.get("name"),
+            description=serializer.validated_data.get("description"),
+            is_active=serializer.validated_data.get("is_active"),
+            actor=request.user,  # type: ignore[arg-type]
+        )
+        return Response(ExpenseCategorySerializer(updated).data)
+
+    @action(detail=True, methods=["post"], url_path="archive")
+    def archive(self, request: Request, pk: int | None = None) -> Response:
+        category = self.get_object()
+        archived = archive_expense_category(
+            category=category,
+            actor=request.user,  # type: ignore[arg-type]
+        )
+        return Response(ExpenseCategorySerializer(archived).data)
 
 
 @extend_schema_view(

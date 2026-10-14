@@ -163,6 +163,7 @@ def test_owner_creates_a_temporary_password_staff_account(
             "username": "hanna",
             "role": "MANAGER",
             "email": "hanna@example.com",
+            "phone_number": "0911000001",
             "password": "Temp-Pass-123!",
         },
     )
@@ -191,12 +192,31 @@ def test_owner_creates_a_locked_account_without_a_password(
     """Omitting the password yields an unusable (locked) account, not a 400."""
     staff_login(client, Role.Code.OWNER)
 
-    response = post_json(client, USERS_URL, {"username": "sam", "role": "BARMAN"})
+    response = post_json(
+        client,
+        USERS_URL,
+        {"username": "sam", "role": "BARMAN", "phone_number": "0911000002"},
+    )
 
     assert response.status_code == 201
     stored = User.objects.get(username="sam")
     assert not stored.has_usable_password()
     assert stored.is_temporary_password is False
+
+
+def test_a_phone_number_is_required_at_creation(
+    client: Client, staff_login: Callable[..., Any]
+) -> None:
+    """Every new staff account carries a contact number (roadmap C5)."""
+    staff_login(client, Role.Code.OWNER)
+
+    response = post_json(client, USERS_URL, {"username": "nophone", "role": "BARMAN"})
+
+    assert response.status_code == 400
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert "phone_number" in error["details"]
+    assert not User.objects.filter(username="nophone").exists()
 
 
 def test_a_non_staff_role_cannot_be_granted_at_creation(
@@ -206,7 +226,9 @@ def test_a_non_staff_role_cannot_be_granted_at_creation(
     staff_login(client, Role.Code.OWNER)
     Role.objects.create(code="SVC", name="Service bot", is_staff_role=False)
 
-    response = post_json(client, USERS_URL, {"username": "bot", "role": "SVC"})
+    response = post_json(
+        client, USERS_URL, {"username": "bot", "role": "SVC", "phone_number": "0911000003"}
+    )
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "non_staff_role"
@@ -220,7 +242,11 @@ def test_duplicate_username_is_refused(
     staff_login(client, Role.Code.OWNER)
     make_staff_user(Role.Code.BARMAN, suffix="2")
 
-    response = post_json(client, USERS_URL, {"username": "barman-2", "role": "CASHIER"})
+    response = post_json(
+        client,
+        USERS_URL,
+        {"username": "barman-2", "role": "CASHIER", "phone_number": "0911000004"},
+    )
 
     assert response.status_code == 400
     error = response.json()["error"]
@@ -233,7 +259,9 @@ def test_a_second_owner_cannot_be_created(client: Client, staff_login: Callable[
     staff_login(client, Role.Code.OWNER)
     before = user_count()
 
-    response = post_json(client, USERS_URL, {"username": "owner2", "role": "OWNER"})
+    response = post_json(
+        client, USERS_URL, {"username": "owner2", "role": "OWNER", "phone_number": "0911000004"}
+    )
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "owner_exists"

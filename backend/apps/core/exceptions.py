@@ -127,6 +127,22 @@ class InvalidDeductionAmount(BARKOTDomainError):
     default_message = "A deduction amount must be greater than zero."
 
 
+class FractionalQuantityNotAllowed(BARKOTDomainError):
+    """A whole-unit product was given a fractional quantity (crates, bottles).
+
+    A product marked ``WHOLE`` is counted in whole numbers; ``2.5`` crates is not
+    a quantity the till can act on. A product marked ``FRACTIONAL`` (kg, litre)
+    accepts decimals, so the refusal is per product rather than global.
+
+    400 because the submitted figure is incoherent for the product it names;
+    nothing about the surrounding state changes the answer.
+    """
+
+    code = "fractional_quantity_not_allowed"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "This product is counted in whole units; enter a whole number."
+
+
 class ExcessiveDeduction(BARKOTDomainError):
     """Deductions would take an employee's net pay below zero (spec §14.2).
 

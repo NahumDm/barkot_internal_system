@@ -36,13 +36,14 @@ export type EmployeeStatus = "ACTIVE" | "INACTIVE" | "TERMINATED";
  */
 export type PayrollDeductionType = "ADVANCE" | "ABSENCE" | "LATE" | "OTHER";
 
-/** An active staff profile that can still be put on payroll. */
+/** An active staff account that can still be put on payroll. */
 export interface PayrollProfile {
   id: number;
+  username: string;
   full_name: string;
   position: string;
   phone_number: string;
-  start_date: string;
+  start_date: string | null;
 }
 
 /** Someone on monthly payroll. Person details are read from their profile. */
@@ -117,8 +118,8 @@ export interface PayrollDeduction {
 }
 
 export interface PayrollEmployeeCreateInput {
-  /** A `PayrollProfile.id` from `listPayrollProfiles`. */
-  profile: number;
+  /** A `PayrollProfile.id` (a staff account) from `listPayrollProfiles`. */
+  user: number;
   monthly_wage: string;
   currency?: "ETB";
 }
@@ -155,7 +156,7 @@ export interface PayrollDeductionFilters {
   page_size?: number;
 }
 
-/** Staff profiles that are not on payroll yet — the options for the create form. */
+/** Active staff accounts that are not on payroll yet — options for the create form. */
 export function listPayrollProfiles(
   options: RequestOptions = {},
 ): Promise<PaginatedResponse<PayrollProfile>> {
@@ -168,7 +169,7 @@ export function listPayrollEmployees(
   return apiFetch<PaginatedResponse<PayrollEmployee>>("/payroll/employees/", options);
 }
 
-/** Put an existing staff profile onto payroll. */
+/** Put a staff account onto payroll (the profile is created/reused server-side). */
 export function createPayrollEmployee(
   input: PayrollEmployeeCreateInput,
   options: Omit<RequestOptions, "method" | "body"> = {},

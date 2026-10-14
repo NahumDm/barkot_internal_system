@@ -69,6 +69,7 @@ export default function SalesTransactionsPage() {
   const [pages, setPages] = useState(1);
   const [count, setCount] = useState(0);
   const [pageSize, setPageSize] = useState(20);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "COMPLETED" | "VOIDED">("all");
   const [error, setError] = useState<ApiError | null>(null);
@@ -101,6 +102,14 @@ export default function SalesTransactionsPage() {
     void fetchSales();
   }, [fetchSales]);
 
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [searchInput]);
+
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pages) setPage(newPage);
   };
@@ -120,17 +129,17 @@ export default function SalesTransactionsPage() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
+          setSearch(searchInput);
           setPage(1);
-          void fetchSales();
         }}
-        className="flex flex-col gap-3 sm:flex-row sm:items-end"
+        className="flex flex-col gap-3 sm:flex-row sm:items-center"
       >
         <div className="min-w-0 flex-1">
           <Field
             label="Search"
             type="search"
-            value={search}
-            onChange={setSearch}
+            value={searchInput}
+            onChange={setSearchInput}
             errors={[]}
             autoComplete="off"
             hint="Search by reference"
@@ -147,9 +156,6 @@ export default function SalesTransactionsPage() {
           <option value="COMPLETED">Completed</option>
           <option value="VOIDED">Voided</option>
         </select>
-        <button type="submit" className="btn btn-ghost">
-          Apply
-        </button>
       </form>
 
       {error && <FormError error={error} />}

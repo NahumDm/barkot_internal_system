@@ -284,7 +284,7 @@ export default function PayrollRuns() {
               {run.notes && <p className="mt-1 text-ink-secondary">Notes: {run.notes}</p>}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {run.status === "GENERATED" &&
                 (approve ? (
                   <button
@@ -364,7 +364,7 @@ export default function PayrollRuns() {
           </div>
         </>
       ) : (
-        <form onSubmit={generate} className="space-y-3 rounded border border-border bg-surface p-4">
+        <form onSubmit={generate} className="space-y-4 rounded border border-border bg-surface p-4">
           <div>
             <h2 className="text-sm font-semibold text-ink">
               Generate payroll for {monthLabel(month)}

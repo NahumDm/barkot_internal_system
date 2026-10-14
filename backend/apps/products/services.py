@@ -46,6 +46,7 @@ class ProductCreateInput:
         name: The product name (unique within its category).
         sku: Stable internal code, never reused.
         unit: Selling and stocking unit (e.g. "bottle", "crate", "kg").
+        quantity_mode: "WHOLE" for whole-number units, "FRACTIONAL" for decimals.
         is_stock_tracked: Whether inventory ledger tracks this product.
         description: Free-text description.
     """
@@ -54,6 +55,7 @@ class ProductCreateInput:
     name: str
     sku: str
     unit: str = "bottle"
+    quantity_mode: str = "WHOLE"
     is_stock_tracked: bool = True
     description: str = ""
 
@@ -102,6 +104,7 @@ def create_product(
     name: str,
     sku: str,
     unit: str = "bottle",
+    quantity_mode: str = "WHOLE",
     is_stock_tracked: bool = True,
     description: str = "",
     actor: User | None = None,
@@ -113,6 +116,7 @@ def create_product(
         name: The product name (unique within its category).
         sku: Stable internal code, never reused.
         unit: Selling and stocking unit.
+        quantity_mode: "WHOLE" or "FRACTIONAL" - whether quantities must be whole.
         is_stock_tracked: Whether inventory ledger tracks this product.
         description: Free-text description.
         actor: The staff member creating the product (permission
@@ -139,6 +143,7 @@ def create_product(
         name=name.strip(),
         sku=sku.strip().upper(),
         unit=unit.strip(),
+        quantity_mode=quantity_mode,
         is_stock_tracked=is_stock_tracked,
         description=description.strip(),
     )

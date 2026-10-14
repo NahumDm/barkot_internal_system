@@ -39,7 +39,7 @@ from apps.core.exceptions import (
     InvalidStateTransition,
 )
 from apps.core.idempotency import SALE_SCOPE, claim_key, replayed_object
-from apps.core.money import quantize_money, quantize_quantity, sum_money
+from apps.core.money import quantize_money, quantize_quantity, sum_money, validate_whole_quantity
 from apps.inventory.models import StockMovement
 from apps.products.models import Product, ProductPrice
 from apps.sales.models import Payment, Sale, SaleItem, total_of_sale
@@ -221,6 +221,7 @@ def complete_sale(
             )
 
         quantity = quantize_quantity(line.quantity, field="quantity")
+        validate_whole_quantity(quantity, product=product)
         if quantity <= 0:
             raise ValueError(f"Quantity for {product.sku!r} must be greater than zero.")
 

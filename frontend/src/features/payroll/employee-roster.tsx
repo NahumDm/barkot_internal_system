@@ -43,7 +43,7 @@ export default function EmployeeRoster() {
   const [profiles, setProfiles] = useState<PayrollProfile[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
-  const [profileChoice, setProfileChoice] = useState("");
+  const [userChoice, setUserChoice] = useState("");
   const [wage, setWage] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
@@ -66,9 +66,9 @@ export default function EmployeeRoster() {
     refresh().catch((value: unknown) => setError(value as ApiError));
   }, [checking, canView, refresh]);
 
-  const profileId =
-    profileChoice && profiles.some((option) => String(option.id) === profileChoice)
-      ? profileChoice
+  const userId =
+    userChoice && profiles.some((option) => String(option.id) === userChoice)
+      ? userChoice
       : String(profiles[0]?.id ?? "");
 
   const noOneWaiting = ready && profiles.length === 0;
@@ -80,7 +80,7 @@ export default function EmployeeRoster() {
     setSaved(null);
     try {
       const created = await createPayrollEmployee({
-        profile: Number(profileId),
+        user: Number(userId),
         monthly_wage: wage,
       });
       setWage("");
@@ -129,8 +129,8 @@ export default function EmployeeRoster() {
             Staff member
             <select
               required
-              value={profileId}
-              onChange={(event) => setProfileChoice(event.target.value)}
+              value={userId}
+              onChange={(event) => setUserChoice(event.target.value)}
               className="control mt-1.5"
             >
               <option value="" disabled>
@@ -138,7 +138,7 @@ export default function EmployeeRoster() {
               </option>
               {profiles.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.full_name} — {option.position}
+                  {option.full_name} ({option.username})
                 </option>
               ))}
             </select>
@@ -157,7 +157,7 @@ export default function EmployeeRoster() {
           </label>
           <div className="flex items-end">
             <button
-              disabled={saving || noOneWaiting || !profileId}
+              disabled={saving || noOneWaiting || !userId}
               type="submit"
               className="btn btn-primary w-full"
             >
@@ -166,7 +166,7 @@ export default function EmployeeRoster() {
           </div>
           {noOneWaiting && (
             <p className="text-xs text-ink-secondary sm:col-span-2 lg:col-span-4">
-              Every active staff member is already on payroll. New names arrive from Settings.
+              Every active staff account is already on payroll. New accounts arrive from Settings.
             </p>
           )}
         </form>

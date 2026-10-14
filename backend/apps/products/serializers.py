@@ -107,6 +107,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "name",
             "sku",
             "unit",
+            "quantity_mode",
             "is_stock_tracked",
             "is_active",
             "description",
@@ -150,6 +151,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             "name",
             "sku",
             "unit",
+            "quantity_mode",
             "is_stock_tracked",
             "is_active",
             "current_price",
@@ -177,6 +179,14 @@ class ProductCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150, trim_whitespace=True)
     sku = serializers.CharField(max_length=64, trim_whitespace=True)
     unit = serializers.CharField(max_length=32, default="bottle", trim_whitespace=True)
+    quantity_mode = serializers.ChoiceField(
+        choices=["WHOLE", "FRACTIONAL"],
+        default="WHOLE",
+        help_text=(
+            "Whole units are counted in whole numbers (crates, bottles); "
+            "fractional units allow decimals (kg, litre)."
+        ),
+    )
     is_stock_tracked = serializers.BooleanField(default=True)
     description = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
 
@@ -211,6 +221,7 @@ class ProductUpdateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=150, required=False, trim_whitespace=True)
     unit = serializers.CharField(max_length=32, required=False, trim_whitespace=True)
+    quantity_mode = serializers.ChoiceField(choices=["WHOLE", "FRACTIONAL"], required=False)
     is_stock_tracked = serializers.BooleanField(required=False)
     is_active = serializers.BooleanField(required=False)
     description = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)

@@ -26,9 +26,15 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>) {
   const asideRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const menuOpenRef = useRef(menuOpen);
-  menuOpenRef.current = menuOpen;
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  // Mirror the open flag into a ref, in an effect rather than during render so
+  // the route-change effect that follows neither reads a value React has not
+  // committed yet nor lists `menuOpen` and mistakes opening for navigating.
+  useEffect(() => {
+    menuOpenRef.current = menuOpen;
+  }, [menuOpen]);
 
   // Follow the link, then get out of the way: close the drawer and put focus at
   // the top of the new page rather than leaving it on a link the drawer hid.

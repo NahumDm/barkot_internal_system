@@ -265,6 +265,7 @@ interface EditProductForm {
   name: string;
   unit: string;
   quantity_mode: QuantityMode;
+  bottles_per_crate: string;
   is_stock_tracked: boolean;
   is_active: boolean;
   description: string;
@@ -308,6 +309,7 @@ function EditProductDialog({
           name: product.name,
           unit: product.unit,
           quantity_mode: product.quantity_mode,
+          bottles_per_crate: product.bottles_per_crate?.toString() ?? "",
           is_stock_tracked: product.is_stock_tracked,
           is_active: product.is_active,
           description: product.description,
@@ -352,12 +354,21 @@ function EditProductDialog({
       return;
     }
 
+    const crateSize = form.bottles_per_crate.trim();
+    if (crateSize !== "" && (!/^\d+$/.test(crateSize) || Number(crateSize) < 2)) {
+      setFieldErrors({
+        bottles_per_crate: ["Enter a whole number of bottles, like 24, or leave it blank."],
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       await updateProduct(productId, {
         name: form.name.trim(),
         unit: form.unit.trim(),
         quantity_mode: form.quantity_mode,
+        bottles_per_crate: crateSize === "" ? null : Number(crateSize),
         is_stock_tracked: form.is_stock_tracked,
         is_active: form.is_active,
         description: form.description,
@@ -445,6 +456,20 @@ function EditProductDialog({
               errors={fieldErrors.unit ?? []}
               autoComplete="off"
               disabled={saving}
+            />
+
+            <Field
+              label="Bottles per crate"
+              type="number"
+              value={form.bottles_per_crate}
+              onChange={(value) => update({ bottles_per_crate: value })}
+              errors={fieldErrors.bottles_per_crate ?? []}
+              autoComplete="off"
+              disabled={saving}
+              min={2}
+              step={1}
+              inputMode="numeric"
+              hint="e.g. 24. Leave blank if this product is not sold by the crate."
             />
 
             <div className="field">

@@ -38,6 +38,8 @@ export interface Product {
   sku: string;
   unit: string;
   quantity_mode: QuantityMode;
+  /** How many bottles one crate holds (e.g. 24), or null when not counted in crates. */
+  bottles_per_crate: number | null;
   is_stock_tracked: boolean;
   is_active: boolean;
   description: string;
@@ -55,6 +57,8 @@ export interface ProductListItem {
   sku: string;
   unit: string;
   quantity_mode: QuantityMode;
+  /** How many bottles one crate holds (e.g. 24), or null when not counted in crates. */
+  bottles_per_crate: number | null;
   is_stock_tracked: boolean;
   is_active: boolean;
   current_price: ProductPrice | null;
@@ -75,6 +79,7 @@ export interface ProductCreateInput {
   sku: string;
   unit?: string;
   quantity_mode?: QuantityMode;
+  bottles_per_crate?: number | null;
   is_stock_tracked?: boolean;
   description?: string;
 }
@@ -83,6 +88,7 @@ export interface ProductUpdateInput {
   name?: string;
   unit?: string;
   quantity_mode?: QuantityMode;
+  bottles_per_crate?: number | null;
   is_stock_tracked?: boolean;
   is_active?: boolean;
   description?: string;

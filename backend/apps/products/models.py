@@ -103,6 +103,17 @@ class Product(TimeStampedModel):
             "fractional units allow decimals (e.g. kg, litre)."
         ),
     )
+    bottles_per_crate = models.PositiveSmallIntegerField(
+        _("bottles per crate"),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(2)],
+        help_text=_(
+            "How many bottles one crate holds, e.g. 24. The bar receives this "
+            "product by the crate and sells it by the bottle. Leave blank if the "
+            "product is not counted in crates."
+        ),
+    )
     is_stock_tracked = models.BooleanField(_("is stock tracked"), default=True)
     is_active = models.BooleanField(
         _("is active"),
@@ -139,6 +150,16 @@ class Product(TimeStampedModel):
         fractions; a ``FRACTIONAL`` product (kg, litre) can.
         """
         return self.quantity_mode == "WHOLE"
+
+    @property
+    def is_crated(self) -> bool:
+        """Whether this product is counted in crates.
+
+        A crated product is received in crates and sold in bottles, so the
+        screens convert between the two with :attr:`bottles_per_crate`. Products
+        with no crate size (spirits, soft drinks) stay in their own unit.
+        """
+        return bool(self.bottles_per_crate and self.bottles_per_crate > 1)
 
     def current_price(self, *, at: datetime | None = None) -> ProductPrice | None:
         """Return the price in effect at ``at`` (default: now).

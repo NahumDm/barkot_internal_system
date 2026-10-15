@@ -56,6 +56,7 @@ class ProductCreateInput:
     sku: str
     unit: str = "bottle"
     quantity_mode: str = "WHOLE"
+    bottles_per_crate: int | None = None
     is_stock_tracked: bool = True
     description: str = ""
 
@@ -105,6 +106,7 @@ def create_product(
     sku: str,
     unit: str = "bottle",
     quantity_mode: str = "WHOLE",
+    bottles_per_crate: int | None = None,
     is_stock_tracked: bool = True,
     description: str = "",
     actor: User | None = None,
@@ -117,6 +119,8 @@ def create_product(
         sku: Stable internal code, never reused.
         unit: Selling and stocking unit.
         quantity_mode: "WHOLE" or "FRACTIONAL" - whether quantities must be whole.
+        bottles_per_crate: How many bottles one crate holds, e.g. 24. ``None``
+            when the product is not counted in crates.
         is_stock_tracked: Whether inventory ledger tracks this product.
         description: Free-text description.
         actor: The staff member creating the product (permission
@@ -144,6 +148,7 @@ def create_product(
         sku=sku.strip().upper(),
         unit=unit.strip(),
         quantity_mode=quantity_mode,
+        bottles_per_crate=bottles_per_crate,
         is_stock_tracked=is_stock_tracked,
         description=description.strip(),
     )

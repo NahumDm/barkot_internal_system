@@ -245,6 +245,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             sku=serializer.validated_data["sku"],
             unit=serializer.validated_data.get("unit", "bottle"),
             quantity_mode=serializer.validated_data.get("quantity_mode", "WHOLE"),
+            bottles_per_crate=serializer.validated_data.get("bottles_per_crate"),
             is_stock_tracked=serializer.validated_data.get("is_stock_tracked", True),
             description=serializer.validated_data.get("description", ""),
             actor=self.request.user,  # type: ignore[arg-type]

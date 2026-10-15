@@ -33,6 +33,7 @@ export default function NewProductPage() {
     sku: "",
     unit: "bottle",
     quantity_mode: "WHOLE",
+    bottles_per_crate: "",
     is_stock_tracked: true,
     description: "",
     price: "",
@@ -84,6 +85,15 @@ export default function NewProductPage() {
       return;
     }
 
+    const crateSize = formData.bottles_per_crate.trim();
+    if (crateSize !== "" && (!/^\d+$/.test(crateSize) || Number(crateSize) < 2)) {
+      setFieldErrors({
+        bottles_per_crate: ["Enter a whole number of bottles, like 24, or leave it blank."],
+      });
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const product = await createProduct({
         category: Number(formData.category),
@@ -91,6 +101,7 @@ export default function NewProductPage() {
         sku: formData.sku,
         unit: formData.unit,
         quantity_mode: formData.quantity_mode as QuantityMode,
+        bottles_per_crate: crateSize === "" ? null : Number(crateSize),
         is_stock_tracked: formData.is_stock_tracked,
         description: formData.description,
       });
@@ -200,6 +211,20 @@ export default function NewProductPage() {
           autoComplete="off"
           disabled={submitting}
           hint="e.g. bottle, crate, kg, litre"
+        />
+
+        <Field
+          label="Bottles per crate"
+          type="number"
+          value={formData.bottles_per_crate}
+          onChange={(value) => handleChange("bottles_per_crate", value)}
+          errors={fieldErrors.bottles_per_crate ?? []}
+          autoComplete="off"
+          disabled={submitting}
+          min={2}
+          step={1}
+          inputMode="numeric"
+          hint="e.g. 24. Leave blank if this product is not sold by the crate."
         />
 
         <div className="field">

@@ -13,6 +13,7 @@ import {
 } from "@/lib/api/inventory";
 import type { ProductListItem } from "@/lib/api/products";
 import type { ApiError } from "@/lib/api/errors";
+import { crateLabel, crateSize } from "@/lib/crates";
 
 type Mode = "receive" | "breakage" | "count";
 
@@ -43,7 +44,14 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
       if (mode === "receive") {
         await createStockReceipt({
           supplier_name: supplier,
-          lines: [{ product: Number(product), quantity, unit_cost: amount, currency: "ETB" }],
+          lines: [
+            {
+              product: Number(product),
+              quantity: crate ? cratesToBottles(quantity) : quantity,
+              unit_cost: crate ? crateCostToBottleCost(amount) : amount,
+              currency: "ETB",
+            },
+          ],
         });
         setSupplier("");
         setQuantity("");
@@ -98,6 +106,49 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
     mode === "receive" ? "Receive stock" : mode === "breakage" ? "Breakage & waste" : "Stock count";
   const selectedProduct = products.find((item) => String(item.id) === product);
   const wholeUnits = selectedProduct?.quantity_mode === "WHOLE";
+  const crate = crateSize(selectedProduct);
+
+  /**
+   * The receiving screen counts in crates (that is how the delivery arrives),
+   * but the ledger is kept in bottles. Breakage and counts stay in bottles
+   * because that is what the bar actually handles and counts at the shelf.
+   */
+  function cratesToBottles(raw: string): string {
+    if (!crate) return raw;
+    const crates = Number(raw);
+    return Number.isFinite(crates) ? String(crates * crate) : raw;
+  }
+
+  /** Crate cost → per-bottle cost so stock valuation matches the ledger unit. */
+  function crateCostToBottleCost(raw: string): string {
+    if (!crate) return raw;
+    const cost = Number(raw);
+    return Number.isFinite(cost) ? (cost / crate).toFixed(2) : raw;
+  }
+
+  const typedQuantity = Number(quantity);
+  const hasTypedQuantity = quantity.trim() !== "" && Number.isFinite(typedQuantity);
+  const quantityHint = crate
+    ? `1 crate = ${crate} bottles${
+        hasTypedQuantity
+          ? mode === "receive"
+            ? ` · = ${typedQuantity * crate} bottles`
+            : ` · = ${crateLabel(typedQuantity, crate)}`
+          : ""
+      }`
+    : wholeUnits
+      ? `Whole units only (${selectedProduct?.unit ?? "units"}).`
+      : "Decimals allowed.";
+
+  const quantityLabel =
+    mode === "receive"
+      ? crate
+        ? "Quantity (crates)"
+        : "Quantity"
+      : crate
+        ? "Quantity wasted (bottles)"
+        : "Quantity wasted";
+
   return (
     <section className="max-w-3xl space-y-6">
       <div>
@@ -151,7 +202,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
           </label>
           {mode !== "count" && (
             <label className="field-label">
-              {mode === "receive" ? "Quantity" : "Quantity wasted"}
+              {quantityLabel}
               <input
                 required
                 min={wholeUnits ? "1" : "0.001"}
@@ -162,16 +213,12 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 onChange={(event) => setQuantity(event.target.value)}
                 className="control mt-1.5"
               />
-              <span className="field-hint">
-                {wholeUnits
-                  ? `Whole units only (${selectedProduct?.unit ?? "units"}).`
-                  : "Decimals allowed."}
-              </span>
+              <span className="field-hint">{quantityHint}</span>
             </label>
           )}
           {mode === "receive" && (
             <label className="field-label">
-              Unit cost (ETB)
+              {crate ? "Cost per crate (ETB)" : "Unit cost (ETB)"}
               <input
                 required
                 min="0"
@@ -182,7 +229,9 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                 className="control mt-1.5"
               />
               <span className="field-hint">
-                Price paid to the supplier for one {selectedProduct?.unit ?? "unit"}.
+                {crate
+                  ? `Price paid to the supplier for one crate of ${crate} bottles.`
+                  : `Price paid to the supplier for one ${selectedProduct?.unit ?? "unit"}.`}
               </span>
             </label>
           )}
@@ -210,17 +259,24 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
             </div>
             <div>
               <span className="text-ink-secondary">Expected</span>
-              <p className="font-medium text-ink">{count.items[0]?.expected_quantity}</p>
+              <p className="font-medium text-ink">
+                {crate
+                  ? `${crateLabel(Number(count.items[0]?.expected_quantity ?? 0), crate)}`
+                  : count.items[0]?.expected_quantity}
+              </p>
             </div>
             <div>
               <span className="text-ink-secondary">Variance</span>
-              <p className="font-medium text-ink">{count.items[0]?.variance}</p>
+              <p className="font-medium text-ink">
+                {count.items[0]?.variance}
+                {crate ? " bottles" : ""}
+              </p>
             </div>
           </div>
           {count.status === "DRAFT" && (
             <div className="flex flex-col gap-4">
               <label className="field-label">
-                Physical quantity
+                {crate ? "Physical quantity (bottles)" : "Physical quantity"}
                 <input
                   required
                   min={wholeUnits ? "1" : "0.001"}
@@ -231,11 +287,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                   onChange={(event) => setQuantity(event.target.value)}
                   className="control mt-1.5"
                 />
-                <span className="field-hint">
-                  {wholeUnits
-                    ? `Whole units only (${selectedProduct?.unit ?? "units"}).`
-                    : "Decimals allowed."}
-                </span>
+                <span className="field-hint">{quantityHint}</span>
               </label>
               <button
                 disabled={saving || quantity === ""}

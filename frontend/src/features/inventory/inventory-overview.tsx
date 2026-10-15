@@ -5,6 +5,16 @@ import { useEffect, useState } from "react";
 import { listInventoryProducts } from "@/lib/api/inventory";
 import type { ProductListItem } from "@/lib/api/products";
 import type { ApiError } from "@/lib/api/errors";
+import { crateLabel, crateSize, parseBottles } from "@/lib/crates";
+
+/** The "On hand" wording: crates for a crated product, raw quantity otherwise. */
+function onHandLabel(product: ProductListItem): string {
+  const crate = crateSize(product);
+  const bottles = parseBottles(product.current_stock);
+  if (crate === null || bottles === null) return product.current_stock ?? "-";
+  const label = crateLabel(bottles, crate);
+  return bottles % crate === 0 ? `${label} (${bottles} bottles)` : label;
+}
 
 export default function InventoryOverview() {
   const [products, setProducts] = useState<ProductListItem[]>([]);
@@ -53,10 +63,12 @@ export default function InventoryOverview() {
                 <td className="px-3 py-3 font-medium text-ink">{product.name}</td>
                 <td className="px-3 py-3 font-mono text-ink-secondary">{product.sku}</td>
                 <td className="px-3 py-3 text-ink-secondary">{product.unit}</td>
-                <td className="px-3 py-3 font-semibold text-ink">{product.current_stock ?? "-"}</td>
+                <td className="px-3 py-3 font-semibold text-ink">{onHandLabel(product)}</td>
                 <td className="px-3 py-3 text-ink-secondary">
                   {product.current_price
-                    ? `${product.current_price.unit_price} ${product.current_price.currency}`
+                    ? `${product.current_price.unit_price} ${product.current_price.currency}${
+                        crateSize(product) ? " per bottle" : ""
+                      }`
                     : "Unpriced"}
                 </td>
               </tr>

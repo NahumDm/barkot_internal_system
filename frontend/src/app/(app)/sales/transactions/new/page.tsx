@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { listProducts, type ProductListItem } from "@/lib/api/products";
 import { createSale, type PaymentInput } from "@/lib/api/sales";
+import { crateLabel, crateSize, parseBottles } from "@/lib/crates";
 import {
   type ApiError,
   ApiError as ApiErrorClass,
@@ -405,6 +406,17 @@ export default function NewSalePage() {
                 const product = productsById.get(line.product);
                 const price = currentPrice(product);
                 const lineTotal = lineTotalMinor(line, productsById);
+                const crate = crateSize(product);
+                const typedBottles = parseBottles(line.quantity);
+                const quantityHint = crate
+                  ? `1 crate = ${crate} bottles${
+                      typedBottles !== null && typedBottles > 0
+                        ? ` · = ${crateLabel(typedBottles, crate)}`
+                        : ""
+                    }`
+                  : product?.quantity_mode === "WHOLE"
+                    ? "Whole units only"
+                    : undefined;
                 return (
                   <div
                     key={index}
@@ -443,7 +455,7 @@ export default function NewSalePage() {
                     </div>
 
                     <Field
-                      label="Qty"
+                      label={crate ? "Qty (bottles)" : "Qty"}
                       type="number"
                       value={line.quantity}
                       onChange={(value) => handleLineChange(index, "quantity", value)}
@@ -452,7 +464,7 @@ export default function NewSalePage() {
                       min={product?.quantity_mode === "WHOLE" ? 1 : 0.001}
                       step={product?.quantity_mode === "WHOLE" ? 1 : 0.001}
                       inputMode={product?.quantity_mode === "WHOLE" ? "numeric" : "decimal"}
-                      hint={product?.quantity_mode === "WHOLE" ? "Whole units only" : undefined}
+                      hint={quantityHint}
                     />
 
                     <div className="field">
@@ -462,6 +474,7 @@ export default function NewSalePage() {
                           ? `${displayMoney(toMinorUnits(price.unit_price, 2) ?? 0n)} ${price.currency}`
                           : "Not set"}
                       </span>
+                      {crate ? <span className="field-hint">per bottle</span> : null}
                     </div>
 
                     <div className="field">

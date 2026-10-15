@@ -170,6 +170,9 @@ test("creating a staff member posts the screen's values and refetches the list",
         username: "new-barman",
         role: "barman",
         email: "new@barkot.test",
+        // Required since the Phone field became mandatory for a new account,
+        // and the screen sends what it collected.
+        phone_number: "+251911000001",
         password: "S3cret!",
       });
       created = {

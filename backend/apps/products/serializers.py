@@ -233,9 +233,7 @@ class ProductUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150, required=False, trim_whitespace=True)
     unit = serializers.CharField(max_length=32, required=False, trim_whitespace=True)
     quantity_mode = serializers.ChoiceField(choices=["WHOLE", "FRACTIONAL"], required=False)
-    bottles_per_crate = serializers.IntegerField(
-        required=False, allow_null=True, min_value=2
-    )
+    bottles_per_crate = serializers.IntegerField(required=False, allow_null=True, min_value=2)
     is_stock_tracked = serializers.BooleanField(required=False)
     is_active = serializers.BooleanField(required=False)
     description = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)

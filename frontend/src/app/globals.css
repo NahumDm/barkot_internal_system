@@ -234,12 +234,12 @@
   }
 
   .auth-input:focus-visible,
-  .auth-form button:focus-visible {
+  .auth-form > button:focus-visible {
     outline: 2px solid #ece0cd;
     outline-offset: 2px;
   }
 
-  .auth-form button {
+  .auth-form > button {
     background: #8e192f;
     border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 999px;
@@ -253,10 +253,10 @@
     width: 100%;
   }
 
-  .auth-form button:hover {
+  .auth-form > button:hover {
     background: #a52039;
   }
-  .auth-form button:disabled {
+  .auth-form > button:disabled {
     cursor: not-allowed;
     opacity: 0.6;
   }
@@ -283,6 +283,14 @@
  * Declared outside `@layer` so these rules win over the utility classes
  * already on the elements. The reveal control is positioned inside the
  * field so the input keeps its full width and the caret never jumps.
+ *
+ * The reveal control is a `<button>` that can sit inside a form whose action
+ * button is styled by a `.auth-form > button` rule. That rule is scoped to
+ * direct children so its chrome - the `margin-top` that separates the submit
+ * button from the last field, in particular - cannot leak onto this
+ * absolutely positioned control and push it off the input's vertical centre.
+ * `margin: 0` below is the second line of defence: a control pinned with
+ * `top: 50%` must never take a margin from an ancestor selector.
  * ------------------------------------------------------------------ */
 
 .control-wrap {
@@ -303,6 +311,7 @@
   display: inline-flex;
   height: 36px;
   justify-content: center;
+  margin: 0;
   padding: 0;
   position: absolute;
   right: 4px;
@@ -362,7 +371,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .auth-form button {
+  .auth-form > button {
     transition: none;
   }
 }
@@ -426,7 +435,7 @@
   .auth-input {
     height: 44px;
   }
-  .auth-form button {
+  .auth-form > button {
     height: 44px;
     margin-bottom: 22px;
   }

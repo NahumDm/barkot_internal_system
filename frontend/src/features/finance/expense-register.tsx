@@ -115,10 +115,10 @@ function CategoryManager({
   return (
     <section className="rounded border border-border bg-surface p-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-        <h2 className="text-lg font-semibold text-ink">Expense categories</h2>
+        <h2 className="text-lg font-semibold text-ink">Expense categories (Manage)</h2>
         <div className="flex items-center gap-3">
           <p className="text-sm text-ink-secondary">
-            Deleting hides a category from new expenses but keeps past ones.
+            Create, edit, or delete categories. Deleting hides them from new expenses.
           </p>
           <button
             type="button"

@@ -6,6 +6,7 @@ import {
   approveExpense,
   archiveExpenseCategory,
   createExpense,
+  createExpenseCategory,
   listExpenseCategories,
   listExpenses,
   updateExpenseCategory,

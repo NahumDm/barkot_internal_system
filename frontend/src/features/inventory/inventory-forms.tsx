@@ -218,7 +218,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
           )}
           {mode === "receive" && (
             <label className="field-label">
-              {crate ? "Cost per crate (ETB)" : "Unit cost (ETB)"}
+              {crate ? "Price per crate (ETB)" : "Unit price (ETB)"}
               <input
                 required
                 min="0"

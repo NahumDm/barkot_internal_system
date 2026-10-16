@@ -113,7 +113,7 @@ test("the Barman receives stock: receipt completed, cost recorded, stock up once
   await page.getByLabel("Supplier", { exact: true }).fill("Barkot Brew Co.");
   await page.getByLabel("Product").selectOption(String(seed.product.id));
   await page.getByLabel("Quantity").fill(RECEIVED_QTY);
-  await page.getByLabel("Unit cost (ETB)").fill("20");
+  await page.getByLabel("Unit price (ETB)").fill("20");
   await page.getByRole("button", { name: "Save record" }).click();
 
   // The receive screen clears its fields rather than announcing the write, so

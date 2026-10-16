@@ -27,8 +27,8 @@ payroll — with a permanent audit trail of who did what.
 Four positions use it, each seeing only what their role allows: **Owner**, **Manager**,
 **Cashier**, and **Barman**.
 
-**Currency:** ETB (Ethiopian Birr). **Business timezone:** Africa/Addis_Ababa (timestamps stored in
-UTC).
+**Currency:** Ethiopian Birr (ETB). **Business timezone:** Africa/Addis_Ababa (timestamps stored in
+Coordinated Universal Time, UTC).
 
 ---
 
@@ -58,13 +58,13 @@ UTC).
 
 | Area | State |
 | --- | --- |
-| **Backend** | Django 5.2 LTS + DRF — 12 Django apps, a complete API under `/api/v1/`, and an OpenAPI schema with zero validation errors |
+| **Backend** | Django 5.2 Long-Term Support (LTS) + Django REST Framework (DRF) — 12 Django apps, a complete Application Programming Interface (API) under `/api/v1/`, and an OpenAPI (Open API Specification) schema with zero validation errors |
 | **Frontend** | Next.js 16 — login, dashboard, sales, inventory, finance, payroll, reports, settings, and refusal states |
-| **Auth & security** | Session auth, CSRF, the role matrix (27 capabilities × 4 roles), layered rate limiting, production hardening |
-| **Tests** | 1,289 backend · 111 frontend unit · 43 stubbed E2E · 14 live E2E |
-| **CI gates** | ruff (lint + format), mypy, `makemigrations --check`, OpenAPI validation, ESLint, Prettier, `tsc`, Vitest, Playwright |
+| **Auth & security** | Session auth, Cross-Site Request Forgery (CSRF) protection, the role matrix (27 capabilities × 4 roles), layered rate limiting, production hardening |
+| **Tests** | 1,289 backend · 111 frontend unit · 43 stubbed + 14 live End-to-End (E2E) tests |
+| **Continuous Integration (CI) gates** | ruff (lint + format), mypy, `makemigrations --check`, OpenAPI validation, ESLint, Prettier, `tsc`, Vitest, Playwright |
 | **Hardening (Phase D)** | Rate limiting, audit coverage, E2E suites, backups + restore drill, production runbook, observability, and a local deployment rehearsal — complete |
-| **Deployment** | The production stack (`db` + `api` + `web`) is rehearsed locally from `docker-compose.prod.yml`; the target-host (VPS) rehearsal is **blocked on client decisions 9 and 10** |
+| **Deployment** | The production stack (`db` + `api` + `web`) is rehearsed locally from `docker-compose.prod.yml`; the target-host Virtual Private Server (VPS) rehearsal is **blocked on client decisions 9 and 10** |
 
 Phases A–C (auth, products, sales, inventory, finance, payroll, reports, settings, dashboard) and
 Phase D (hardening) are complete; Phase E (optional integrations) is deferred until the client
@@ -81,24 +81,25 @@ decides on a payment provider, fiscal/e-invoicing, and email — see [Open decis
 | **Products** | Product catalogue, categories, price history with validity windows, crate/bottle quantity modes |
 | **Finance** | Expenses with categories (create/edit/delete with approval), and a derived balance (income − expenses − payroll) |
 | **Payroll** | Monthly runs, per-employee payslips frozen at approval, deductions (advance, absence, late, other) |
-| **Reports** | Financial, inventory and payroll tabs with CSV export |
+| **Reports** | Financial, inventory and payroll tabs with Comma-Separated Values (CSV) export |
 | **Dashboard** | The day's headline numbers |
 | **Settings & users** | Staff accounts, roles, and business settings (Owner-only) |
 
 A detailed build plan with per-phase gates lives in [`docs/roadmap.md`](docs/roadmap.md).
 
 **Read first, in order:** this README → [`docs/roadmap.md`](docs/roadmap.md) →
-[`docs/ENGINEERING_HANDOFF.md`](docs/ENGINEERING_HANDOFF.md) → the four ADRs in
-[`docs/architecture/ADR/`](docs/architecture/ADR/).
+[`docs/ENGINEERING_HANDOFF.md`](docs/ENGINEERING_HANDOFF.md) → the four Architecture Decision Records
+(ADRs) in [`docs/architecture/ADR/`](docs/architecture/ADR/).
 
 ---
 
 ## Architecture
 
 Barkot is a **two-tier web application with a modular backend**: a Next.js frontend talks to a
-Django REST API over JSON, and Django is the only thing allowed to touch PostgreSQL. The frontend
-and backend share no code — they communicate exclusively through the versioned REST contract at
-`/api/v1/`, and are built, tested and deployed independently.
+Django REST (Representational State Transfer) API over JSON (JavaScript Object Notation), and Django
+is the only thing allowed to touch PostgreSQL. The frontend and backend share no code — they
+communicate exclusively through the versioned REST contract at `/api/v1/`, and are built, tested and
+deployed independently.
 
 ### Production topology
 
@@ -107,14 +108,14 @@ flowchart TD
     Browser["Web browser<br/>Owner · Manager · Cashier · Barman"]
 
     subgraph VPS["Single VPS — Docker Compose"]
-        Nginx["Nginx — edge (host process)<br/>TLS via Let's Encrypt · rate limiting · routing<br/>sets X-Forwarded-For / X-Forwarded-Proto"]
+        Nginx["Nginx — edge (host process)<br/>Transport Layer Security (TLS) via Let's Encrypt<br/>rate limiting · routing<br/>sets X-Forwarded-For / X-Forwarded-Proto"]
 
         subgraph WebC["web container — :3000 (private)"]
             Next["Next.js 16 (App Router) · React 19 · TypeScript<br/>src/app routes · src/features components · src/lib/api REST client"]
         end
 
         subgraph ApiC["api container — :8000 (private)"]
-            Django["Django 5.2 LTS + DRF 3.18 · Gunicorn (WSGI)"]
+            Django["Django 5.2 LTS + DRF 3.18<br/>Gunicorn (Web Server Gateway Interface, WSGI)"]
             Apps["12 apps<br/>core · accounts · audit · products · sales<br/>inventory · finance · payroll · reports<br/>dashboard · users · integrations"]
         end
 
@@ -122,11 +123,11 @@ flowchart TD
             PG[("PostgreSQL 17<br/>single system of record<br/>append-only stock ledger · insert-only audit log")]
         end
 
-        Browser -->|"HTTPS :443<br/>session cookie + CSRF token"| Nginx
-        Nginx -->|"/  (HTML, JS, CSS)"| Next
+        Browser -->|"HyperText Transfer Protocol Secure (HTTPS) :443<br/>session cookie + CSRF token"| Nginx
+        Nginx -->|"/  HyperText Markup Language (HTML)<br/>Cascading Style Sheets (CSS) · JavaScript (JS)"| Next
         Nginx -->|"/api/v1/**  (JSON)"| Django
         Django --> Apps
-        Django -->|"psycopg (SQL)"| PG
+        Django -->|"psycopg (Structured Query Language, SQL)"| PG
         Next -.->|"dev only: next dev<br/>proxies /api/v1/ to api"| Django
     end
 ```
@@ -138,8 +139,8 @@ Three things the diagram makes explicit, all of which are rules the code enforce
 - **The browser never touches the database.** Every data operation goes through the Django API,
   which authenticates the session and checks permissions before it reads or writes a row.
 - **In development there is no Nginx.** The Next.js dev server proxies `/api/v1/` to Django itself
-  (the dashed line), so the browser still talks to a single origin — no CORS, and cookies behave
-  exactly as they do in production.
+  (the dashed line), so the browser still talks to a single origin — no Cross-Origin Resource Sharing
+  (CORS) issues, and cookies behave exactly as they do in production.
 
 **How a request flows.** The browser signs in once and holds an HttpOnly session cookie. Every page
 load is HTML from the `web` container; every data operation is a JSON call to `/api/v1/**`, which
@@ -173,9 +174,10 @@ checkout:
   financial/payroll figures are frozen once approved.
 - **Money is `Decimal` / `NUMERIC(14,2)`**, never a float. Each sale line stores the exact price
   that was charged, plus a pointer to the price row it came from.
-- **The backend is authoritative.** The UI hides what a role cannot do, but every endpoint re-checks
-  permissions itself.
-- **Everything sensitive is audited** — actor, timestamp, entity, action, before/after JSON, IP.
+- **The backend is authoritative.** The User Interface (UI) hides what a role cannot do, but every
+  endpoint re-checks permissions itself.
+- **Everything sensitive is audited** — actor, timestamp, entity, action, before/after JSON, IP
+  (Internet Protocol) address.
 - **Idempotent multi-step operations.** Completing a sale, receiving stock, finishing a count, and
   approving payroll are atomic and safe to retry.
 
@@ -209,7 +211,7 @@ npm run dev     # http://localhost:3000
 
 | Technology | Version | Role |
 | --- | --- | --- |
-| Django | 5.2 LTS | Web framework, ORM, auth, sessions |
+| Django | 5.2 LTS | Web framework, Object-Relational Mapper (ORM), auth, sessions |
 | Django REST Framework | 3.18 | The REST API |
 | psycopg | 3 | PostgreSQL driver |
 | django-filter | 25 | List-endpoint filtering |
@@ -253,8 +255,9 @@ Full details in [`backend/README.md`](backend/README.md).
 ### Sessions, not tokens
 
 Authentication is **session-based** (Django database sessions + DRF `SessionAuthentication`). There
-is no API key, no JWT, and no `django.contrib.admin` — the system's own UI is the only way in. This
-is deliberate: the only client is the same-origin web app, so shrinking the surface is a feature.
+is no API key, no JSON Web Token (JWT), and no `django.contrib.admin` — the system's own UI is the
+only way in. This is deliberate: the only client is the same-origin web app, so shrinking the surface
+is a feature.
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -264,10 +267,14 @@ is deliberate: the only client is the same-origin web app, so shrinking the surf
 | `GET  /api/v1/auth/me/` | Current user, role, and effective permissions |
 | `POST /api/v1/auth/change-password/` | Change the password (rotates the session hash) |
 
+> `GET` reads a record; `POST` creates or changes one. These are the two standard methods of HTTP
+> (HyperText Transfer Protocol), the protocol the browser uses to talk to the server.
+
 What to know:
 
 - **CSRF.** The token is fetched from `GET /auth/csrf/` and echoed in the `X-CSRFToken` header on
-  unsafe requests. The session cookie is `HttpOnly`; the CSRF cookie is deliberately readable.
+  unsafe requests. The session cookie is `HttpOnly` (not readable by scripts); the CSRF cookie is
+  deliberately readable.
 - **Idle timeout.** Sessions expire after a configurable inactivity window (**8 hours** by default,
   an Owner setting). An expired session answers `403 session_expired` — deliberately not 401, so a
   client can tell "was logged in, timed out" from "never logged in".
@@ -470,8 +477,8 @@ requests:
   starts its own Django on port 8010 against a disposable `*_e2e` database and reseeds it each run
   (`seed_e2e --reset` refuses to flush any database whose name does not end in `_e2e`).
 
-Mirror the pipeline locally with the root `Makefile`: `make ci` (POSIX shell), or run each app's
-commands directly.
+Mirror the pipeline locally with the root `Makefile`: `make ci` (POSIX — Portable Operating System
+Interface — shell), or run each app's commands directly.
 
 ---
 
@@ -503,7 +510,7 @@ make ci                        # local parity with the CI pipeline (POSIX shell)
 cd backend  && .venv/bin/python -m pytest          # backend suite
 cd frontend && npm run lint && npm run test        # lint + vitest
 
-cd frontend && npm run test:e2e:stubbed            # stubbed E2E (Node only, no DB)
+cd frontend && npm run test:e2e:stubbed            # stubbed E2E (Node only, no database needed)
 E2E_DB_PASSWORD='<password>' npm run test:e2e:live # live E2E (starts its own Django)
 ```
 
@@ -524,7 +531,7 @@ E2E_DB_PASSWORD='<password>' npm run test:e2e:live # live E2E (starts its own Dj
 ```bash
 git clone https://github.com/NahumDm/barkot_internal_system.git
 cd barkot_internal_system
-cp .env.example .env            # fill in real secrets (secret key ≥ 50 chars, DB password)
+cp .env.example .env            # fill in real secrets (secret key ≥ 50 chars, database password)
 docker compose --env-file .env -f docker-compose.prod.yml up -d --build
 docker compose --env-file .env -f docker-compose.prod.yml exec api python manage.py migrate --no-input
 docker compose --env-file .env -f docker-compose.prod.yml exec -it api python manage.py create_owner owner
@@ -647,7 +654,7 @@ barkot_internal_system/
 | [`docs/ADDING_AN_ENDPOINT.md`](docs/ADDING_AN_ENDPOINT.md) | Adding an endpoint without breaking the contract/audit/completeness gates |
 | [`docs/runbooks/`](docs/runbooks/) | Production, backup-restore, deployment rehearsal |
 | [`docs/business/client-decisions.md`](docs/business/client-decisions.md) | Open decisions that steer scope |
-| [`docs/ui-ux/`](docs/ui-ux/), [`docs/architecture/`](docs/architecture/) | The client-authored UI/UX and architecture specifications |
+| [`docs/ui-ux/`](docs/ui-ux/), [`docs/architecture/`](docs/architecture/) | The client-authored User Interface and User Experience (UI/UX) and architecture specifications |
 
 ---
 

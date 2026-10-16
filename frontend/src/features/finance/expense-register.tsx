@@ -14,6 +14,7 @@ import {
   type ExpenseCategory,
 } from "@/lib/api/finance";
 import { type ApiError } from "@/lib/api/errors";
+import { useAuth } from "@/features/auth/auth-provider";
 
 function money(value: string, currency: string): string {
   return `${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
@@ -23,10 +24,12 @@ function CategoryManager({
   categories,
   onChanged,
   onError,
+  canManage,
 }: {
   categories: ExpenseCategory[];
   onChanged: () => Promise<void>;
   onError: (error: ApiError | null) => void;
+  canManage?: boolean;
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
@@ -115,23 +118,30 @@ function CategoryManager({
   return (
     <section className="rounded border border-border bg-surface p-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-        <h2 className="text-lg font-semibold text-ink">Expense categories (Manage)</h2>
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-ink-secondary">
-            Create, edit, or delete categories. Deleting hides them from new expenses.
-          </p>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={startCreate}
-            disabled={saving || creating}
-          >
-            Add category
-          </button>
-        </div>
+        <h2 className="text-lg font-semibold text-ink">Expense categories</h2>
+        {canManage && (
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-ink-secondary">
+              Create, edit, or delete categories. Deleting hides them from new expenses.
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={startCreate}
+              disabled={saving || creating}
+            >
+              Add category
+            </button>
+          </div>
+        )}
       </div>
+      {!canManage && (
+        <p className="mt-2 text-sm text-ink-secondary">
+          You don’t have permission to manage expense categories.
+        </p>
+      )}
       <ul className="mt-3 divide-y divide-border">
-        {creating && (
+        {canManage && creating && (
           <li className="py-3">
             <form onSubmit={saveCreate} className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <label className="field-label flex-1">
@@ -163,7 +173,7 @@ function CategoryManager({
           </li>
         )}
         {categories.map((category) =>
-          editingId === category.id ? (
+          canManage && editingId === category.id ? (
             <li key={category.id} className="py-3">
               <form onSubmit={saveEdit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <label className="field-label flex-1">
@@ -211,36 +221,44 @@ function CategoryManager({
                   <p className="text-sm text-ink-secondary">{category.description}</p>
                 )}
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => startEdit(category)}
-                  disabled={saving}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => toggleActive(category)}
-                  disabled={saving}
-                >
-                  {category.is_active ? "Delete" : "Restore"}
-                </button>
-              </div>
+              {canManage && (
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => startEdit(category)}
+                    disabled={saving}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => toggleActive(category)}
+                    disabled={saving}
+                  >
+                    {category.is_active ? "Delete" : "Restore"}
+                  </button>
+                </div>
+              )}
             </li>
           ),
         )}
       </ul>
-      {categories.length === 0 && !creating && (
+      {canManage && categories.length === 0 && !creating && (
         <p className="mt-3 text-sm text-ink-secondary">No categories yet. Add the first one above.</p>
+      )}
+      {!canManage && categories.length === 0 && (
+        <p className="mt-3 text-sm text-ink-secondary">No categories yet.</p>
       )}
     </section>
   );
 }
 
 export default function ExpenseRegister() {
+  const { user } = useAuth();
+  const canManageCategories = user?.permissions?.includes("finance.manage_expense_categories") ?? false;
+
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [description, setDescription] = useState("");
@@ -387,7 +405,11 @@ export default function ExpenseRegister() {
               <tr key={expense.id} className="border-b border-border last:border-0">
                 <td className="px-3 py-3">{expense.incurred_on}</td>
                 <td className="px-3 py-3 font-medium text-ink">{expense.description}</td>
-                <td className="px-3 py-3 text-ink-secondary">{expense.category_name}</td>
+                <td className="px-3 py-3 text-ink-secondary">
+                  {expense.category_name ||
+                    categories.find((item) => item.id === expense.category)?.name ||
+                    "Uncategorized"}
+                </td>
                 <td className="px-3 py-3">{money(expense.amount, expense.currency)}</td>
                 <td className="px-3 py-3">
                   <span className="rounded bg-canvas px-2 py-1 text-xs font-semibold">
@@ -412,7 +434,7 @@ export default function ExpenseRegister() {
           <p className="p-6 text-center text-sm text-ink-secondary">No expenses recorded.</p>
         )}
       </div>
-      <CategoryManager categories={categories} onChanged={refresh} onError={setError} />
+      <CategoryManager categories={categories} onChanged={refresh} onError={setError} canManage={canManageCategories} />
     </section>
   );
 }

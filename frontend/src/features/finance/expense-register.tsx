@@ -197,7 +197,12 @@ function CategoryManager({
                   <button type="submit" className="btn btn-primary" disabled={saving}>
                     {saving ? "Saving..." : "Save"}
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={cancel} disabled={saving}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={cancel}
+                    disabled={saving}
+                  >
                     Cancel
                   </button>
                 </div>
@@ -246,7 +251,9 @@ function CategoryManager({
         )}
       </ul>
       {canManage && categories.length === 0 && !creating && (
-        <p className="mt-3 text-sm text-ink-secondary">No categories yet. Add the first one above.</p>
+        <p className="mt-3 text-sm text-ink-secondary">
+          No categories yet. Add the first one above.
+        </p>
       )}
       {!canManage && categories.length === 0 && (
         <p className="mt-3 text-sm text-ink-secondary">No categories yet.</p>
@@ -257,7 +264,8 @@ function CategoryManager({
 
 export default function ExpenseRegister() {
   const { user } = useAuth();
-  const canManageCategories = user?.permissions?.includes("finance.manage_expense_categories") ?? false;
+  const canManageCategories =
+    user?.permissions?.includes("finance.manage_expense_categories") ?? false;
 
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -434,7 +442,12 @@ export default function ExpenseRegister() {
           <p className="p-6 text-center text-sm text-ink-secondary">No expenses recorded.</p>
         )}
       </div>
-      <CategoryManager categories={categories} onChanged={refresh} onError={setError} canManage={canManageCategories} />
+      <CategoryManager
+        categories={categories}
+        onChanged={refresh}
+        onError={setError}
+        canManage={canManageCategories}
+      />
     </section>
   );
 }

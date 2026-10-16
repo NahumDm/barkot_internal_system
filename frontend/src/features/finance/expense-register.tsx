@@ -28,18 +28,28 @@ function CategoryManager({
   onError: (error: ApiError | null) => void;
 }) {
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
   const startEdit = (category: ExpenseCategory) => {
     setEditingId(category.id);
+    setCreating(false);
     setName(category.name);
     setDescription(category.description);
   };
 
-  const cancelEdit = () => {
+  const startCreate = () => {
+    setCreating(true);
     setEditingId(null);
+    setName("");
+    setDescription("");
+  };
+
+  const cancel = () => {
+    setEditingId(null);
+    setCreating(false);
     setName("");
     setDescription("");
   };
@@ -51,7 +61,23 @@ function CategoryManager({
     try {
       await updateExpenseCategory(editingId, { name, description });
       await onChanged();
-      cancelEdit();
+      cancel();
+      onError(null);
+    } catch (value) {
+      onError(value as ApiError);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!creating || saving) return;
+    setSaving(true);
+    try {
+      await createExpenseCategory({ name, description });
+      await onChanged();
+      cancel();
       onError(null);
     } catch (value) {
       onError(value as ApiError);
@@ -61,6 +87,14 @@ function CategoryManager({
   }
 
   async function toggleActive(category: ExpenseCategory) {
+    if (
+      category.is_active &&
+      !confirm(
+        `Delete the category "${category.name}"? It will no longer appear on new expenses, but past expenses keep it. You can restore it later.`,
+      )
+    ) {
+      return;
+    }
     setSaving(true);
     try {
       if (category.is_active) {
@@ -69,6 +103,7 @@ function CategoryManager({
         await updateExpenseCategory(category.id, { is_active: true });
       }
       await onChanged();
+      onError(null);
     } catch (value) {
       onError(value as ApiError);
     } finally {
@@ -80,90 +115,125 @@ function CategoryManager({
     <section className="rounded border border-border bg-surface p-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
         <h2 className="text-lg font-semibold text-ink">Expense categories</h2>
-        <p className="text-sm text-ink-secondary">
-          Archiving hides a category from new expenses but keeps past ones.
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-ink-secondary">
+            Deleting hides a category from new expenses but keeps past ones.
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={startCreate}
+            disabled={saving || creating}
+          >
+            Add category
+          </button>
+        </div>
       </div>
-      {categories.length === 0 ? (
-        <p className="mt-3 text-sm text-ink-secondary">No categories yet.</p>
-      ) : (
-        <ul className="mt-3 divide-y divide-border">
-          {categories.map((category) =>
-            editingId === category.id ? (
-              <li key={category.id} className="py-3">
-                <form onSubmit={saveEdit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <label className="field-label flex-1">
-                    Name
-                    <input
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      required
-                      className="control mt-1.5"
-                    />
-                  </label>
-                  <label className="field-label flex-1">
-                    Description
-                    <input
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      className="control mt-1.5"
-                    />
-                  </label>
-                  <div className="form-actions">
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={cancelEdit}
-                      disabled={saving}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              </li>
-            ) : (
-              <li
-                key={category.id}
-                className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-ink">
-                    {category.name}
-                    {!category.is_active && (
-                      <span className="ml-2 rounded bg-canvas px-2 py-0.5 text-xs font-semibold text-ink-secondary">
-                        Archived
-                      </span>
-                    )}
-                  </p>
-                  {category.description && (
-                    <p className="text-sm text-ink-secondary">{category.description}</p>
+      <ul className="mt-3 divide-y divide-border">
+        {creating && (
+          <li className="py-3">
+            <form onSubmit={saveCreate} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="field-label flex-1">
+                Name
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                  className="control mt-1.5"
+                />
+              </label>
+              <label className="field-label flex-1">
+                Description
+                <input
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  className="control mt-1.5"
+                />
+              </label>
+              <div className="form-actions">
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? "Saving..." : "Create"}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={cancel} disabled={saving}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </li>
+        )}
+        {categories.map((category) =>
+          editingId === category.id ? (
+            <li key={category.id} className="py-3">
+              <form onSubmit={saveEdit} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <label className="field-label flex-1">
+                  Name
+                  <input
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                    className="control mt-1.5"
+                  />
+                </label>
+                <label className="field-label flex-1">
+                  Description
+                  <input
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    className="control mt-1.5"
+                  />
+                </label>
+                <div className="form-actions">
+                  <button type="submit" className="btn btn-primary" disabled={saving}>
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button type="button" className="btn btn-ghost" onClick={cancel} disabled={saving}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </li>
+          ) : (
+            <li
+              key={category.id}
+              className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-ink">
+                  {category.name}
+                  {!category.is_active && (
+                    <span className="ml-2 rounded bg-canvas px-2 py-0.5 text-xs font-semibold text-ink-secondary">
+                      Deleted
+                    </span>
                   )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => startEdit(category)}
-                    disabled={saving}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => toggleActive(category)}
-                    disabled={saving}
-                  >
-                    {category.is_active ? "Archive" : "Restore"}
-                  </button>
-                </div>
-              </li>
-            ),
-          )}
-        </ul>
+                </p>
+                {category.description && (
+                  <p className="text-sm text-ink-secondary">{category.description}</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => startEdit(category)}
+                  disabled={saving}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => toggleActive(category)}
+                  disabled={saving}
+                >
+                  {category.is_active ? "Delete" : "Restore"}
+                </button>
+              </div>
+            </li>
+          ),
+        )}
+      </ul>
+      {categories.length === 0 && !creating && (
+        <p className="mt-3 text-sm text-ink-secondary">No categories yet. Add the first one above.</p>
       )}
     </section>
   );

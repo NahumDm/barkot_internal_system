@@ -1,16 +1,18 @@
 """Payroll write services (spec §14.1).
 
 The run lifecycle is ``GENERATED`` → ``APPROVED`` → ``PAID``, and each transition
-has exactly one caller permission:
+has exactly one caller permission, all three held by the Owner (spec §9.2 as the
+role matrix now enforces it):
 
-- a Manager *generates* a run (spec §9.2);
+- the Owner *generates* a run from current wages;
 - the Owner *approves* it;
 - the Owner marks it *paid*.
 
 Generation and approval are separate steps for the reason the spec gives: the
 person who calculates the run should not also be the person who signs it off.
-Splitting them in code — not just in the UI — is what stops a single account
-producing an unchallenged payslip.
+They are separate grants even though one role holds both, so splitting them
+remains a matter of changing the matrix rather than the code — and a Manager,
+who may read payroll and record deductions, still cannot produce a run at all.
 
 Deduction rules are **not** computed. The client has not confirmed the
 statutory calculation (spec §30 items 5 and 6), so net pay is
@@ -27,9 +29,7 @@ from typing import Any
 from django.db import transaction
 from django.db.models import Max
 
-from apps.accounts.models import User
 from apps.audit.models import AuditLog
-from apps.core.business_time import business_timezone, now_utc
 from apps.core.enums import PayrollDeductionType, PayrollItemStatus, PayrollRunStatus
 from apps.core.exceptions import (
     ExcessiveDeduction,
@@ -39,10 +39,6 @@ from apps.core.exceptions import (
 from apps.core.money import ZERO_MONEY, quantize_money
 from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, PayrollRun
 from apps.users.models import EmployeeProfile
-
-#: Position given to a profile payroll creates for an account that had none.
-#: Deliberately generic: the real title is edited on the profile, not guessed.
-_DEFAULT_POSITION = "Staff"
 
 
 def _first_of_month(day: date) -> date:
@@ -197,6 +193,90 @@ def add_deduction(
 
 
 @transaction.atomic
+def update_deduction(
+    *,
+    deduction: PayrollDeduction,
+    changes: dict[str, Any],
+    actor: Any | None = None,
+) -> PayrollDeduction:
+    """Correct a deduction that has already been recorded.
+
+    The caller's ``validated_data`` *is* the change set: the update serializer
+    declares exactly the four fields a recorded deduction may be edited with, so
+    passing the whole of it means there is no second list of editable fields to
+    keep in step. ``payroll_item`` is not one of them — the correction belongs
+    to the line it was taken from.
+
+    The line's total moves by the *difference* between the old and new amounts
+    rather than being recomputed from the deductions, so one correction cannot
+    quietly absorb another row that changed underneath it.
+
+    Args:
+        deduction: The deduction to correct.
+        changes: Field name to new value. Empty means nothing was submitted, and
+            is a no-op rather than an empty audit entry.
+        actor: The staff member making the correction (permission
+            ``payroll.create_deduction``).
+
+    Returns:
+        The corrected :class:`PayrollDeduction`.
+
+    Raises:
+        InvalidStateTransition: If the run is already approved or paid. A signed
+            payslip is not edited; the correction goes in the next run.
+        InvalidDeductionAmount: If ``amount`` is zero or negative.
+        ExcessiveDeduction: If the corrected total would exceed gross pay.
+    """
+    if not changes:
+        return deduction
+
+    payroll_item = deduction.payroll_item
+    if payroll_item.run.status != PayrollRunStatus.GENERATED:
+        raise InvalidStateTransition(
+            f"Payroll run {payroll_item.run_id} is {payroll_item.run.get_status_display()}; "
+            "deductions can only be edited while it is generated."
+        )
+
+    new_amount = deduction.amount
+    if "amount" in changes:
+        new_amount = quantize_money(changes["amount"], field="amount")
+        if new_amount <= 0:
+            raise InvalidDeductionAmount
+
+    new_total = quantize_money(
+        payroll_item.total_deductions - deduction.amount + new_amount,
+        field="total_deductions",
+    )
+    if new_total > payroll_item.gross_amount:
+        raise ExcessiveDeduction(
+            f"Deductions ({new_total}) would exceed gross pay ({payroll_item.gross_amount}) "
+            f"for {payroll_item.employee.full_name}."
+        )
+
+    for field, value in changes.items():
+        setattr(deduction, field, value)
+    deduction.amount = new_amount
+    deduction.updated_by = actor
+    deduction.save(update_fields=[*changes, "amount", "updated_by", "updated_at"])
+
+    payroll_item.total_deductions = new_total
+    payroll_item.updated_by = actor
+    payroll_item.save(update_fields=["total_deductions", "net_amount", "updated_at", "updated_by"])
+
+    AuditLog.record(
+        action=AuditLog.Action.UPDATE,
+        object_type="payroll.PayrollDeduction",
+        object_id=deduction.pk,
+        actor=actor,
+        summary=(
+            f"Updated {deduction.deduction_type} deduction to {deduction.amount} on "
+            f"{payroll_item.employee.full_name}"
+        ),
+    )
+    return deduction
+
+
+@transaction.atomic
 def approve_payroll_run(*, run: PayrollRun, actor: Any | None = None) -> PayrollRun:
     """Approve a generated run (spec §14.1). Owner-only in the role matrix."""
     run.approve(actor=actor)
@@ -235,20 +315,21 @@ def mark_payroll_run_paid(*, run: PayrollRun, actor: Any | None = None) -> Payro
 @transaction.atomic
 def add_employee(
     *,
-    user: User,
+    employee: EmployeeProfile,
     monthly_wage: Decimal,
     actor: Any | None = None,
 ) -> Employee:
-    """Put a staff account onto payroll (roadmap D1).
+    """Put a register record onto payroll (roadmap D1).
 
-    The subject is a login account rather than a profile because a staff member
-    can be created in Settings with no ``EmployeeProfile`` yet. The profile is
-    reused when the account already has one, un-archived if the person is being
-    brought back, and created with a placeholder position otherwise — so the
-    payroll roster always has a person to point at.
+    The subject is an :class:`~apps.users.models.EmployeeProfile` rather than a
+    login account because the register is the roster of who works here (spec
+    §5): a new hire is registered on day one whether or not an account exists,
+    and payroll attaches the wage to that record. Nothing is created or revived
+    on the person side — the register row already exists, and archiving is the
+    register's own business.
 
     Args:
-        user: The staff account to add.
+        employee: The register record to pay.
         monthly_wage: Gross monthly wage. Zero is allowed and must be fixed in
             a later decision (spec §30 item 5), not guessed here.
         actor: The staff member adding it (permission
@@ -258,38 +339,19 @@ def add_employee(
         The created :class:`Employee`.
 
     Raises:
-        IntegrityError: If the account already has a payroll row; the serializer
+        IntegrityError: If the record already has a payroll row; the serializer
             refuses that case before the service runs.
     """
-    profile = _profile_for_user(user)
-    employee = Employee.from_profile(profile, monthly_wage=monthly_wage)
+    record = Employee.from_profile(employee, monthly_wage=monthly_wage)
 
     AuditLog.record(
         action=AuditLog.Action.CREATE,
         object_type="payroll.Employee",
-        object_id=employee.pk,
+        object_id=record.pk,
         actor=actor,
-        summary=f"Added {employee.full_name} to payroll at {monthly_wage}/month",
+        summary=f"Added {record.full_name} to payroll at {monthly_wage}/month",
     )
-    return employee
-
-
-def _profile_for_user(user: User) -> EmployeeProfile:
-    """Return the account's staff profile, creating or reviving it if needed."""
-    profile = getattr(user, "employee_profile", None)
-    if profile is None:
-        return EmployeeProfile.objects.create(
-            full_name=user.display_name,
-            position=_DEFAULT_POSITION,
-            phone_number=user.phone_number,
-            start_date=now_utc().astimezone(business_timezone()).date(),
-            user=user,
-        )
-    if profile.is_archived:
-        profile.is_archived = False
-        profile.archived_at = None
-        profile.save(update_fields=["is_archived", "archived_at", "updated_at"])
-    return profile
+    return record
 
 
 def latest_run_period() -> date | None:

@@ -14,7 +14,7 @@
  * mocked `listPayrollRuns` would pass with a path typo in it.
  */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -233,14 +233,14 @@ describe("payroll employees", () => {
 
   const PROFILE = {
     id: 12,
-    username: "tsehay",
     full_name: "Tsehay Girma",
     position: "Cashier",
     phone_number: "+251922334455",
     start_date: "2025-06-15",
+    contract_type: "PART_TIME",
   };
 
-  it("lists the roster and offers the staff who are not on it yet", async () => {
+  it("lists the roster and offers the register records not on it yet", async () => {
     stubApi([
       ["/payroll/employees/", () => jsonResponse(page([EMPLOYEE]))],
       ["/payroll/profiles/", () => jsonResponse(page([PROFILE]))],
@@ -250,7 +250,7 @@ describe("payroll employees", () => {
     await screen.findByText("Abebe Bekele");
 
     expect(screen.getByRole("button", { name: "Add to payroll" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Tsehay Girma (tsehay)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Tsehay Girma — Cashier" })).toBeInTheDocument();
     expect(screen.getByText(money("18000.00"))).toBeInTheDocument();
   });
 
@@ -302,5 +302,48 @@ describe("payroll deductions", () => {
     await screen.findByText("Requested on the 3rd");
 
     expect(screen.queryByRole("button", { name: "Record deduction" })).toBeNull();
+    // The permission gates the action column as a whole, not just the form.
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+  });
+
+  it("switches the form into a locked correction and PATCHes it", async () => {
+    stubApi([
+      ["/payroll/runs/", () => jsonResponse(page([RUN]))],
+      ["/payroll/deductions/", () => jsonResponse(page([DEDUCTION]))],
+      [`/payroll/runs/${RUN.id}/items/`, () => jsonResponse(page([LINE]))],
+    ]);
+
+    renderScreen(<DeductionRegister />);
+    const edit = await screen.findByRole("button", { name: "Edit" });
+    fireEvent.click(edit);
+
+    await screen.findByRole("button", { name: "Save correction" });
+    // The line cannot be moved by a correction, so the two picks are locked.
+    const [runSelect, employeeSelect] = screen.getAllByRole("combobox");
+    expect(runSelect).toBeDisabled();
+    expect(employeeSelect).toBeDisabled();
+
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Save correction" }));
+    await waitFor(() => {
+      const patch = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+        ([, init]) => (init as RequestInit | undefined)?.method === "PATCH",
+      );
+      expect(patch).toBeDefined();
+      expect(String(patch![0])).toContain(`/payroll/deductions/${DEDUCTION.id}/`);
+    });
+  });
+
+  it("offers no correction once the run is approved", async () => {
+    stubApi([
+      ["/payroll/runs/", () => jsonResponse(page([{ ...RUN, status: "APPROVED" }]))],
+      ["/payroll/deductions/", () => jsonResponse(page([DEDUCTION]))],
+    ]);
+
+    renderScreen(<DeductionRegister />);
+    await screen.findByText("Requested on the 3rd");
+
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.getByText("Run approved")).toBeInTheDocument();
   });
 });

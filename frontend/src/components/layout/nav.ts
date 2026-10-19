@@ -17,7 +17,8 @@ export interface NavGroup {
 
 /**
  * Single source of truth for the sidebar (UX §3.1) covering the 17
- * normative routes of spec §7.4.
+ * normative routes of spec §7.4, plus the employee register (`/employees`,
+ * spec §5) which predates none of them but belongs to no domain group.
  *
  * Each item names the permissions of the screen behind it, taken from the
  * capability the server enforces for that screen rather than from a role name,
@@ -79,6 +80,16 @@ export const navGroups: NavGroup[] = [
       { label: "Employees", href: "/payroll/employees", permissions: ["payroll.view_payroll"] },
       { label: "Payroll", href: "/payroll/runs", permissions: ["payroll.view_payroll"] },
       { label: "Deductions", href: "/payroll/deductions", permissions: ["payroll.view_payroll"] },
+    ],
+  },
+  {
+    heading: "Staff",
+    items: [
+      {
+        label: "Employee Register",
+        href: "/employees",
+        permissions: ["users.manage_employees"],
+      },
     ],
   },
   { items: [{ label: "Reports", href: "/reports", permissions: ["finance.view_reports"] }] },

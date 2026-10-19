@@ -10,15 +10,17 @@
  * row, Django pays it, and the approvals below are real writes through the
  * roles' real permissions.
  *
- * The story runs in two sign-ins, because the two acts are owned by different
- * people (spec A14.1):
+ * The story runs in three sign-ins, because the acts are owned by different
+ * people (spec A14.1; `backend/apps/accounts/permissions.py`):
  *
- * 1. The Manager generates the current month, records the one deduction the seed
- *    allows against it (a salary advance with a written reason), and is refused
- *    "Approve" - the owner-only button simply is not shown - while the payslip on
- *    screen is the seeded wage minus what the deduction took, not a number typed
- *    by a test (scenario §23.1.4: the reason is captured and the net reconciles).
- * 2. The Owner approves the run and then marks it paid. Each step is read back
+ * 1. The Owner generates the current month — generation is Owner-only since the
+ *    role matrix narrowed — and the payslip lands at the seeded wage.
+ * 2. The Manager records the one deduction the seed allows against it (a salary
+ *    advance with a written reason) and is refused "Approve" - the owner-only
+ *    button simply is not shown - while the payslip on screen is the seeded wage
+ *    minus what the deduction took, not a number typed by a test (scenario
+ *    §23.1.4: the reason is captured and the net reconciles).
+ * 3. The Owner approves the run and then marks it paid. Each step is read back
  *    over HTTP with the browser's own cookie, because a screen agreeing with
  *    itself is not evidence that status moved.
  *
@@ -75,11 +77,11 @@ async function readItem(page: Page, runId: number): Promise<Record<string, unkno
 
 test.describe.configure({ mode: "serial" });
 
-test("a Manager generates the month and cannot approve it", async ({ page }) => {
+test("an Owner generates the month at the seeded wage", async ({ page }) => {
   // The sign-in may have to sit out the tail of the A5 login window.
   test.setTimeout(240_000);
 
-  await signIn(page, seed.manager);
+  await signIn(page, seed.owner);
   await page.goto("/payroll/runs");
 
   // Nothing for this month yet - only the generation form.
@@ -112,9 +114,19 @@ test("a Manager generates the month and cannot approve it", async ({ page }) => 
     net_amount: seed.payroll.monthly_wage,
     total_deductions: "0.00",
   });
+});
 
-  // The Manager's permissions stop at generation: the button is not rendered
-  // at all, and the screen says who has to sign it.
+test("a Manager records a deduction and cannot approve the month", async ({ page }) => {
+  // The sign-in may have to sit out the tail of the A5 login window.
+  test.setTimeout(240_000);
+
+  await signIn(page, seed.manager);
+  await page.goto("/payroll/runs");
+
+  // The Owner's generated run is visible, and the Manager's permissions stop
+  // at deductions: the approve button is not rendered at all, and the screen
+  // says who has to sign it.
+  await expect(runStatus(page, "Generated")).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve run" })).toHaveCount(0);
   await expect(page.getByText("An owner approves this run before anything is paid.")).toBeVisible();
 
@@ -162,7 +174,7 @@ test("a Manager generates the month and cannot approve it", async ({ page }) => 
   });
 
   // The month is still a proposal while it waits for the Owner, so the
-  // generation-permission surveillance from before the deduction still holds.
+  // permission surveillance from before the deduction still holds.
   await expect(page.getByRole("button", { name: "Approve run" })).toHaveCount(0);
   await expect(page.getByText("An owner approves this run before anything is paid.")).toBeVisible();
 });
@@ -174,8 +186,8 @@ test("the Owner signs off a month Django really generated", async ({ page }) => 
   await signIn(page, seed.owner);
   await page.goto("/payroll/runs");
 
-  // The Manager's work from the previous step is still standing; the screen
-  // defaults to the current month, which is the generated one.
+  // The previous steps' work is still standing; the screen defaults to the
+  // current month, which is the generated one.
   await expect(runStatus(page, "Generated")).toBeVisible();
 
   await page.getByRole("button", { name: "Approve run" }).click();

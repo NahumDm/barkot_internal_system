@@ -254,7 +254,7 @@ def test_variance_report_lists_only_approved_nonzero_variances(
 def test_payroll_report_shows_runs_totals_and_deductions(
     client: Client, staff_login: Any, employee: Any
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     run = generate_run(client)
     item_id = client.get(f"{RUNS_URL}{run['id']}/items/").json()["results"][0]["id"]
 
@@ -301,7 +301,7 @@ def test_payroll_report_shows_runs_totals_and_deductions(
 def test_payroll_report_is_scoped_to_the_months_asked_for(
     client: Client, staff_login: Any, employee: Any
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     generate_run(client)
 
     february = client.get(PAYROLL_URL, {"start": "2026-02-01", "end": "2026-02-28"})
@@ -314,7 +314,7 @@ def test_payroll_report_is_scoped_to_the_months_asked_for(
 def test_each_report_can_be_downloaded_as_csv(
     client: Client, staff_login: Any, employee: Any
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     run = generate_run(client)
     item_id = client.get(f"{RUNS_URL}{run['id']}/items/").json()["results"][0]["id"]
     client.post(
@@ -354,7 +354,7 @@ def test_a_generated_payroll_run_does_not_enter_the_financial_report(
     client: Client, staff_login: Any, employee: Any
 ) -> None:
     """Payroll reaches the financial report only once a run is approved."""
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     generate_run(client)
 
     report = client.get(FINANCIAL_URL, OCTOBER).json()

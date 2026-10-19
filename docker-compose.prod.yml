@@ -51,6 +51,13 @@ services:
       DJANGO_TRUSTED_PROXY: ${DJANGO_TRUSTED_PROXY:-true}
       BUSINESS_CURRENCY: ${BUSINESS_CURRENCY:-ETB}
       BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Africa/Addis_Ababa}
+    volumes:
+      # Uploaded employee documents live under MEDIA_ROOT (`/app/media`) and are
+      # served by no web server: Nginx proxies only `/api/v1/`, and Django has no
+      # route that returns a stored file. Without a volume they would sit in the
+      # container's writable layer and be destroyed by the next `up --build`,
+      # which is exactly the data the register promises to keep.
+      - media:/app/media
     ports:
       # Reachable by host Nginx only (spec §20.1).
       - "127.0.0.1:8000:8000"
@@ -73,3 +80,8 @@ services:
 
 volumes:
   db_data:
+  # Employee documents (`MEDIA_ROOT=/app/media`, spec §5). A named volume, not
+  # the container's writable layer: `docker compose up --build` replaces the
+  # container, and the register's whole point is that a stored contract survives
+  # that. Only the backend mounts it; nothing serves it over HTTP.
+  media:

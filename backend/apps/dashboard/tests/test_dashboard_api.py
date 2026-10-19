@@ -180,10 +180,12 @@ def test_dashboard_inventory_matches_the_stock_balance_report(
     assert inventory["in_stock_total"] == "12.000"
 
 
-def test_manager_sees_reconciled_tiles_for_a_seeded_period(
+def test_owner_sees_reconciled_tiles_for_a_seeded_period(
     client: Client, staff_login: Any, stocked: Product, employee: Any
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    # Generating a run is the Owner's grant (spec §9.2), so the whole seeded
+    # period is set up from one Owner session rather than mixed roles.
+    staff_login(client, Role.Code.OWNER)
     complete_sale(
         lines=[SaleLineInput(product=stocked, quantity=Decimal("3"))],
         payments=[(PaymentMethod.CASH, Decimal("75.00"))],

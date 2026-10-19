@@ -4,11 +4,11 @@ import { navGroups, visibleNavGroups } from "@/components/layout/nav";
 describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
   const flat = navGroups.flatMap((group) => group.items);
 
-  it("defines exactly 18 nav items", () => {
-    expect(flat).toHaveLength(18);
+  it("defines exactly 19 nav items", () => {
+    expect(flat).toHaveLength(19);
   });
 
-  it("covers every normative route of spec §7.4 plus the category manager", () => {
+  it("covers every normative route of spec §7.4 plus the category manager and the register", () => {
     const routes = new Set(flat.map((item) => item.href));
     expect(routes).toEqual(
       new Set([
@@ -28,6 +28,7 @@ describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
         "/payroll/employees",
         "/payroll/runs",
         "/payroll/deductions",
+        "/employees",
         "/reports",
         "/settings",
       ]),
@@ -39,7 +40,7 @@ describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it("orders sections per UX §3.1 (dashboard, sales, inventory, finance, payroll, reports, settings)", () => {
+  it("orders sections per UX §3.1 (dashboard, sales, inventory, finance, payroll, staff, reports, settings)", () => {
     const groupings = navGroups.map((group) => group.heading ?? group.items[0].label);
     expect(groupings).toEqual([
       "Dashboard",
@@ -47,6 +48,7 @@ describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
       "Inventory",
       "Finance",
       "Payroll",
+      "Staff",
       "Reports",
       "Settings",
     ]);
@@ -89,9 +91,7 @@ describe("sidebar visibility by role", () => {
       "finance.approve_expense",
       "finance.manage_expense_categories",
       "payroll.view_payroll",
-      "payroll.generate_run",
       "payroll.create_deduction",
-      "payroll.manage_payroll_employees",
       "users.manage_employees",
       "audit.view_audit_log",
     ],
@@ -136,16 +136,17 @@ describe("sidebar visibility by role", () => {
   });
 
   it("gives the owner every destination (spec §7.4)", () => {
-    expect(hrefsFor(PERMISSIONS.owner)).toHaveLength(18);
+    expect(hrefsFor(PERMISSIONS.owner)).toHaveLength(19);
   });
 
-  it("hides settings from a manager but keeps their finance, payroll and reports work", () => {
+  it("hides settings from a manager but keeps their finance, payroll, register and reports work", () => {
     const hrefs = hrefsFor(PERMISSIONS.manager);
     expect(hrefs).not.toContain("/settings");
     expect(hrefs).toContain("/finance");
     expect(hrefs).toContain("/payroll/runs");
+    expect(hrefs).toContain("/employees");
     expect(hrefs).toContain("/reports");
-    expect(hrefs).toHaveLength(16);
+    expect(hrefs).toHaveLength(17);
   });
 
   it("hides finance, payroll, reports and settings from a cashier", () => {

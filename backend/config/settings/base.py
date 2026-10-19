@@ -289,5 +289,23 @@ SPECTACULAR_SETTINGS = {
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# ── Uploaded documents ─────────────────────────────────────────────────────
+# Employee contract documents (spec §5) are written here and are deliberately
+# never served: config/urls.py mounts no /media/ route, no endpoint returns a
+# file's bytes, and no serializer emits a URL for one, so there is no link to
+# leak in the first place. Only the API's own screens can tell you a document is
+# on file, which is the requirement rather than a shortcut.
+#
+# In Docker this is a named volume (see docker-compose.yml) so a rebuilt image
+# does not lose the paperwork.
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Hard ceiling on one uploaded document, read from the environment so a
+# deployment with larger scans can raise it without a code change. Anything
+# bigger is refused by the upload serializer before a byte is written to disk.
+EMPLOYEE_DOCUMENT_MAX_BYTES = int(
+    os.environ.get("EMPLOYEE_DOCUMENT_MAX_BYTES", str(5 * 1024 * 1024))
+)
+
 # ── Defaults ───────────────────────────────────────────────────────────────
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

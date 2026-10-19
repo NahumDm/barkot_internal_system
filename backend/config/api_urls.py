@@ -27,6 +27,12 @@ urlpatterns = [
     path("payroll/", include("apps.payroll.urls")),
     path("reports/", include("apps.reports.urls")),
     path("dashboard/", include("apps.dashboard.urls")),
+    # The employee register lives at the root of the version
+    # (/employees/). Its prefix is claimed before the account-administration
+    # include below so the register's detail wildcard can never swallow an
+    # admin route, and after every domain prefix above, none of which use
+    # "employees/".
+    path("", include("apps.users.urls")),
     # C5: Owner account administration lives at the root of the version
     # (/users/, /roles/, /settings/). Included last so the more specific
     # domain prefixes above always win on their own paths.

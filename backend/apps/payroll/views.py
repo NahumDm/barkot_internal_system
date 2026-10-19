@@ -4,19 +4,21 @@ Three permissions meet here, and the split between them is the feature rather th
 an implementation detail:
 
 - ``payroll.view_payroll`` reads runs, lines and deductions;
-- ``payroll.generate_run`` creates a month's run from current wages;
+- ``payroll.generate_run`` creates a month's run from current wages, Owner-only;
 - ``payroll.approve_run`` signs it off, and only the Owner holds it;
 - ``payroll.mark_paid`` records disbursement, likewise Owner-only;
-- ``payroll.create_deduction`` adds a deduction while a run is still generated;
-- ``payroll.manage_payroll_employees`` reads the staff roster and puts someone
-  on payroll.
+- ``payroll.create_deduction`` adds or corrects a deduction while a run is still
+  generated — the Manager's one payroll write;
+- ``payroll.manage_payroll_employees`` reads the register roster and puts someone
+  on payroll, Owner-only.
 
 Generation and approval being separate actions on separate grants is what stops one
-account producing a payslip nobody else looked at (A8). Both roles could equally
-have been given both permissions, and the UI would still have shown two buttons.
+account producing a payslip nobody else looked at (A8). Both grants sit with the
+Owner today, but they remain two entries in the matrix: handing generation back to
+a Manager is a one-line matrix change and no code moves with it.
 
-The roster read (``profiles``) is not a payroll resource: it lists active staff
-accounts so the create form has options to offer. It carries
+The roster read (``profiles``) is not a payroll resource: it lists active
+employee-register records so the create form has options to offer. It carries
 ``manage_payroll_employees`` rather than ``view_payroll`` because the only screen
 that needs it is the one that adds a payroll employee, and names with phone
 numbers are staff data rather than a payslip figure.
@@ -35,7 +37,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.accounts.models import User
 from apps.accounts.permissions import (
     CanApprovePayrollRun,
     CanCreateDeduction,
@@ -49,6 +50,7 @@ from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, Payroll
 from apps.payroll.serializers import (
     PayrollDeductionCreateSerializer,
     PayrollDeductionSerializer,
+    PayrollDeductionUpdateSerializer,
     PayrollEmployeeCreateSerializer,
     PayrollEmployeeSerializer,
     PayrollItemSerializer,
@@ -62,6 +64,7 @@ from apps.payroll.services import (
     approve_payroll_run,
     generate_payroll_run,
     mark_payroll_run_paid,
+    update_deduction,
 )
 from apps.users.models import EmployeeProfile
 
@@ -108,7 +111,7 @@ class PayrollEmployeeViewSet(
         # one-to-one link, the initial status and the audit entry are always
         # set together (roadmap D1).
         employee = add_employee(
-            user=serializer.validated_data["user"],
+            employee=serializer.validated_data["employee"],
             monthly_wage=serializer.validated_data["monthly_wage"],
             actor=request.user,
         )
@@ -220,14 +223,24 @@ class PayrollRunViewSet(
     list=extend_schema(summary="List payroll deductions", tags=["payroll"]),
     retrieve=extend_schema(summary="Get a payroll deduction", tags=["payroll"]),
     create=extend_schema(summary="Record a payroll deduction", tags=["payroll"]),
+    update=extend_schema(summary="Correct a payroll deduction", tags=["payroll"]),
+    partial_update=extend_schema(summary="Correct a payroll deduction", tags=["payroll"]),
 )
 class PayrollDeductionViewSet(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Deductions against payroll lines, each with the reason it was taken."""
+    """Deductions against payroll lines, each with the reason it was taken.
+
+    Correction shares the create grant on purpose: ``payroll.create_deduction``
+    is the Manager's deduction grant (spec §9.2 as the matrix enforces it), and
+    a Manager who may record a deduction may fix one they mistyped while the run
+    is still ``GENERATED``. Once a run is approved the service refuses the edit,
+    so the grant never reaches a signed payslip.
+    """
 
     queryset = PayrollDeduction.objects.select_related(
         "payroll_item__employee__profile", "payroll_item__run"
@@ -244,6 +257,8 @@ class PayrollDeductionViewSet(
     def get_serializer_class(self):
         if self.action == "create":
             return PayrollDeductionCreateSerializer
+        if self.action in {"update", "partial_update"}:
+            return PayrollDeductionUpdateSerializer
         return PayrollDeductionSerializer
 
     def get_queryset(self) -> QuerySet[PayrollDeduction]:
@@ -272,44 +287,62 @@ class PayrollDeductionViewSet(
             status=status.HTTP_201_CREATED,
         )
 
+    def update(self, request: Request, *args, **kwargs) -> Response:
+        """Apply a PATCH or PUT through the service layer.
+
+        The serializer declares only the fields a recorded deduction may be
+        edited with, so its ``validated_data`` *is* the change set — which is
+        why the whole of it is handed over rather than a hand-copied list of
+        keys. The service is also where the line's stored total is moved by the
+        difference, so a view writing the model directly would corrupt every
+        payslip total it touched.
+        """
+        deduction = self.get_object()
+        serializer = PayrollDeductionUpdateSerializer(
+            instance=deduction,
+            data=request.data,
+            partial=kwargs.pop("partial", False),
+        )
+        serializer.is_valid(raise_exception=True)
+        updated = update_deduction(
+            deduction=deduction,
+            changes=dict(serializer.validated_data),
+            actor=request.user,
+        )
+        return Response(PayrollDeductionSerializer(updated).data)
+
 
 @extend_schema_view(
     list=extend_schema(
-        summary="List staff profiles available for payroll",
+        summary="List register records available for payroll",
         tags=["payroll"],
     ),
 )
 class PayrollProfileViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
-    """Active staff accounts that are not on payroll yet.
+    """Active register records that are not on payroll yet.
 
-    This is the options list behind ``POST /payroll/employees/``: ``apps.users``
-    has no API of its own, so a form that asked for a ``user`` id would have
-    nothing to offer. The field is written here rather than in ``users`` so the
-    dependency points at payroll's own need instead of payroll reaching into a
-    different app's read surface.
+    This is the options list behind ``POST /payroll/employees/``: the employee
+    register is the roster of who works here, so the create form offers those
+    records by id and puts a wage against the chosen one. A record stays off the
+    list once it has any payroll row, voided or not. The profile/payroll link is
+    a ``OneToOne``, so a voided employee still occupies it, and offering the
+    record again would only earn a create the server refuses. Archived records
+    are excluded too, for the reason archiving exists: it records that someone
+    left.
 
-    An account stays off the list once it has any payroll row, voided or not. The
-    profile/payroll link is a ``OneToOne``, so a voided employee still occupies
-    it, and offering the account again would only earn a create the server
-    refuses. Accounts whose profile has been archived are excluded too, for the
-    reason archiving exists: it records that someone left.
+    The read is gated by ``manage_payroll_employees`` rather than
+    ``view_payroll`` because the only screen that needs it is the one that adds
+    a payroll employee, and names with phone numbers are staff data rather than
+    a payslip figure.
     """
 
     serializer_class = PayrollProfileSerializer
     pagination_class = BarkotPagination
     paginator = BarkotPagination()
 
-    def get_queryset(self) -> QuerySet[User]:
-        already_on_payroll = Employee.all_rows.values("profile__user_id")
-        archived = EmployeeProfile.objects.filter(is_archived=True, user__isnull=False).values(
-            "user_id"
-        )
-        return (
-            User.objects.filter(is_active=True, role__is_staff_role=True)
-            .exclude(pk__in=already_on_payroll)
-            .exclude(pk__in=archived)
-            .order_by("username")
-        )
+    def get_queryset(self) -> QuerySet[EmployeeProfile]:
+        already_on_payroll = Employee.all_rows.values("profile_id")
+        return EmployeeProfile.objects.active().exclude(pk__in=already_on_payroll)
 
     def get_permissions(self):
         return [IsAuthenticated(), CanManagePayrollEmployees()]

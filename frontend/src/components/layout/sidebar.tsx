@@ -11,6 +11,7 @@ import {
   Boxes,
   CircleMinus,
   ClipboardCheck,
+  ContactRound,
   LayoutDashboard,
   Package,
   PackagePlus,
@@ -45,6 +46,7 @@ const iconByHref: Record<string, LucideIcon> = {
   "/payroll/employees": Users,
   "/payroll/runs": Banknote,
   "/payroll/deductions": CircleMinus,
+  "/employees": ContactRound,
   "/reports": BarChart3,
   "/settings": Settings,
 };

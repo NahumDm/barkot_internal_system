@@ -140,6 +140,23 @@ class EmployeeStatus(models.TextChoices):
     TERMINATED = "TERMINATED", _("Terminated")
 
 
+class ContractType(models.TextChoices):
+    """Employment contract kinds on an employee register record.
+
+    The register (spec §5) is deliberately separate from ``EmployeeStatus``:
+    status says whether the person is currently paid, contract says what they
+    are employed *on*. An employee can be ``ACTIVE`` on a fixed-term contract
+    that ends next month, which is exactly the case ``contract_end_date``
+    exists to surface before it lapses.
+    """
+
+    FULL_TIME = "FULL_TIME", _("Full-time")
+    PART_TIME = "PART_TIME", _("Part-time")
+    CONTRACT = "CONTRACT", _("Contract")
+    TEMPORARY = "TEMPORARY", _("Temporary")
+    INTERN = "INTERN", _("Intern")
+
+
 class PayrollRunStatus(models.TextChoices):
     """Payroll run lifecycle: generate → review → approve → mark paid (spec §14.1)."""
 

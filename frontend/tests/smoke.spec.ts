@@ -17,13 +17,13 @@ test("home redirects to the dashboard", async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
-test("sidebar exposes all 18 sidebar links (spec §7.4 plus the category manager)", async ({
+test("sidebar exposes all 19 sidebar links (spec §7.4 plus the category manager and register)", async ({
   page,
 }) => {
   await stubSignedIn(page);
   await page.goto("/dashboard");
   await expect(page).toHaveTitle(/Barkot/);
-  await expect(page.locator("aside nav a")).toHaveCount(18);
+  await expect(page.locator("aside nav a")).toHaveCount(19);
 });
 
 test("product maintenance route renders its shell", async ({ page }) => {

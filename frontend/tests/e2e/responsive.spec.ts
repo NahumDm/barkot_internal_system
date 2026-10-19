@@ -37,6 +37,7 @@ const ROUTES = [
   "/payroll/employees",
   "/payroll/runs",
   "/payroll/deductions",
+  "/employees",
   "/reports",
   "/settings",
 ];
@@ -120,7 +121,10 @@ test.describe("responsive frame", () => {
   });
 
   test("no route scrolls the page horizontally at phone widths", async ({ page }) => {
-    test.setTimeout(240_000);
+    // Three widths times every route, each a full navigation whose API calls
+    // fail against the stubbed project's absent backend. The register added a
+    // route to the sweep, so the budget that fit 18 of them no longer fits 19.
+    test.setTimeout(420_000);
     await stubSignedIn(page);
     for (const width of PHONE_WIDTHS) {
       await page.setViewportSize({ width, height: 800 });

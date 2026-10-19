@@ -24,20 +24,17 @@ import { stubCsrf, stubSignedIn, type StubUser } from "./session";
 
 const PAYROLL_VIEWER = "payroll.view_payroll";
 
-/** A manager generates payroll and creates deductions; an owner signs it off. */
+/**
+ * A manager reads payroll and records deductions; only an owner generates a
+ * run and signs it off (`backend/apps/accounts/permissions.py`).
+ */
 const MANAGER: StubUser = {
   id: 2,
   username: "e2e-manager",
   display_name: "Selam Bekele",
   role: "manager",
   role_name: "Manager",
-  permissions: [
-    PAYROLL_VIEWER,
-    "payroll.manage_payroll_employees",
-    "payroll.generate_run",
-    "payroll.create_deduction",
-    "sales.view_sales",
-  ],
+  permissions: [PAYROLL_VIEWER, "payroll.create_deduction", "users.manage_employees"],
   email: "",
   phone_number: "",
   is_temporary_password: false,
@@ -50,7 +47,13 @@ const OWNER: StubUser = {
   username: "e2e-owner",
   role: "owner",
   role_name: "Owner",
-  permissions: [...MANAGER.permissions, "payroll.approve_run", "payroll.mark_paid"],
+  permissions: [
+    ...MANAGER.permissions,
+    "payroll.manage_payroll_employees",
+    "payroll.generate_run",
+    "payroll.approve_run",
+    "payroll.mark_paid",
+  ],
 };
 
 /** A barman: a real role, and one that has no business being on this screen. */
@@ -153,8 +156,8 @@ test("a generated month shows its payslips and leaves approval to an owner", asy
   await expect(page.getByRole("cell", { name: "Abebe Bekele" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "35,500.00 ETB" })).toBeVisible();
 
-  // The manager may generate payroll but not approve it, and the screen says
-  // whose signature is missing rather than showing a button that would 403.
+  // The manager records deductions but does not run payroll, and the screen
+  // says whose signature is missing rather than showing a button that 403s.
   await expect(page.getByText("An owner approves this run before anything is paid.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Approve run" })).toHaveCount(0);
 });
@@ -190,7 +193,7 @@ test("an owner approves the run and the screen re-reads what changed", async ({ 
 });
 
 test("a month with no run offers to generate it", async ({ page }) => {
-  await stubSignedIn(page, MANAGER);
+  await stubSignedIn(page, OWNER);
   await stubRuns(page, []);
 
   await page.goto("/payroll/runs");

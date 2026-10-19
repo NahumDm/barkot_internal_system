@@ -56,6 +56,11 @@ services:
       BUSINESS_CURRENCY: ${BUSINESS_CURRENCY:-ETB}
       BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Africa/Addis_Ababa}
     volumes:
+      # The source bind mount is also what persists uploaded employee documents
+      # (`MEDIA_ROOT=/app/media` → `backend/media/`, gitignored): in development
+      # a named volume would hide them from the host, which is the opposite of
+      # what someone inspecting an upload wants. Production, where there is no
+      # bind mount, gets a named volume instead (docker-compose.prod.yml).
       - ./backend:/app
     ports:
       - "127.0.0.1:8000:8000"

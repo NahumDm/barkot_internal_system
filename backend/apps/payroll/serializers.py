@@ -18,55 +18,33 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from apps.accounts.models import User
 from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, PayrollRun
+from apps.users.models import EmployeeProfile
 
 
 class PayrollProfileSerializer(serializers.ModelSerializer):
-    """An active staff account that can still be put on monthly payroll.
+    """An active register record that can still be put on monthly payroll.
 
     Exposed only to whoever may add a payroll employee, because a roster of
     names and phone numbers is staff data and the only screen that needs it is
-    the form that fills ``PayrollEmployeeCreateSerializer.user``. The option is a
-    login account rather than an ``EmployeeProfile`` because a staff member can
-    be created in Settings with no profile yet; payroll creates the profile on
-    the way in. Without this list that form would have no options to offer:
-    ``apps.users`` has no API of its own, and payroll reaching into a different
-    app's read surface would put the dependency in the wrong direction.
+    the form that fills ``PayrollEmployeeCreateSerializer.employee``. The
+    options are :class:`apps.users.models.EmployeeProfile` rows rather than
+    login accounts because the register (spec §5) is now the roster of who
+    works here; payroll adds a wage to a person who already exists rather than
+    deciding who exists.
     """
 
-    full_name = serializers.CharField(source="display_name", read_only=True)
-    position = serializers.SerializerMethodField()
-    phone_number = serializers.SerializerMethodField()
-    start_date = serializers.SerializerMethodField()
-
     class Meta:
-        model = User
+        model = EmployeeProfile
         fields = [
             "id",
-            "username",
             "full_name",
             "position",
             "phone_number",
             "start_date",
+            "contract_type",
         ]
         read_only_fields = fields
-
-    def get_position(self, user: User) -> str:
-        profile = getattr(user, "employee_profile", None)
-        return profile.position if profile is not None else ""
-
-    def get_phone_number(self, user: User) -> str:
-        profile = getattr(user, "employee_profile", None)
-        if profile is not None and profile.phone_number:
-            return profile.phone_number
-        return user.phone_number
-
-    def get_start_date(self, user: User) -> str | None:
-        profile = getattr(user, "employee_profile", None)
-        if profile is not None:
-            return profile.start_date.isoformat()
-        return None
 
 
 class PayrollEmployeeSerializer(serializers.ModelSerializer):
@@ -113,15 +91,15 @@ class PayrollEmployeeSerializer(serializers.ModelSerializer):
 
 
 class PayrollEmployeeCreateSerializer(serializers.Serializer):
-    """Body for putting a staff account onto payroll.
+    """Body for putting a register record onto payroll.
 
-    The subject is the login account, not an ``EmployeeProfile``: a staff member
-    may have been created in Settings without a profile, and payroll creates the
-    profile (or reuses the linked one) on the way in, so the form never has to
-    know whether a profile already exists.
+    The subject is an :class:`apps.users.models.EmployeeProfile` — a row of the
+    employee register — rather than a login account: the register is the roster
+    of who works here, whether or not they can sign in, and payroll adds the
+    monthly wage to that record instead of deciding who exists.
     """
 
-    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(is_active=True))
+    employee = serializers.PrimaryKeyRelatedField(queryset=EmployeeProfile.objects.all())
     monthly_wage = serializers.DecimalField(max_digits=14, decimal_places=2)
     currency = serializers.CharField(max_length=3, default="ETB")
 
@@ -136,16 +114,24 @@ class PayrollEmployeeCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Only ETB payroll is supported.")
         return value
 
-    def validate_user(self, value: User) -> User:
-        """Refuse a second payroll record for one account.
+    def validate_employee(self, value: EmployeeProfile) -> EmployeeProfile:
+        """Refuse a second payroll record for one register record.
 
         Checked against ``all_rows`` rather than ``objects`` so a voided record still
         blocks the create: the link is a ``OneToOne``, so the database would reject
         the insert anyway, and refusing here turns an IntegrityError into a field
         error the form can render.
+
+        An archived profile is refused too: archiving records that someone left,
+        and putting a leaver back on payroll would quietly pay them in the next
+        generated run.
         """
-        if Employee.all_rows.filter(profile__user=value).exists():
+        if Employee.all_rows.filter(profile=value).exists():
             raise serializers.ValidationError("This person already has a payroll employee record.")
+        if value.is_archived:
+            raise serializers.ValidationError(
+                "This person is archived; restore them before adding them to payroll."
+            )
         return value
 
 
@@ -284,9 +270,46 @@ class PayrollDeductionCreateSerializer(serializers.Serializer):
     occurred_on = serializers.DateField(required=False)
 
 
+class PayrollDeductionUpdateSerializer(serializers.Serializer):
+    """Body for correcting a deduction that has already been recorded.
+
+    Every field is optional so a caller can change the amount without restating
+    the reason — and so ``PATCH`` and ``PUT`` mean the same thing here as they do
+    on the expense-category screen. ``payroll_item`` is deliberately absent: the
+    correction belongs to the line it was recorded against, and moving one to a
+    different employee's line would rewrite someone else's pay instead of
+    fixing a typo.
+
+    The arithmetic is not done here. The line's stored total has to move by the
+    difference between the old and new amounts, and that lives with the other
+    money rules in :mod:`apps.payroll.services`.
+    """
+
+    deduction_type = serializers.ChoiceField(
+        choices=[
+            ("ADVANCE", "Salary advance"),
+            ("ABSENCE", "Absence"),
+            ("LATE", "Tardiness"),
+            ("OTHER", "Other"),
+        ],
+        required=False,
+    )
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, required=False)
+    reason = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, trim_whitespace=True
+    )
+    occurred_on = serializers.DateField(required=False)
+
+    def validate_amount(self, value: Decimal) -> Decimal:
+        if value <= 0:
+            raise serializers.ValidationError("A deduction amount cannot be zero or negative.")
+        return value
+
+
 __all__ = [
     "PayrollDeductionCreateSerializer",
     "PayrollDeductionSerializer",
+    "PayrollDeductionUpdateSerializer",
     "PayrollEmployeeCreateSerializer",
     "PayrollEmployeeSerializer",
     "PayrollItemSerializer",

@@ -16,7 +16,11 @@
  * check reads the body looking for a form token, so a request sent as
  * `multipart/form-data` is rejected with 415 before it is ever authorised. A
  * bodyless `POST` (logout) therefore goes out as `{}` with an explicit
- * `Content-Type: application/json`.
+ * `Content-Type: application/json`. The one exception is a caller that hands
+ * over a `FormData` (employee document upload): that goes out as multipart
+ * with the browser's own `Content-Type` (the boundary is generated per
+ * request and cannot be set by hand), still carrying the CSRF header, to an
+ * endpoint that declares DRF's `MultiPartParser`.
  *
  * **Nothing is persisted.** The session lives in an HttpOnly cookie that this
  * module cannot read, and the CSRF token lives in a cookie Django rewrites. So
@@ -43,7 +47,10 @@ export type QueryValue = string | number | boolean | null | undefined;
 
 export interface RequestOptions {
   method?: HttpMethod;
-  /** Serialised as JSON. Defaults to `{}` on unsafe requests. */
+  /**
+   * Serialised as JSON. Defaults to `{}` on unsafe requests. A `FormData`
+   * instance is passed through untouched and sent as multipart instead.
+   */
   body?: unknown;
   query?: Record<string, QueryValue>;
   /** Passed through as `Idempotency-Key` (spec §10.2). */
@@ -252,11 +259,18 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   const method = options.method ?? "GET";
   const unsafe = !SAFE_METHODS.has(method);
   const headers = new Headers({ Accept: "application/json" });
-  let body: string | undefined;
+  let body: BodyInit | undefined;
 
   if (unsafe) {
-    body = JSON.stringify(options.body ?? {});
-    headers.set("Content-Type", "application/json");
+    if (typeof FormData !== "undefined" && options.body instanceof FormData) {
+      // Multipart: the browser generates the boundary, so Content-Type must
+      // not be set by hand; the CSRF header still guards the request and the
+      // endpoint must declare DRF's MultiPartParser.
+      body = options.body;
+    } else {
+      body = JSON.stringify(options.body ?? {});
+      headers.set("Content-Type", "application/json");
+    }
     headers.set(CSRF_HEADER, await csrfToken());
   }
   if (options.idempotencyKey) {

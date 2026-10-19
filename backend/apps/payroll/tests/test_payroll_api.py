@@ -1,16 +1,19 @@
 """C2 payroll API acceptance tests.
 
-The behaviour under test is separation of duties (spec §14.1, A8): a Manager
-generates a payroll run and the Owner approves it. That split is the whole reason
-``GENERATED`` and ``APPROVED`` are separate states, so the tests below assert both
-halves — that a Manager *can* generate, and that a Manager *cannot* approve — because
-a test covering only the first would still pass if the role matrix handed everyone
-every permission.
+The behaviour under test is the payroll half of the role matrix (spec §9.2,
+§14.1, A8): the Owner generates, approves and pays runs and manages who is on
+payroll; a Manager reads payroll and records or corrects deductions, and nothing
+more. That split is the whole reason the grants are separate entries in the
+matrix, so the tests below assert both halves — that a Manager *can* record a
+deduction, and that a Manager *cannot* generate a run or approve one — because a
+test covering only the first would still pass if the role matrix handed every
+role every permission.
 
 The roster tests at the end cover the read that makes the create form usable:
-``GET /payroll/profiles/`` is the only source of the ``profile`` id that
-``POST /payroll/employees/`` asks for, so it needs the same permission, and it
-must not offer someone who is already on payroll or who has left.
+``GET /payroll/profiles/`` is the only source of the ``employee`` id that
+``POST /payroll/employees/`` asks for, so it needs the same Owner-only
+permission, and it must not offer someone who is already on payroll or who has
+been archived.
 """
 
 from __future__ import annotations
@@ -57,10 +60,10 @@ def _generate(client: Client, **overrides: Any) -> Any:
     return client.post(RUNS_URL, payload, content_type="application/json")
 
 
-def test_manager_generates_a_run_and_the_owner_approves_it(
+def test_the_owner_generates_a_run_and_approves_it(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    manager = staff_login(client, Role.Code.MANAGER)
+    owner = staff_login(client, Role.Code.OWNER)
 
     generated = _generate(client)
 
@@ -74,12 +77,9 @@ def test_manager_generates_a_run_and_the_owner_approves_it(
     assert body["net_total"] == "18000.00"
 
     run = PayrollRun.objects.get(pk=body["id"])
-    assert run.created_by == manager
+    assert run.created_by == owner
     assert [item.employee_id for item in run.items.all()] == [employee.pk]
 
-    # The Owner signs off, and only the Owner does.
-    client.logout()
-    owner = staff_login(client, Role.Code.OWNER)
     approved = client.post(f"{RUNS_URL}{body['id']}/approve/")
 
     assert approved.status_code == 200, approved.content
@@ -94,15 +94,30 @@ def test_manager_generates_a_run_and_the_owner_approves_it(
     ]
 
 
-def test_manager_cannot_approve_the_run_they_generated(
+def test_a_manager_cannot_generate_a_run(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    """The A8 gate: whoever computes the figure must not also sign it off."""
+    """Generation is Owner-only: the Manager's payroll grant is deductions."""
 
     staff_login(client, Role.Code.MANAGER)
-    generated = _generate(client)
-    run_id = generated.json()["id"]
 
+    response = _generate(client)
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "permission_denied"
+    assert not PayrollRun.all_rows.exists()
+
+
+def test_a_manager_cannot_approve_a_run(
+    client: Client, staff_login: Any, employee: Employee
+) -> None:
+    """The A8 gate: a Manager cannot move a run past GENERATED at all."""
+
+    staff_login(client, Role.Code.OWNER)
+    run_id = _generate(client).json()["id"]
+
+    client.logout()
+    staff_login(client, Role.Code.MANAGER)
     response = client.post(f"{RUNS_URL}{run_id}/approve/")
 
     assert response.status_code == 403
@@ -129,7 +144,7 @@ def test_anonymous_access_is_refused(client: Client) -> None:
 def test_a_month_cannot_be_payrolled_twice(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
 
     first = _generate(client)
     second = _generate(client)
@@ -143,7 +158,7 @@ def test_a_month_cannot_be_payrolled_twice(
 def test_a_run_with_no_eligible_employees_is_refused(client: Client, staff_login: Any) -> None:
     """An empty run cannot be approved, so it is refused at generation."""
 
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
 
     response = _generate(client)
 
@@ -152,13 +167,17 @@ def test_a_run_with_no_eligible_employees_is_refused(client: Client, staff_login
     assert not PayrollRun.all_rows.exists()
 
 
-def test_a_deduction_keeps_its_reason_and_reduces_net_pay(
+def test_a_manager_records_a_deduction_that_reduces_net_pay(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    """The Manager's one payroll write: record a deduction on a generated run."""
+
+    staff_login(client, Role.Code.OWNER)
     run_id = _generate(client).json()["id"]
     item = PayrollItem.objects.get(run_id=run_id)
 
+    client.logout()
+    staff_login(client, Role.Code.MANAGER)
     response = client.post(
         DEDUCTIONS_URL,
         {
@@ -186,18 +205,113 @@ def test_a_deduction_keeps_its_reason_and_reduces_net_pay(
     assert run.net_total == Decimal("17550.00")
 
 
+def test_a_manager_corrects_a_deduction_and_the_line_total_moves(
+    client: Client, staff_login: Any, employee: Employee
+) -> None:
+    """A correction moves the stored total by the difference, not by a recount."""
+
+    staff_login(client, Role.Code.OWNER)
+    run_id = _generate(client).json()["id"]
+    item = PayrollItem.objects.get(run_id=run_id)
+    created = client.post(
+        DEDUCTIONS_URL,
+        {"payroll_item": item.pk, "deduction_type": "ADVANCE", "amount": "450.00"},
+        content_type="application/json",
+    )
+    assert created.status_code == 201, created.content
+
+    client.logout()
+    staff_login(client, Role.Code.MANAGER)
+    response = client.patch(
+        f"{DEDUCTIONS_URL}{created.json()['id']}/",
+        {"amount": "300.00", "reason": "Repaid part of the advance"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 200, response.content
+    assert response.json()["amount"] == "300.00"
+    assert response.json()["reason"] == "Repaid part of the advance"
+
+    item.refresh_from_db()
+    assert item.total_deductions == Decimal("300.00")
+    assert item.net_amount == Decimal("17700.00")
+
+    run = PayrollRun.objects.get(pk=run_id)
+    assert run.deduction_total == Decimal("300.00")
+
+
+def test_a_deduction_correction_is_refused_once_the_run_is_approved(
+    client: Client, staff_login: Any, employee: Employee
+) -> None:
+    """A signed payslip is not edited; the correction goes in the next run."""
+
+    staff_login(client, Role.Code.OWNER)
+    run_id = _generate(client).json()["id"]
+    item = PayrollItem.objects.get(run_id=run_id)
+    created = client.post(
+        DEDUCTIONS_URL,
+        {"payroll_item": item.pk, "deduction_type": "OTHER", "amount": "100.00"},
+        content_type="application/json",
+    )
+    assert created.status_code == 201, created.content
+    assert client.post(f"{RUNS_URL}{run_id}/approve/").status_code == 200
+
+    client.logout()
+    staff_login(client, Role.Code.MANAGER)
+    response = client.patch(
+        f"{DEDUCTIONS_URL}{created.json()['id']}/",
+        {"amount": "200.00"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "invalid_state_transition"
+    item.refresh_from_db()
+    assert item.total_deductions == Decimal("100.00")
+
+
+def test_a_deduction_correction_cannot_exceed_gross_pay(
+    client: Client, staff_login: Any, employee: Employee
+) -> None:
+    """The guard runs on the corrected total, not only on the original create."""
+
+    staff_login(client, Role.Code.OWNER)
+    run_id = _generate(client).json()["id"]
+    item = PayrollItem.objects.get(run_id=run_id)
+    created = client.post(
+        DEDUCTIONS_URL,
+        {"payroll_item": item.pk, "deduction_type": "OTHER", "amount": "450.00"},
+        content_type="application/json",
+    )
+    assert created.status_code == 201, created.content
+
+    client.logout()
+    staff_login(client, Role.Code.MANAGER)
+    response = client.patch(
+        f"{DEDUCTIONS_URL}{created.json()['id']}/",
+        {"amount": "20000.00"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "excessive_deduction"
+    # Refused before anything was written, so the line is untouched.
+    item.refresh_from_db()
+    assert item.total_deductions == Decimal("450.00")
+
+
 def test_a_deduction_is_refused_once_the_run_is_approved(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
     """A signed payslip is not edited; the correction goes in the next run."""
 
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     run_id = _generate(client).json()["id"]
     item = PayrollItem.objects.get(run_id=run_id)
-
-    staff_login(client, Role.Code.OWNER)
     assert client.post(f"{RUNS_URL}{run_id}/approve/").status_code == 200
 
+    client.logout()
+    staff_login(client, Role.Code.MANAGER)
     response = client.post(
         DEDUCTIONS_URL,
         {"payroll_item": item.pk, "deduction_type": "OTHER", "amount": "100.00"},
@@ -214,7 +328,7 @@ def test_a_deduction_cannot_exceed_gross_pay(
 ) -> None:
     """Previously a bare ValueError, which the global handler would surface as a 500."""
 
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     run_id = _generate(client).json()["id"]
     item = PayrollItem.objects.get(run_id=run_id)
 
@@ -235,7 +349,7 @@ def test_a_deduction_cannot_exceed_gross_pay(
 def test_a_zero_deduction_is_refused_as_a_domain_error(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     run_id = _generate(client).json()["id"]
     item = PayrollItem.objects.get(run_id=run_id)
 
@@ -254,13 +368,12 @@ def test_approved_payroll_reduces_the_finance_balance(
 ) -> None:
     """The link that makes payroll a cost rather than an isolated table."""
 
-    staff_login(client, Role.Code.MANAGER)
-    run_id = _generate(client).json()["id"]
+    staff_login(client, Role.Code.OWNER)
 
     before = client.get(BALANCE_URL, PERIOD)
     assert Decimal(before.json()["payroll_total"]) == Decimal("0.00")
 
-    staff_login(client, Role.Code.OWNER)
+    run_id = _generate(client).json()["id"]
     assert client.post(f"{RUNS_URL}{run_id}/approve/").status_code == 200
 
     after = client.get(BALANCE_URL, PERIOD)
@@ -300,43 +413,58 @@ def test_cashier_cannot_generate_a_run(
     assert response.json()["error"]["code"] == "permission_denied"
 
 
-def test_manager_records_a_payroll_employee_from_a_user(
-    client: Client, staff_login: Any, make_staff_user: Any
+def test_a_manager_cannot_add_a_payroll_employee(
+    client: Client, staff_login: Any, profile: EmployeeProfile
 ) -> None:
+    """Putting someone on payroll is the Owner's; the register is the Manager's."""
+
     staff_login(client, Role.Code.MANAGER)
-    hire = make_staff_user(Role.Code.BARMAN, suffix="hire")
 
     response = client.post(
         EMPLOYEES_URL,
-        {"user": hire.pk, "monthly_wage": "22000.00", "currency": "ETB"},
+        {"employee": profile.pk, "monthly_wage": "22000.00", "currency": "ETB"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "permission_denied"
+    assert not Employee.all_rows.exists()
+
+
+def test_the_owner_records_a_payroll_employee_from_the_register(
+    client: Client, staff_login: Any, profile: EmployeeProfile
+) -> None:
+    staff_login(client, Role.Code.OWNER)
+
+    response = client.post(
+        EMPLOYEES_URL,
+        {"employee": profile.pk, "monthly_wage": "22000.00", "currency": "ETB"},
         content_type="application/json",
     )
 
     assert response.status_code == 201, response.content
     body = response.json()
-    assert body["full_name"] == hire.display_name
+    assert body["full_name"] == profile.full_name
     assert body["monthly_wage"] == "22000.00"
     assert body["status"] == "ACTIVE"
-    # The staff profile is created on the way in, with a placeholder position.
-    hire.refresh_from_db()
-    assert hire.employee_profile.position == "Staff"
+    # The register record is the subject: payroll adds a wage, not a person.
+    assert Employee.all_rows.get().profile_id == profile.pk
 
 
-def test_an_account_can_only_have_one_payroll_employee(
-    client: Client, staff_login: Any, make_staff_user: Any
+def test_a_register_record_can_only_have_one_payroll_employee(
+    client: Client, staff_login: Any, profile: EmployeeProfile
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
-    hire = make_staff_user(Role.Code.BARMAN, suffix="once")
+    staff_login(client, Role.Code.OWNER)
     first = client.post(
         EMPLOYEES_URL,
-        {"user": hire.pk, "monthly_wage": "22000.00"},
+        {"employee": profile.pk, "monthly_wage": "22000.00"},
         content_type="application/json",
     )
     assert first.status_code == 201, first.content
 
     response = client.post(
         EMPLOYEES_URL,
-        {"user": hire.pk, "monthly_wage": "23000.00"},
+        {"employee": profile.pk, "monthly_wage": "23000.00"},
         content_type="application/json",
     )
 
@@ -344,8 +472,28 @@ def test_an_account_can_only_have_one_payroll_employee(
     assert response.json()["error"]["code"] == "validation_error"
 
 
+def test_an_archived_register_record_cannot_join_payroll(
+    client: Client, staff_login: Any, profile: EmployeeProfile
+) -> None:
+    """Archiving records that someone left, so payroll must not pick them up again."""
+
+    staff_login(client, Role.Code.OWNER)
+    profile.archive()
+    profile.save(update_fields=["is_archived", "archived_at", "updated_at"])
+
+    response = client.post(
+        EMPLOYEES_URL,
+        {"employee": profile.pk, "monthly_wage": "22000.00"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "validation_error"
+    assert not Employee.all_rows.exists()
+
+
 def test_generation_requires_a_business_period(client: Client, staff_login: Any) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
 
     response = client.post(RUNS_URL, {}, content_type="application/json")
 
@@ -357,7 +505,7 @@ def test_generation_requires_a_business_period(client: Client, staff_login: Any)
 def test_runs_are_listed_newest_first_and_paginated(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     assert _generate(client, period="2026-08-09").status_code == 201
     assert _generate(client, period="2026-09-09").status_code == 201
 
@@ -373,7 +521,7 @@ def test_runs_are_listed_newest_first_and_paginated(
 def test_a_runs_payslip_lines_are_paginated(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     run_id = _generate(client).json()["id"]
 
     response = client.get(f"{RUNS_URL}{run_id}/items/")
@@ -390,10 +538,30 @@ def test_a_runs_payslip_lines_are_paginated(
     assert line["status"] == "PENDING"
 
 
+def test_a_manager_reads_runs_and_payslip_lines(
+    client: Client, staff_login: Any, employee: Employee
+) -> None:
+    """Reading payroll is still the Manager's: the loss was writes, not sight."""
+
+    staff_login(client, Role.Code.OWNER)
+    run_id = _generate(client).json()["id"]
+
+    client.logout()
+    staff_login(client, Role.Code.MANAGER)
+
+    runs = client.get(RUNS_URL)
+    lines = client.get(f"{RUNS_URL}{run_id}/items/")
+
+    assert runs.status_code == 200, runs.content
+    assert runs.json()["count"] == 1
+    assert lines.status_code == 200, lines.content
+    assert lines.json()["results"][0]["full_name"] == "Selam Bekele"
+
+
 def test_cashier_cannot_read_payslip_lines(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     run_id = _generate(client).json()["id"]
 
     client.logout()
@@ -408,7 +576,7 @@ def test_cashier_cannot_read_payslip_lines(
 def test_deductions_can_be_filtered_to_one_run(
     client: Client, staff_login: Any, employee: Employee
 ) -> None:
-    staff_login(client, Role.Code.MANAGER)
+    staff_login(client, Role.Code.OWNER)
     first_run = _generate(client, period="2026-08-09").json()["id"]
     first_item = PayrollItem.objects.get(run_id=first_run)
     client.post(
@@ -431,51 +599,50 @@ def test_deductions_can_be_filtered_to_one_run(
     assert second_item.total_deductions == Decimal("0.00")
 
 
-def test_the_roster_offers_only_active_staff_not_already_on_payroll(
-    client: Client, staff_login: Any, make_staff_user: Any
-) -> None:
-    """The list behind the create form: one entry per account still to be added."""
+def test_the_roster_offers_only_records_still_to_be_added(client: Client, staff_login: Any) -> None:
+    """The list behind the create form: one entry per register record to add."""
 
-    manager = staff_login(client, Role.Code.MANAGER)
-    available = make_staff_user(Role.Code.BARMAN, suffix="available")
-    left = make_staff_user(Role.Code.CASHIER, suffix="left")
-    EmployeeProfile.objects.create(
+    staff_login(client, Role.Code.OWNER)
+    available = EmployeeProfile.objects.create(
+        full_name="Yonas Tesfaye",
+        position="Barman",
+        phone_number="+251922000111",
+        start_date="2026-02-01",
+    )
+    left = EmployeeProfile.objects.create(
         full_name="Hana Girma",
         position="Waitress",
         start_date="2025-06-01",
         is_archived=True,
-        user=left,
     )
 
     response = client.get(PROFILES_URL)
 
     assert response.status_code == 200, response.content
     body = response.json()
-    usernames = {row["username"] for row in body["results"]}
-    assert available.username in usernames
-    assert manager.username in usernames  # the signed-in manager is a staff account too
+    rows = {row["id"]: row for row in body["results"]}
+    assert available.pk in rows
     # An archived profile records that someone left, so it is not offered again.
-    assert left.username not in usernames
+    assert left.pk not in rows
+    # The fields the create form cannot get from anywhere else.
+    entry = rows[available.pk]
+    assert entry["full_name"] == "Yonas Tesfaye"
+    assert entry["position"] == "Barman"
+    assert entry["phone_number"] == "+251922000111"
+    assert entry["start_date"] == "2026-02-01"
+    assert entry["contract_type"] == "FULL_TIME"
 
-    entry = next(row for row in body["results"] if row["username"] == available.username)
-    # The fields the create form cannot get from anywhere else yet.
-    assert entry["full_name"] == available.display_name
-    assert entry["position"] == ""
-    assert entry["phone_number"] == ""
-    assert entry["start_date"] is None
 
-
-def test_the_roster_hides_an_account_already_on_payroll(
-    client: Client, staff_login: Any, make_staff_user: Any
+def test_the_roster_hides_a_record_already_on_payroll(
+    client: Client, staff_login: Any, profile: EmployeeProfile
 ) -> None:
     """A payroll row, voided or not, occupies the one-to-one link, so it is hidden."""
 
-    staff_login(client, Role.Code.MANAGER)
-    hire = make_staff_user(Role.Code.BARMAN, suffix="onpayroll")
+    staff_login(client, Role.Code.OWNER)
     assert (
         client.post(
             EMPLOYEES_URL,
-            {"user": hire.pk, "monthly_wage": "22000.00"},
+            {"employee": profile.pk, "monthly_wage": "22000.00"},
             content_type="application/json",
         ).status_code
         == 201
@@ -484,8 +651,18 @@ def test_the_roster_hides_an_account_already_on_payroll(
     response = client.get(PROFILES_URL)
 
     assert response.status_code == 200, response.content
-    usernames = {row["username"] for row in response.json()["results"]}
-    assert hire.username not in usernames
+    assert profile.pk not in {row["id"] for row in response.json()["results"]}
+
+
+def test_a_manager_cannot_read_the_roster(client: Client, staff_login: Any) -> None:
+    """The roster feeds a write the Manager no longer holds, so it goes with it."""
+
+    staff_login(client, Role.Code.MANAGER)
+
+    response = client.get(PROFILES_URL)
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "permission_denied"
 
 
 def test_a_cashier_cannot_read_the_roster(client: Client, staff_login: Any) -> None:

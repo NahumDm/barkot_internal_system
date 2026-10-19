@@ -214,6 +214,23 @@ describe("write bodies", () => {
     expect(request.body).toBe("{}");
   });
 
+  it("passes a FormData body through as multipart, boundary and all", async () => {
+    // The document upload is the one write that cannot be JSON: the browser
+    // generates the multipart boundary, so Content-Type must stay unset, while
+    // the CSRF header still guards the request.
+    fetchMock().mockImplementation(() => jsonResponse({ id: 4 }));
+    const form = new FormData();
+    form.append("document", new File(["%PDF-1.7"], "contract.pdf", { type: "application/pdf" }));
+
+    await apiFetch("/employees/4/document/", { method: "POST", body: form });
+
+    const request = requests()[0];
+    expect(request.body).toBeInstanceOf(FormData);
+    expect(request.headers.get("Content-Type")).toBeNull();
+    expect(request.headers.get("X-CSRFToken")).toBe(CSRF);
+    expect(request.headers.get("Accept")).toBe("application/json");
+  });
+
   it("sends no body at all on reads", async () => {
     fetchMock().mockImplementation(() => jsonResponse({ user: { id: 1 } }));
 

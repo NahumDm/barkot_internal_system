@@ -20,6 +20,7 @@
 
 import { apiFetch, type RequestOptions } from "./client";
 import { type PaginatedResponse } from "./finance";
+import type { ContractType } from "./employees";
 
 /** When a run exists for the month (first of the month) it was generated for. */
 export type PayrollRunStatus = "GENERATED" | "APPROVED" | "PAID" | "CANCELLED";
@@ -36,14 +37,14 @@ export type EmployeeStatus = "ACTIVE" | "INACTIVE" | "TERMINATED";
  */
 export type PayrollDeductionType = "ADVANCE" | "ABSENCE" | "LATE" | "OTHER";
 
-/** An active staff account that can still be put on payroll. */
+/** An active register record that can still be put on payroll. */
 export interface PayrollProfile {
   id: number;
-  username: string;
   full_name: string;
   position: string;
   phone_number: string;
   start_date: string | null;
+  contract_type: ContractType;
 }
 
 /** Someone on monthly payroll. Person details are read from their profile. */
@@ -118,8 +119,8 @@ export interface PayrollDeduction {
 }
 
 export interface PayrollEmployeeCreateInput {
-  /** A `PayrollProfile.id` (a staff account) from `listPayrollProfiles`. */
-  user: number;
+  /** A `PayrollProfile.id` (an employee-register record). */
+  employee: number;
   monthly_wage: string;
   currency?: "ETB";
 }
@@ -156,7 +157,7 @@ export interface PayrollDeductionFilters {
   page_size?: number;
 }
 
-/** Active staff accounts that are not on payroll yet — options for the create form. */
+/** Active register records not on payroll yet — options for the create form. */
 export function listPayrollProfiles(
   options: RequestOptions = {},
 ): Promise<PaginatedResponse<PayrollProfile>> {
@@ -169,7 +170,7 @@ export function listPayrollEmployees(
   return apiFetch<PaginatedResponse<PayrollEmployee>>("/payroll/employees/", options);
 }
 
-/** Put a staff account onto payroll (the profile is created/reused server-side). */
+/** Put a register record onto payroll (it must exist in the register first). */
 export function createPayrollEmployee(
   input: PayrollEmployeeCreateInput,
   options: Omit<RequestOptions, "method" | "body"> = {},
@@ -267,6 +268,38 @@ export function createPayrollDeduction(
   return apiFetch<PayrollDeduction>("/payroll/deductions/", {
     ...options,
     method: "POST",
+    body: input,
+  });
+}
+
+/**
+ * Fields a correction may change. `payroll_item` is deliberately absent: a
+ * deduction stays against the line it was recorded on, so a wrong line means a
+ * delete (Owner) rather than a move.
+ */
+export interface PayrollDeductionUpdateInput {
+  deduction_type?: PayrollDeductionType;
+  amount?: string;
+  reason?: string;
+  occurred_on?: string;
+}
+
+/**
+ * Correct a deduction recorded against a generated run.
+ *
+ * Available to Owner and Manager while the run is still `GENERATED`; the
+ * server refuses with `invalid_state_transition` once it is approved, and with
+ * `invalid_deduction_amount` / `excessive_deduction` for the same reasons as
+ * creation. The server recomputes payroll totals from the corrected rows.
+ */
+export function updatePayrollDeduction(
+  id: number,
+  input: PayrollDeductionUpdateInput,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<PayrollDeduction> {
+  return apiFetch<PayrollDeduction>(`/payroll/deductions/${id}/`, {
+    ...options,
+    method: "PATCH",
     body: input,
   });
 }

@@ -45,9 +45,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 
 from apps.accounts.models import Role
@@ -70,6 +72,23 @@ Preparer = Callable[[Client, Any, Callable[..., Any]], dict[str, Any]]
 
 #: Fires the single request under test.
 Requester = Callable[[Client, dict[str, Any]], Any]
+
+
+@pytest.fixture(autouse=True)
+def uploads_land_in_a_temporary_directory(tmp_path: Path, settings: Any) -> None:
+    """Point ``MEDIA_ROOT`` at a throwaway directory for every scenario.
+
+    The document-upload scenario is a real upload through the real service, and
+    a file on disk does not roll back with the database row the way the audit
+    assertion assumes: without this, each run would leave a PDF behind in
+    ``backend/media``. No other scenario reads media, so redirecting it for all
+    of them costs nothing.
+
+    Args:
+        tmp_path: pytest's per-test temporary directory.
+        settings: pytest-django's live settings wrapper.
+    """
+    settings.MEDIA_ROOT = tmp_path
 
 
 @dataclass(frozen=True)
@@ -141,6 +160,33 @@ def _delete(path: str) -> Requester:
 
     def _request(client: Client, ctx: dict[str, Any]) -> Any:
         return client.delete(path.format(**ctx))
+
+    return _request
+
+
+def _post_document(path: str) -> Requester:
+    """Return a requester that multipart-POSTs a valid contract PDF to ``path``.
+
+    The upload is a real file through the real parser rather than a stub, and
+    the request deliberately carries no JSON content type: the endpoint's whole
+    job is to receive multipart bytes, so a request shaped any other way would
+    pass here while failing for every genuine caller. No ``content_type`` is
+    given because the test client sets the multipart boundary itself.
+
+    Args:
+        path: The URL, optionally with ``{pk}``-style placeholders.
+
+    Returns:
+        A callable suitable for :attr:`Scenario.request`.
+    """
+
+    def _request(client: Client, ctx: dict[str, Any]) -> Any:
+        upload = SimpleUploadedFile(
+            "contract.pdf",
+            b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< >>\n%%EOF\n",
+            content_type="application/pdf",
+        )
+        return client.post(path.format(**ctx), {"document": upload})
 
     return _request
 
@@ -340,18 +386,54 @@ def _prepare_target_user(
 
 
 def _prepare_profile(client: Client, owner: Any, make_staff: Callable[..., Any]) -> dict[str, Any]:
-    """A staff account not yet on payroll, for ``POST /payroll/employees/``.
+    """A register record not yet on payroll, ready for any endpoint to act on.
+
+    Both key spellings are provided: ``pk`` for a path placeholder and
+    ``profile_pk`` for the body field ``POST /payroll/employees/`` reads, so one
+    prepare serves the register's own detail endpoints and the payroll create.
 
     Args:
-        client: The client.
+        client: The Django test client.
         owner: The signed-in Owner.
-        make_staff: Factory for a staff account with a role.
+        make_staff: The user factory (unused - a register entry is not a login).
 
     Returns:
-        Context with ``user_pk``.
+        Context with ``pk`` and ``profile_pk``.
     """
-    user = make_staff(Role.Code.BARMAN, suffix="payroll")
-    return {"user_pk": user.pk}
+    profile = EmployeeProfile.objects.create(
+        full_name="Rahel Tesfaye",
+        position="Barista",
+        start_date=date(2026, 2, 2),
+    )
+    return {"pk": profile.pk, "profile_pk": profile.pk}
+
+
+def _prepare_archived_profile(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """An archived record, which is the only state ``restore/`` can act on.
+
+    Archived through the public endpoint rather than by setting the column, so
+    the archive's own audit row lands before the snapshot and only the restore
+    counts - the idempotence rule would otherwise answer a restore of an active
+    record with a 200 and no row at all.
+
+    Args:
+        client: The Django test client, already signed in as the Owner.
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``.
+    """
+    context = _prepare_profile(client, owner, make_staff)
+    archived = client.post(
+        f"/api/v1/employees/{context['pk']}/archive/",
+        {},
+        content_type="application/json",
+    )
+    assert archived.status_code == 200, archived.content
+    return {"pk": context["pk"]}
 
 
 def _prepare_employee(client: Client, owner: Any, make_staff: Callable[..., Any]) -> dict[str, Any]:
@@ -429,6 +511,29 @@ def _prepare_deduction(
     )
     assert generated.status_code == 201, generated.content
     return {"item_pk": PayrollItem.objects.get(run_id=generated.json()["id"]).pk}
+
+
+def _prepare_deduction_record(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A recorded deduction, addressed by a path's ``{pk}`` placeholder.
+
+    Recorded through the API rather than a fixture so the run it belongs to is
+    still ``GENERATED`` - which is the state the correction endpoints require,
+    and a fixture that wrote the row directly could easily drift into the
+    approved state these endpoints must refuse.
+
+    Args:
+        client: The Django test client.
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``.
+    """
+    recorded = _run_deduction(client, _prepare_deduction(client, owner, make_staff))
+    assert recorded.status_code == 201, recorded.content
+    return {"pk": recorded.json()["id"]}
 
 
 def _prepare_expense_category(
@@ -653,10 +758,10 @@ def _run_deduction(client: Client, ctx: dict[str, Any]) -> Any:
 
 
 def _run_create_employee(client: Client, ctx: dict[str, Any]) -> Any:
-    """Put the prepared staff account onto payroll."""
+    """Put the prepared register record onto payroll."""
     return client.post(
         "/api/v1/payroll/employees/",
-        {"user": ctx["user_pk"], "monthly_wage": "22000.00"},
+        {"employee": ctx["profile_pk"], "monthly_wage": "22000.00"},
         content_type="application/json",
     )
 
@@ -708,6 +813,50 @@ SCENARIOS: dict[str, Scenario] = {
                 "new_password_confirm": NEW_PASSWORD,
             },
         ),
+    ),
+    "POST /api/v1/employees/": Scenario(
+        action=AuditLog.Action.CREATE,
+        object_type="users.EmployeeProfile",
+        prepare=_no_prerequisites,
+        request=_post(
+            "/api/v1/employees/",
+            {
+                "full_name": "Rahel Tesfaye",
+                "position": "Barista",
+                "phone_number": "+251911223344",
+                "start_date": "2026-02-02",
+            },
+        ),
+    ),
+    "PATCH /api/v1/employees/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="users.EmployeeProfile",
+        prepare=_prepare_profile,
+        request=_patch("/api/v1/employees/{pk}/", {"position": "Senior Barista"}),
+    ),
+    "PUT /api/v1/employees/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="users.EmployeeProfile",
+        prepare=_prepare_profile,
+        request=_put("/api/v1/employees/{pk}/", {"phone_number": "+251911556677"}),
+    ),
+    "POST /api/v1/employees/{pk}/archive/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="users.EmployeeProfile",
+        prepare=_prepare_profile,
+        request=_post("/api/v1/employees/{pk}/archive/", {}),
+    ),
+    "POST /api/v1/employees/{pk}/restore/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="users.EmployeeProfile",
+        prepare=_prepare_archived_profile,
+        request=_post("/api/v1/employees/{pk}/restore/", {}),
+    ),
+    "POST /api/v1/employees/{pk}/document/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="users.EmployeeProfile",
+        prepare=_prepare_profile,
+        request=_post_document("/api/v1/employees/{pk}/document/"),
     ),
     "POST /api/v1/finance/categories/": Scenario(
         action=AuditLog.Action.CREATE,
@@ -786,6 +935,21 @@ SCENARIOS: dict[str, Scenario] = {
         object_type="payroll.PayrollDeduction",
         prepare=_prepare_deduction,
         request=_run_deduction,
+    ),
+    "PATCH /api/v1/payroll/deductions/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="payroll.PayrollDeduction",
+        prepare=_prepare_deduction_record,
+        request=_patch("/api/v1/payroll/deductions/{pk}/", {"amount": "500.00"}),
+    ),
+    "PUT /api/v1/payroll/deductions/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="payroll.PayrollDeduction",
+        prepare=_prepare_deduction_record,
+        request=_put(
+            "/api/v1/payroll/deductions/{pk}/",
+            {"reason": "Two days absent; corrected after review", "occurred_on": "2026-10-05"},
+        ),
     ),
     "POST /api/v1/payroll/employees/": Scenario(
         action=AuditLog.Action.CREATE,

@@ -114,9 +114,7 @@ _MANAGER: Final[tuple[str, ...]] = (
     "finance.approve_expense",
     "finance.manage_expense_categories",
     "payroll.view_payroll",
-    "payroll.generate_run",
     "payroll.create_deduction",
-    "payroll.manage_payroll_employees",
     "users.manage_employees",
     "audit.view_audit_log",
 )
@@ -150,8 +148,8 @@ ROLE_DESCRIPTIONS: Final[dict[str, str]] = {
     ),
     Role.Code.MANAGER: (
         "Reviews and approves counts and variances, records and approves expenses, "
-        "generates payroll, manages employees and views reports. Generates but does "
-        "not approve payroll."
+        "manages the employee register and views reports. Reads payroll and records "
+        "deductions, but does not generate payroll runs or manage payroll employees."
     ),
     Role.Code.OWNER: (
         "Full access. Sole approver of payroll runs and the only role that manages "
@@ -359,7 +357,7 @@ class CanViewPayroll(HasRolePermission):
 
 
 class CanGeneratePayrollRun(HasRolePermission):
-    """Produce a draft run. A Manager generates; an Owner approves."""
+    """Produce a draft run. Owner-only: a Manager may read payroll but not run it."""
 
     required_permission = "payroll.generate_run"
 
@@ -367,9 +365,10 @@ class CanGeneratePayrollRun(HasRolePermission):
 class CanApprovePayrollRun(HasRolePermission):
     """Approve a run so it can be paid.
 
-    The A8 gate. Deliberately not granted to a Manager: the role descriptions say a
-    Manager generates but does not approve, and payroll is the one place where whoever
-    computes the figure must not also be whoever signs it off.
+    The A8 gate. Deliberately not granted to a Manager: payroll is the one place
+    where whoever computes the figure must not also be whoever signs it off, and
+    since a Manager can no longer generate a run either, only the Owner ever
+    moves a run past ``GENERATED``.
     """
 
     required_permission = "payroll.approve_run"
@@ -388,13 +387,15 @@ class CanCreateDeduction(HasRolePermission):
 
 
 class CanManagePayrollEmployees(HasRolePermission):
-    """Add employees to a run and set their pay."""
+    """Add employees to payroll and set their pay. Owner-only (spec §14.3)."""
 
     required_permission = "payroll.manage_payroll_employees"
 
 
 class CanManageEmployees(HasRolePermission):
-    """Create staff accounts and change what roles they hold."""
+    """Maintain the employee register: the staff records themselves, their
+    contracts and their documents. Independent of ``accounts.manage_users``,
+    which governs login accounts and is Owner-only."""
 
     required_permission = "users.manage_employees"
 

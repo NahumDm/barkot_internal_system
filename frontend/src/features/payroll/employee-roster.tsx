@@ -18,22 +18,24 @@ import { EmptyNote, ErrorBanner, LoadingNote, NoAccessNote, PageHeader, StatusCh
 /**
  * Who is on monthly payroll, and the form that puts someone there (spec §14.2).
  *
- * The roster and the options list are two endpoints on purpose. `/employees/`
- * is a payroll resource and needs `payroll.view_payroll`; `/profiles/` lists
- * staff who are *not* on payroll yet and needs `payroll.manage_payroll_employees`,
- * because the only screen that reads it is this form. Fetching the second one
- * without the second permission would earn a 403 on a page that otherwise works,
- * so it is only asked for when the form is drawn.
+ * The roster and the options list are two endpoints on purpose. `/payroll/employees/`
+ * is a payroll resource and needs `payroll.view_payroll`; `/payroll/profiles/` lists
+ * active employee-register records that are *not* on payroll yet and needs
+ * `payroll.manage_payroll_employees`, because the only screen that reads it is
+ * this form. Fetching the second one without the second permission would earn a
+ * 403 on a page that otherwise works, so it is only asked for when the form is
+ * drawn.
  *
- * Adding someone is not an edit of the person: the profile stays where it is and
- * payroll takes a wage snapshot of it. That is why the form has a wage field and
- * nothing else — name, position, phone and start date are already the profile's,
- * and copying them here would give the same person two addresses.
+ * Adding someone is not an edit of the person: the register record stays where
+ * it is and payroll takes a wage snapshot of it. That is why the form has a
+ * wage field and nothing else — name, position, phone and start date are
+ * already the register's, and copying them here would give the same person two
+ * addresses.
  *
  * `ready` covers both requests because the screen is one screen: if either half
  * failed, saying "no one is on payroll yet" under a banner that says the request
- * failed would be answering a question nobody asked. The staff select holds a
- * *preference* rather than a chosen id, so a roster that shrinks underneath it
+ * failed would be answering a question nobody asked. The register select holds
+ * a *preference* rather than a chosen id, so a roster that shrinks underneath it
  * falls back to the first option with nothing to repair afterwards.
  */
 export default function EmployeeRoster() {
@@ -43,7 +45,7 @@ export default function EmployeeRoster() {
   const [profiles, setProfiles] = useState<PayrollProfile[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
-  const [userChoice, setUserChoice] = useState("");
+  const [profileChoice, setProfileChoice] = useState("");
   const [wage, setWage] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
@@ -66,9 +68,9 @@ export default function EmployeeRoster() {
     refresh().catch((value: unknown) => setError(value as ApiError));
   }, [checking, canView, refresh]);
 
-  const userId =
-    userChoice && profiles.some((option) => String(option.id) === userChoice)
-      ? userChoice
+  const profileId =
+    profileChoice && profiles.some((option) => String(option.id) === profileChoice)
+      ? profileChoice
       : String(profiles[0]?.id ?? "");
 
   const noOneWaiting = ready && profiles.length === 0;
@@ -80,7 +82,7 @@ export default function EmployeeRoster() {
     setSaved(null);
     try {
       const created = await createPayrollEmployee({
-        user: Number(userId),
+        employee: Number(profileId),
         monthly_wage: wage,
       });
       setWage("");
@@ -129,8 +131,8 @@ export default function EmployeeRoster() {
             Staff member
             <select
               required
-              value={userId}
-              onChange={(event) => setUserChoice(event.target.value)}
+              value={profileId}
+              onChange={(event) => setProfileChoice(event.target.value)}
               className="control mt-1.5"
             >
               <option value="" disabled>
@@ -138,7 +140,7 @@ export default function EmployeeRoster() {
               </option>
               {profiles.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.full_name} ({option.username})
+                  {option.full_name} — {option.position}
                 </option>
               ))}
             </select>
@@ -157,7 +159,7 @@ export default function EmployeeRoster() {
           </label>
           <div className="flex items-end">
             <button
-              disabled={saving || noOneWaiting || !userId}
+              disabled={saving || noOneWaiting || !profileId}
               type="submit"
               className="btn btn-primary w-full"
             >
@@ -166,7 +168,8 @@ export default function EmployeeRoster() {
           </div>
           {noOneWaiting && (
             <p className="text-xs text-ink-secondary sm:col-span-2 lg:col-span-4">
-              Every active staff account is already on payroll. New accounts arrive from Settings.
+              Every active register record is already on payroll. New staff arrive from the Employee
+              Register.
             </p>
           )}
         </form>

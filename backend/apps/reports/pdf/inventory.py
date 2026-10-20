@@ -22,16 +22,14 @@ def stock_balance_pdf(*, as_of: date) -> HttpResponse:
     headers = ["SKU", "Product", "Ledger balance", "Last counted", "Last counted on", "Delta"]
     rows = []
     for row in data["rows"]:
-        rows.append(
-            [
-                row["sku"],
-                row["name"],
-                str(row["ledger_balance"]),
-                str(row["last_counted"]) if row["last_counted"] is not None else "",
-                format_date(row["last_counted_on"]) if row["last_counted_on"] else "",
-                str(row["delta"]) if row["delta"] is not None else "",
-            ]
-        )
+        rows.append([
+            row["sku"],
+            row["name"],
+            str(row["ledger_balance"]),
+            str(row["last_counted"]) if row["last_counted"] is not None else "",
+            format_date(row["last_counted_on"]) if row["last_counted_on"] else "",
+            str(row["delta"]) if row["delta"] is not None else "",
+        ])
 
     return _build_pdf(
         title="Inventory Stock Balance Report",
@@ -52,29 +50,37 @@ def stock_variance_pdf(*, start: date, end: date) -> HttpResponse:
     data = report.as_dict()
 
     summary_rows = [
-        ("Period", f"{format_date(data['start'])} – {format_date(data['end'])}"),
+        ("Period", f"{format_date(data['start'])} - {format_date(data['end'])}"),
         ("Lines", str(data["lines"])),
         ("Expected total", str(data["expected_total"])),
         ("Counted total", str(data["counted_total"])),
         ("Variance total", str(data["variance_total"])),
     ]
 
-    headers = ["Count reference", "Status", "Counted on", "SKU", "Product", "Expected", "Counted", "Variance", "Note"]
+    headers = [
+        "Count reference",
+        "Status",
+        "Counted on",
+        "SKU",
+        "Product",
+        "Expected",
+        "Counted",
+        "Variance",
+        "Note",
+    ]
     rows = []
     for row in data["rows"]:
-        rows.append(
-            [
-                row["reference"],
-                row["status"],
-                format_date(row["counted_on"]),
-                row["sku"],
-                row["name"],
-                str(row["expected_quantity"]),
-                str(row["counted_quantity"]),
-                str(row["variance"]),
-                row.get("note") or "",
-            ]
-        )
+        rows.append([
+            row["reference"],
+            row["status"],
+            format_date(row["counted_on"]),
+            row["sku"],
+            row["name"],
+            str(row["expected_quantity"]),
+            str(row["counted_quantity"]),
+            str(row["variance"]),
+            row.get("note") or "",
+        ])
 
     return _build_pdf(
         title="Inventory Variance Report",

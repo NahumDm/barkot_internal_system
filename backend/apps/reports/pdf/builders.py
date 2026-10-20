@@ -64,14 +64,12 @@ def _build_pdf(
     else:
         header_table = Table([[header_right]], colWidths=[pagesize[0] - 36 * mm])
     header_table.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ]
-        )
+        TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ])
     )
     story.append(header_table)
     story.append(Spacer(1, 3 * mm))
@@ -109,18 +107,16 @@ def _build_pdf(
         ]
         stable = Table(sdata, colWidths=[70 * mm, pagesize[0] - 106 * mm])
         stable.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
-                    ("BOX", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ]
-            )
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.whitesmoke),
+                ("BOX", (0, 0), (-1, -1), 0.25, colors.grey),
+                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ])
         )
         story.append(stable)
         story.append(Spacer(1, 6 * mm))
@@ -134,23 +130,23 @@ def _build_pdf(
         ]
         t = Table(table_data, repeatRows=1)
         t.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 7.5),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                ]
-            )
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ])
         )
         story.append(t)
     else:
-        story.append(Paragraph(empty_message or "No records found for the selected period", subtitle_style))
+        story.append(
+            Paragraph(empty_message or "No records found for the selected period", subtitle_style)
+        )
 
     # Count pages
     def _noop(canvas, doc):

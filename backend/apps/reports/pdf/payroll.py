@@ -14,7 +14,7 @@ def payroll_report_pdf(*, start: date, end: date) -> HttpResponse:
     data = report.as_dict()
 
     summary_rows = [
-        ("Period", f"{format_date(data['start'])} – {format_date(data['end'])}"),
+        ("Period", f"{format_date(data['start'])} - {format_date(data['end'])}"),
         ("Currency", data["currency"]),
         ("Runs", str(data["summary"]["runs"])),
         ("Gross total", f"{data['summary']['gross_total']} {data['currency']}"),
@@ -22,20 +22,26 @@ def payroll_report_pdf(*, start: date, end: date) -> HttpResponse:
         ("Net total", f"{data['summary']['net_total']} {data['currency']}"),
     ]
 
-    headers = ["Period month", "Status", "Employees", "Gross total", "Deduction total", "Net total", "Currency"]
+    headers = [
+        "Period month",
+        "Status",
+        "Employees",
+        "Gross total",
+        "Deduction total",
+        "Net total",
+        "Currency",
+    ]
     rows = []
     for row in data["rows"]:
-        rows.append(
-            [
-                format_date(row["period_month"]),
-                row["status_display"],
-                str(row["employees"]),
-                f"{row['gross_total']} {row['currency']}",
-                f"{row['deduction_total']} {row['currency']}",
-                f"{row['net_total']} {row['currency']}",
-                row["currency"],
-            ]
-        )
+        rows.append([
+            format_date(row["period_month"]),
+            row["status_display"],
+            str(row["employees"]),
+            f"{row['gross_total']} {row['currency']}",
+            f"{row['deduction_total']} {row['currency']}",
+            f"{row['net_total']} {row['currency']}",
+            row["currency"],
+        ])
 
     return _build_pdf(
         title="Payroll Report",

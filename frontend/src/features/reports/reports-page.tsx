@@ -4,14 +4,14 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { DateField, DateRangeFilter } from "@/components/date-range-filter";
 import {
-  financialCsvUrl,
+  financialPdfUrl,
   getFinancialReport,
   getPayrollReport,
   getStockBalance,
   getStockVariance,
-  payrollCsvUrl,
-  stockBalanceCsvUrl,
-  stockVarianceCsvUrl,
+  payrollPdfUrl,
+  stockBalancePdfUrl,
+  stockVariancePdfUrl,
   type PayrollReport,
   type StockBalanceReport,
   type StockVarianceReport,
@@ -64,7 +64,7 @@ export default function ReportsPage() {
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">Reports</h1>
           <p className="mt-1 text-sm text-ink-secondary">
-            Financial, inventory and payroll views with date filters and CSV export.
+            Financial, inventory and payroll views with date filters and PDF export.
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -132,13 +132,15 @@ function TabButton({
   );
 }
 
-function DownloadCsv({ href, label = "Download CSV" }: { href: string; label?: string }) {
+function DownloadPdf({ href, label = "Download PDF" }: { href: string; label?: string }) {
   return (
     <a href={href} className="btn btn-secondary">
       {label}
     </a>
   );
 }
+
+const DownloadCsv = DownloadPdf;
 
 function FinancialTab({
   start,
@@ -188,7 +190,7 @@ function FinancialTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <DateRangeFilter start={start} end={end} onStart={changeStart} onEnd={changeEnd} />
-        <DownloadCsv href={financialCsvUrl(start, end)} label="Download CSV" />
+        <DownloadPdf href={financialPdfUrl(start, end)} />
       </div>
       <ErrorBanner error={error} />
       {loading && <LoadingNote label="Loading financial report..." />}
@@ -321,7 +323,7 @@ function InventoryTab({
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <DateField label="As of" value={asOf} onChange={changeAsOf} />
-            <DownloadCsv href={stockBalanceCsvUrl(asOf)} />
+            <DownloadPdf href={stockBalancePdfUrl(asOf)} />
           </div>
         </div>
         <ErrorBanner error={balanceError} />
@@ -387,7 +389,7 @@ function InventoryTab({
               onStart={changeStart}
               onEnd={changeEnd}
             />
-            <DownloadCsv href={stockVarianceCsvUrl(period.start, period.end)} />
+            <DownloadPdf href={stockVariancePdfUrl(period.start, period.end)} />
           </div>
         </div>
         <ErrorBanner error={varianceError} />
@@ -491,7 +493,7 @@ function PayrollTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <DateRangeFilter start={start} end={end} onStart={changeStart} onEnd={changeEnd} />
-        <DownloadCsv href={payrollCsvUrl(start, end)} />
+        <DownloadPdf href={payrollPdfUrl(start, end)} />
       </div>
       <ErrorBanner error={error} />
       {loading && <LoadingNote label="Loading payroll report..." />}

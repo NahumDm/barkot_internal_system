@@ -1,9 +1,11 @@
 # Barkot backend — base runtime dependencies.
-# Version bounds follow the architecture spec §5 / §26.2.
+# Version bounds follow the architecture spec A5 / A26.2.
 # Exact patches are pinned after the first install (P12). See requirements/README.
 
-Django>=5.2,<5.3                  # 5.2.x LTS (spec §5)
-djangorestframework>=3.18,<3.19   # DRF 3.18.x (spec §5, R4)
-psycopg[binary]>=3.2,<4           # PostgreSQL driver (spec §26.2)
-django-filter>=25,<26             # API list filtering (spec §26.2)
-drf-spectacular>=0.29,<0.30       # OpenAPI schema (spec §26.2)
+Django>=5.2,<5.3                  # 5.2.x LTS (spec A5)
+djangorestframework>=3.18,<3.19   # DRF 3.18.x (spec A5, R4)
+psycopg[binary]>=3.2,<4           # PostgreSQL driver (spec A26.2)
+django-filter>=25,<26             # API list filtering (spec A26.2)
+drf-spectacular>=0.29,<0.30       # OpenAPI schema (spec A26.2)
+reportlab>=4.2,<5                 # PDF generation for reports (spec A15)
+Pillow>=11,<12                    # Image handling for PDF logos (spec A15)

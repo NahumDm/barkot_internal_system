@@ -13,6 +13,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import IsCashierOrOwner
 from apps.dashboard.serializers import DashboardQuerySerializer, DashboardSerializer
 from apps.dashboard.services import dashboard_summary
 
@@ -20,7 +21,7 @@ from apps.dashboard.services import dashboard_summary
 class DashboardView(APIView):
     """The role-scoped dashboard summary (spec §7.4)."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCashierOrOwner]
 
     @extend_schema(
         summary="Get the dashboard summary for a local-date period",

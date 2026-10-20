@@ -104,19 +104,12 @@ _CASHIER_SHOPFLOOR: Final[tuple[str, ...]] = (
 )
 
 _MANAGER: Final[tuple[str, ...]] = (
-    *_CASHIER_SHOPFLOOR,
-    "inventory.receive_stock",
-    "inventory.record_breakage",
-    "inventory.approve_adjustment",
-    "sales.void_sale",
-    "finance.view_reports",
-    "finance.create_expense",
-    "finance.approve_expense",
-    "finance.manage_expense_categories",
+    "products.view_products",
+    "inventory.view_inventory",
+    "sales.view_sales",
+    "finance.view_finance",
     "payroll.view_payroll",
     "payroll.create_deduction",
-    "users.manage_employees",
-    "audit.view_audit_log",
 )
 
 #: Role code → permission codenames. The Owner is given everything explicitly
@@ -127,9 +120,6 @@ ROLE_MATRIX: Final[dict[str, tuple[str, ...]]] = {
     Role.Code.BARMAN: (
         "products.view_products",
         "inventory.view_inventory",
-        "inventory.receive_stock",
-        "inventory.record_breakage",
-        "sales.view_sales",
     ),
     Role.Code.CASHIER: _CASHIER_SHOPFLOOR,
     Role.Code.MANAGER: _MANAGER,
@@ -330,6 +320,33 @@ class CanViewReports(HasRolePermission):
     """Read the reporting summaries."""
 
     required_permission = "finance.view_reports"
+
+
+class IsOwner(BasePermission):
+    """Only the Owner role."""
+
+    def has_permission(self, request: Request, view: Any) -> bool:
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        role = getattr(user, "role", None)
+        if not role:
+            return False
+        return getattr(role, "code", None) == Role.Code.OWNER
+
+
+class IsCashierOrOwner(BasePermission):
+    """Only Cashier or Owner roles can access dashboard."""
+
+    def has_permission(self, request: Request, view: Any) -> bool:
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        role = getattr(user, "role", None)
+        if not role:
+            return False
+        return getattr(role, "code", None) in (Role.Code.CASHIER, Role.Code.OWNER)
+
 
 
 class CanCreateExpense(HasRolePermission):

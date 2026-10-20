@@ -23,7 +23,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import CanViewReports
+from apps.accounts.permissions import CanViewReports, IsOwner
 from apps.finance.serializers import BalanceSerializer
 from apps.finance.services import finance_balance
 from apps.reports.pdf.financial import financial_report_pdf
@@ -51,7 +51,7 @@ class FinancialReportView(APIView):
     the two surfaces cannot drift apart.
     """
 
-    permission_classes = [IsAuthenticated, CanViewReports]
+    permission_classes = [IsAuthenticated, IsOwner]
 
     @extend_schema(
         summary="Get financial report for a local-date period",

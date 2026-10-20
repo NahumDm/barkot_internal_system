@@ -45,6 +45,8 @@ function monthStartToday(): string {
 export default function DashboardPage() {
   const { user } = useAuth();
   const granted = user?.permissions ?? [];
+  const role = (user?.role ?? "").toString().toUpperCase();
+  const canAccess = role === "CASHIER" || role === "OWNER";
   const canViewSales = granted.includes("sales.view_sales");
   const canViewInventory = granted.includes("inventory.view_inventory");
   const canViewFinance = granted.includes("finance.view_reports");
@@ -90,6 +92,21 @@ export default function DashboardPage() {
     setStart(initialStart);
     setEnd(todayISO());
   };
+
+  if (!canAccess) {
+    return (
+      <section className="space-y-6">
+        <PageHeader
+          eyebrow="Overview"
+          title="Dashboard"
+          blurb="The position of the business for the period, read straight from each domain."
+        />
+        <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
+          Dashboard is only available for cashier and owner.
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-6">

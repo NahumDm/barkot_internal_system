@@ -26,7 +26,7 @@ export interface NavGroup {
  * `backend/apps/accounts/permissions.py`.
  */
 export const navGroups: NavGroup[] = [
-  { items: [{ label: "Dashboard", href: "/dashboard" }] },
+  { items: [{ label: "Dashboard", href: "/dashboard", permissions: ["dashboard.view_dashboard"] }] },
   {
     heading: "Sales",
     items: [

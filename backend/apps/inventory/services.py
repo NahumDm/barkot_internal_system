@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.db import transaction
 from django.db.models import QuerySet
@@ -36,8 +36,13 @@ from apps.core.enums import (
     MovementSource,
     StockCountStatus,
 )
-from apps.core.exceptions import InsufficientStock, InvalidStateTransition
-from apps.core.money import quantize_quantity, validate_whole_quantity
+from apps.core.exceptions import (
+    IdempotencyInFlight,
+    InsufficientStock,
+    InvalidStateTransition,
+)
+from apps.core.idempotency import claim_key, replayed_object
+from apps.core.money import quantize_money, quantize_quantity, validate_whole_quantity
 from apps.inventory.models import (
     BreakageItem,
     BreakageRecord,
@@ -51,6 +56,43 @@ from apps.products.models import Product
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from apps.accounts.models import User
+
+
+RECEIPT_SCOPE = "inventory.receive_stock"
+
+
+def _receipt_fingerprint_body(
+    lines: list[ReceiptLineInput],
+    supplier_name: str,
+    received_at: datetime | None,
+    reference: str,
+    notes: str,
+) -> dict[str, Any]:
+    return {
+        "supplier_name": supplier_name,
+        "received_at": received_at.isoformat() if received_at else None,
+        "reference": reference,
+        "notes": notes,
+        "lines": [
+            {
+                "product": line.product.pk,
+                "quantity": str(line.quantity),
+                "unit_cost": str(line.unit_cost),
+                "lot_reference": line.lot_reference,
+            }
+            for line in lines
+        ],
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class GroupedReceiptLineInput:
+    product: Product
+    crates: Decimal
+    crate_cost: Decimal | None = None
+    unit_cost: Decimal | None = None
+    lot_reference: str = ""
+    notes: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +133,7 @@ def receive_stock(
     received_at: datetime | None = None,
     reference: str = "",
     notes: str = "",
+    idempotency_key: str | None = None,
 ) -> StockReceipt:
     """Record a supplier delivery and add the stock to the ledger.
 
@@ -113,6 +156,25 @@ def receive_stock(
     """
     if not lines:
         raise ValueError("A stock receipt must have at least one line.")
+
+    claim = claim_key(
+        scope=RECEIPT_SCOPE,
+        key=idempotency_key,
+        body=_receipt_fingerprint_body(
+            lines=lines,
+            supplier_name=supplier_name,
+            received_at=received_at,
+            reference=reference,
+            notes=notes,
+        ),
+    )
+    if claim.replayed:
+        existing = replayed_object(claim, StockReceipt)
+        if existing is not None:
+            return existing
+        raise IdempotencyInFlight(
+            f"Idempotency key {idempotency_key!r} refers to a receipt that no longer exists."
+        )
 
     seen: set[int] = set()
     for line in lines:
@@ -166,6 +228,8 @@ def receive_stock(
     receipt.complete(actor=actor)
     receipt.save(update_fields=["status", "completed_at", "updated_at", "updated_by"])
 
+    claim.produced(receipt)
+
     AuditLog.record(
         action=AuditLog.Action.CREATE,
         object_type="inventory.StockReceipt",
@@ -174,6 +238,113 @@ def receive_stock(
         summary=f"Received {len(lines)} line(s) from {supplier_name}",
     )
     return receipt
+
+
+@transaction.atomic
+def receive_grouped_stock(
+    *,
+    supplier_name: str,
+    selling_price: Decimal,
+    lines: list[GroupedReceiptLineInput],
+    actor: User | None = None,
+    received_at: datetime | None = None,
+    reference: str = "",
+    notes: str = "",
+    idempotency_key: str | None = None,
+) -> StockReceipt:
+    """Receive multiple products sharing a selling-price group in a single transaction.
+
+    Authoritatively validates each product's current selling price against
+    ``selling_price``, calculates authoritative bottle quantities and per-bottle
+    costs using each product's configured ``bottles_per_crate``, and atomically
+    creates individual receipt lines and stock movements.
+    """
+    if not lines:
+        raise ValueError("A grouped stock receipt must have at least one line.")
+
+    receipt_lines: list[ReceiptLineInput] = []
+    seen: set[int] = set()
+
+    for line in lines:
+        product = line.product
+        if product.pk in seen:
+            raise ValueError(f"Product {product.sku!r} appears twice. Combine the lines instead.")
+        seen.add(product.pk)
+
+        if not product.is_stock_tracked:
+            raise InvalidStateTransition(
+                f"Product {product.sku!r} is not stock tracked and cannot be received."
+            )
+        if not product.is_active:
+            raise InvalidStateTransition(
+                f"Product {product.sku!r} is inactive and cannot be received."
+            )
+        if not product.is_crated:
+            raise ValueError(
+                f"Product {product.sku!r} has no bottles-per-crate conversion configured "
+                "and cannot be received in a grouped receipt."
+            )
+        if line.crates <= 0:
+            raise ValueError(f"Crate quantity for {product.sku!r} must be greater than zero.")
+
+        # Authoritative backend validation of selling price group
+        current_price = product.current_price()
+        if current_price is None:
+            raise ValueError(f"Product {product.sku!r} has no active selling price configured.")
+        if current_price.unit_price != selling_price:
+            raise ValueError(
+                f"Product {product.sku!r} selling price ({current_price.unit_price} ETB) "
+                f"does not match the selected price group ({selling_price} ETB)."
+            )
+
+        # Authoritative bottle conversion factor strictly from backend model
+        if product.is_crated and product.bottles_per_crate:
+            conversion_factor = Decimal(product.bottles_per_crate)
+            bottle_quantity = quantize_quantity(line.crates * conversion_factor, field="quantity")
+            if line.crate_cost is not None:
+                if line.crate_cost < 0:
+                    raise ValueError(f"Crate cost for {product.sku!r} cannot be negative.")
+                unit_cost = quantize_money(line.crate_cost / conversion_factor, field="unit_cost")
+            elif line.unit_cost is not None:
+                if line.unit_cost < 0:
+                    raise ValueError(f"Unit cost for {product.sku!r} cannot be negative.")
+                unit_cost = quantize_money(line.unit_cost, field="unit_cost")
+            else:
+                raise ValueError(f"A crate cost or unit cost must be provided for {product.sku!r}.")
+            crate_note = f"{line.crates} crate(s) ({product.bottles_per_crate} btl/crate)"
+        else:
+            conversion_factor = Decimal(1)
+            bottle_quantity = quantize_quantity(line.crates, field="quantity")
+            if line.crate_cost is not None:
+                unit_cost = quantize_money(line.crate_cost, field="unit_cost")
+            elif line.unit_cost is not None:
+                unit_cost = quantize_money(line.unit_cost, field="unit_cost")
+            else:
+                raise ValueError(f"A cost must be provided for {product.sku!r}.")
+            crate_note = f"{line.crates} unit(s)"
+
+        line_notes = f"Grouped line: {crate_note}. {line.notes}".strip()
+        receipt_lines.append(
+            ReceiptLineInput(
+                product=product,
+                quantity=bottle_quantity,
+                unit_cost=unit_cost,
+                lot_reference=line.lot_reference,
+                notes=line_notes,
+            )
+        )
+
+    receipt_note = f"Grouped receipt (Selling price group: {selling_price} ETB). {notes}".strip()
+
+    return receive_stock(
+        supplier_name=supplier_name,
+        lines=receipt_lines,
+        actor=actor,
+        received_at=received_at,
+        reference=reference,
+        notes=receipt_note,
+        idempotency_key=idempotency_key,
+    )
 
 
 @transaction.atomic

@@ -297,6 +297,39 @@ def _prepare_received_body(
     return {"product_pk": product.pk}
 
 
+def _prepare_grouped_receipt_product(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A crated product on a 100 ETB selling-price group.
+
+    Grouped receiving re-reads the current price at save time, so the product
+    needs a real ``ProductPrice`` row rather than only the product itself.
+
+    Args:
+        client: The Django test client.
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``product_pk``.
+    """
+    category = Category.objects.create(name="Grouped Beers", display_order=2)
+    product = Product.objects.create(
+        category=category,
+        name="Grouped Lager",
+        sku="BEV-GRP-001",
+        bottles_per_crate=24,
+        is_stock_tracked=True,
+    )
+    ProductPrice.objects.create(
+        product=product,
+        unit_price=Decimal("100.00"),
+        currency="ETB",
+        effective_from=now_utc(),
+    )
+    return {"product_pk": product.pk}
+
+
 def _prepare_category(client: Client, owner: Any, make_staff: Callable[..., Any]) -> dict[str, Any]:
     """An unused category, ready for edit, delete, or a product pointing at it.
 
@@ -716,6 +749,25 @@ def _run_receipt(client: Client, ctx: dict[str, Any]) -> Any:
     )
 
 
+def _run_grouped_receipt(client: Client, ctx: dict[str, Any]) -> Any:
+    """Receive one crate through the grouped endpoint."""
+    return client.post(
+        "/api/v1/inventory/receipts/grouped/",
+        {
+            "supplier_name": "Test Supplier",
+            "selling_price": "100.00",
+            "lines": [
+                {
+                    "product": ctx["product_pk"],
+                    "crates": "1",
+                    "crate_cost": "720.00",
+                }
+            ],
+        },
+        content_type="application/json",
+    )
+
+
 def _run_breakage(client: Client, ctx: dict[str, Any]) -> Any:
     """Write off two of the received units."""
     return client.post(
@@ -905,6 +957,12 @@ SCENARIOS: dict[str, Scenario] = {
         object_type="inventory.StockReceipt",
         prepare=_prepare_product_body,
         request=_run_receipt,
+    ),
+    "POST /api/v1/inventory/receipts/grouped/": Scenario(
+        action=AuditLog.Action.CREATE,
+        object_type="inventory.StockReceipt",
+        prepare=_prepare_grouped_receipt_product,
+        request=_run_grouped_receipt,
     ),
     "POST /api/v1/inventory/breakages/": Scenario(
         action=AuditLog.Action.CREATE,

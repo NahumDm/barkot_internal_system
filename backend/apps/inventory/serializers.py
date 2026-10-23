@@ -45,6 +45,7 @@ class ReceiptCreateSerializer(serializers.Serializer):
     reference = serializers.CharField(max_length=64, required=False, allow_blank=True)
     received_at = serializers.DateTimeField(required=False)
     notes = serializers.CharField(required=False, allow_blank=True)
+    idempotency_key = serializers.CharField(max_length=64, required=False, allow_blank=True)
     lines = ReceiptLineInputSerializer(many=True)
 
     def validate(self, attrs: dict) -> dict:
@@ -53,6 +54,100 @@ class ReceiptCreateSerializer(serializers.Serializer):
         product_ids = [line["product"].pk for line in attrs["lines"]]
         if len(product_ids) != len(set(product_ids)):
             raise serializers.ValidationError({"lines": ["A product may appear only once."]})
+        return attrs
+
+
+class GroupedReceiptLineSerializer(serializers.Serializer):
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    crates = serializers.DecimalField(max_digits=12, decimal_places=3)
+    crate_cost = serializers.DecimalField(
+        max_digits=14, decimal_places=2, required=False, allow_null=True
+    )
+    unit_cost = serializers.DecimalField(
+        max_digits=14, decimal_places=2, required=False, allow_null=True
+    )
+    lot_reference = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_crates(self, value: Decimal) -> Decimal:
+        if value <= 0:
+            raise serializers.ValidationError("Crate quantity must be greater than zero.")
+        return value
+
+
+class GroupedReceiptCreateSerializer(serializers.Serializer):
+    supplier_name = serializers.CharField(max_length=150, trim_whitespace=True)
+    selling_price = serializers.DecimalField(max_digits=14, decimal_places=2)
+    reference = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    received_at = serializers.DateTimeField(required=False)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    idempotency_key = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    lines = GroupedReceiptLineSerializer(many=True)
+
+    def validate_selling_price(self, value: Decimal) -> Decimal:
+        if value < 0:
+            raise serializers.ValidationError("Selling price cannot be negative.")
+        return value
+
+    def validate(self, attrs: dict) -> dict:
+        lines = attrs.get("lines", [])
+        if not lines:
+            raise serializers.ValidationError({"lines": ["A receipt must have at least one line."]})
+
+        selling_price = attrs["selling_price"]
+        product_ids = [line["product"].pk for line in lines]
+        if len(product_ids) != len(set(product_ids)):
+            raise serializers.ValidationError({
+                "lines": ["A product may appear only once on a receipt."]
+            })
+
+        for line in lines:
+            prod = line["product"]
+            if not prod.is_stock_tracked:
+                raise serializers.ValidationError({
+                    "lines": [f"Product '{prod.name}' is not stock tracked and cannot be received."]
+                })
+            if not prod.is_active:
+                raise serializers.ValidationError({
+                    "lines": [f"Product '{prod.name}' is inactive and cannot be received."]
+                })
+            if not prod.is_crated:
+                raise serializers.ValidationError({
+                    "lines": [
+                        f"Product '{prod.name}' has no bottles-per-crate conversion "
+                        "configured and cannot be received in a grouped receipt."
+                    ]
+                })
+
+            current_price = prod.current_price()
+            if current_price is None:
+                raise serializers.ValidationError({
+                    "lines": [f"Product '{prod.name}' has no active selling price configured."]
+                })
+
+            if current_price.unit_price != selling_price:
+                raise serializers.ValidationError({
+                    "lines": [
+                        f"Product '{prod.name}' selling price ({current_price.unit_price} ETB) "
+                        f"does not match the selected price group ({selling_price} ETB)."
+                    ]
+                })
+
+            crate_cost = line.get("crate_cost")
+            unit_cost = line.get("unit_cost")
+            if crate_cost is None and unit_cost is None:
+                raise serializers.ValidationError({
+                    "lines": [f"Product '{prod.name}' requires either a crate cost or a unit cost."]
+                })
+            if crate_cost is not None and crate_cost < 0:
+                raise serializers.ValidationError({
+                    "lines": [f"Crate cost for '{prod.name}' cannot be negative."]
+                })
+            if unit_cost is not None and unit_cost < 0:
+                raise serializers.ValidationError({
+                    "lines": [f"Unit cost for '{prod.name}' cannot be negative."]
+                })
+
         return attrs
 
 
@@ -165,6 +260,9 @@ class StockCountItemSerializer(serializers.Serializer):
 
 class StockCountSerializer(serializers.ModelSerializer):
     items = StockCountItemSerializer(many=True, read_only=True)
+    total_expected = serializers.SerializerMethodField()
+    total_counted = serializers.SerializerMethodField()
+    total_variance = serializers.SerializerMethodField()
 
     class Meta:
         model = StockCount
@@ -177,10 +275,34 @@ class StockCountSerializer(serializers.ModelSerializer):
             "approved_at",
             "notes",
             "items",
+            "total_expected",
+            "total_counted",
+            "total_variance",
             "created_at",
             "updated_at",
         ]
         read_only_fields = fields
+
+    def get_total_expected(self, obj: StockCount) -> str:
+        return str(
+            sum((item.expected_quantity for item in obj.items.all()), Decimal("0.000")).quantize(
+                Decimal("0.001")
+            )
+        )
+
+    def get_total_counted(self, obj: StockCount) -> str:
+        return str(
+            sum((item.counted_quantity for item in obj.items.all()), Decimal("0.000")).quantize(
+                Decimal("0.001")
+            )
+        )
+
+    def get_total_variance(self, obj: StockCount) -> str:
+        return str(
+            sum((item.variance for item in obj.items.all()), Decimal("0.000")).quantize(
+                Decimal("0.001")
+            )
+        )
 
 
 class StockCountCompleteSerializer(serializers.Serializer):

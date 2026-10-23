@@ -5,6 +5,7 @@ from __future__ import annotations
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -21,6 +22,7 @@ from apps.inventory.models import BreakageRecord, StockCount, StockMovement, Sto
 from apps.inventory.serializers import (
     BreakageCreateSerializer,
     BreakageSerializer,
+    GroupedReceiptCreateSerializer,
     ReceiptCreateSerializer,
     ReceiptSerializer,
     StockCountCompleteSerializer,
@@ -29,13 +31,16 @@ from apps.inventory.serializers import (
     StockMovementSerializer,
 )
 from apps.inventory.services import (
+    GroupedReceiptLineInput,
     ReceiptLineInput,
     approve_stock_count,
     complete_stock_count,
     open_stock_count,
+    receive_grouped_stock,
     receive_stock,
     record_breakage,
 )
+from apps.products.models import Product
 
 
 @extend_schema_view(
@@ -57,7 +62,7 @@ class StockReceiptViewSet(
     serializer_class = ReceiptSerializer
 
     def get_permissions(self):
-        if self.action in {"list", "retrieve"}:
+        if self.action in {"list", "retrieve", "price_groups"}:
             return [IsAuthenticated(), CanViewInventory()]
         return [IsAuthenticated(), CanReceiveStock()]
 
@@ -73,6 +78,7 @@ class StockReceiptViewSet(
             reference=data.get("reference", ""),
             received_at=data.get("received_at"),
             notes=data.get("notes", ""),
+            idempotency_key=data.get("idempotency_key"),
             actor=request.user,  # type: ignore[arg-type]
             lines=[
                 ReceiptLineInput(
@@ -86,6 +92,78 @@ class StockReceiptViewSet(
             ],
         )
         return Response(ReceiptSerializer(receipt).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        summary="Receive grouped stock",
+        request=GroupedReceiptCreateSerializer,
+        responses={201: ReceiptSerializer},
+        tags=["inventory"],
+    )
+    @action(detail=False, methods=["post"], url_path="grouped")
+    def receive_grouped(self, request: Request) -> Response:
+        serializer = GroupedReceiptCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        try:
+            receipt = receive_grouped_stock(
+                supplier_name=data["supplier_name"],
+                selling_price=data["selling_price"],
+                reference=data.get("reference", ""),
+                received_at=data.get("received_at"),
+                notes=data.get("notes", ""),
+                idempotency_key=data.get("idempotency_key"),
+                actor=request.user,  # type: ignore[arg-type]
+                lines=[
+                    GroupedReceiptLineInput(
+                        product=line["product"],
+                        crates=line["crates"],
+                        crate_cost=line.get("crate_cost"),
+                        unit_cost=line.get("unit_cost"),
+                        lot_reference=line.get("lot_reference", ""),
+                        notes=line.get("notes", ""),
+                    )
+                    for line in data["lines"]
+                ],
+            )
+        except ValueError as exc:
+            # The service re-validates at save time. A ValueError here means a
+            # rule changed between serializer validation and the write (for
+            # example a price edit); return a useful 400 instead of a 500.
+            raise ValidationError(str(exc)) from exc
+        return Response(ReceiptSerializer(receipt).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(summary="List product price groups", tags=["inventory"])
+    @action(detail=False, methods=["get"], url_path="price-groups")
+    def price_groups(self, request: Request) -> Response:
+        products = Product.objects.filter(is_active=True, is_stock_tracked=True).prefetch_related(
+            "price_history"
+        )
+        groups: dict = {}
+        for p in products:
+            curr = p.current_price()
+            if curr is None:
+                continue
+            groups.setdefault(curr.unit_price, []).append({
+                "id": p.id,
+                "name": p.name,
+                "sku": p.sku,
+                "bottles_per_crate": p.bottles_per_crate,
+                "is_crated": p.is_crated,
+                "unit": p.unit,
+                "selling_price": str(curr.unit_price),
+                "currency": curr.currency,
+            })
+
+        result = [
+            {
+                "selling_price": str(price),
+                "currency": prods[0]["currency"],
+                "product_count": len(prods),
+                "products": prods,
+            }
+            for price, prods in sorted(groups.items(), key=lambda x: x[0])
+        ]
+        return Response(result)
 
 
 @extend_schema_view(

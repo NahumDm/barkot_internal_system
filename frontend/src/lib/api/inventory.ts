@@ -61,8 +61,48 @@ export interface StockCount {
   approved_at: string | null;
   notes: string;
   items: StockCountItem[];
+  total_expected?: string;
+  total_counted?: string;
+  total_variance?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface GroupedReceiptLineInput {
+  product: number;
+  crates: string;
+  crate_cost?: string;
+  unit_cost?: string;
+  lot_reference?: string;
+  notes?: string;
+}
+
+export interface GroupedReceiptInput {
+  supplier_name: string;
+  selling_price: string;
+  reference?: string;
+  received_at?: string;
+  notes?: string;
+  idempotency_key?: string;
+  lines: GroupedReceiptLineInput[];
+}
+
+export interface PriceGroupProduct {
+  id: number;
+  name: string;
+  sku: string;
+  bottles_per_crate: number | null;
+  is_crated: boolean;
+  unit: string;
+  selling_price: string;
+  currency: string;
+}
+
+export interface PriceGroup {
+  selling_price: string;
+  currency: string;
+  product_count: number;
+  products: PriceGroupProduct[];
 }
 
 export interface StockMovement {
@@ -96,6 +136,7 @@ export function createStockReceipt(
     reference?: string;
     received_at?: string;
     notes?: string;
+    idempotency_key?: string;
     lines: Array<{
       product: number;
       quantity: string;
@@ -110,6 +151,21 @@ export function createStockReceipt(
     method: "POST",
     body: input,
   });
+}
+
+export function createGroupedStockReceipt(
+  input: GroupedReceiptInput,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<StockReceipt> {
+  return apiFetch<StockReceipt>("/inventory/receipts/grouped/", {
+    ...options,
+    method: "POST",
+    body: input,
+  });
+}
+
+export function listPriceGroups(options: RequestOptions = {}): Promise<PriceGroup[]> {
+  return apiFetch<PriceGroup[]>("/inventory/receipts/price-groups/", options);
 }
 
 export function createBreakage(

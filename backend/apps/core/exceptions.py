@@ -287,8 +287,9 @@ def _validation_details(detail: Any) -> dict[str, list[str]]:
 
     DRF uses three shapes depending on where the error came from: a dict of
     field errors from a serializer, a bare list for a non-field error, or a
-    string. They are normalised to one so the frontend has a single code path
-    for "this field is wrong".
+    string. Nested ``many=True`` serializers add another level (``lines ->
+    index -> field -> messages``). All of them are normalised to one so the
+    frontend has a single code path for "this field is wrong".
 
     Args:
         detail: The ``detail`` attribute of a DRF ``ValidationError``.
@@ -297,13 +298,24 @@ def _validation_details(detail: Any) -> dict[str, list[str]]:
         Field names mapped to their messages, with ``non_field_errors`` used for
         errors that belong to no single field.
     """
+
+    def leaves(value: Any) -> list[str]:
+        """Collect every leaf message, preserving DRF's order."""
+        if isinstance(value, dict):
+            messages: list[str] = []
+            for nested in value.values():
+                messages.extend(leaves(nested))
+            return messages
+        if isinstance(value, list):
+            messages = []
+            for nested in value:
+                messages.extend(leaves(nested))
+            return messages
+        return [str(value)]
+
     if isinstance(detail, dict):
-        return {
-            str(field): [str(message) for message in messages] for field, messages in detail.items()
-        }
-    if isinstance(detail, list):
-        return {NON_FIELD_ERRORS: [str(message) for message in detail]}
-    return {NON_FIELD_ERRORS: [str(detail)]}
+        return {str(field): leaves(messages) for field, messages in detail.items()}
+    return {NON_FIELD_ERRORS: leaves(detail)}
 
 
 def _describe(exc: Exception, response: Response) -> tuple[str, str, dict[str, list[str]] | None]:

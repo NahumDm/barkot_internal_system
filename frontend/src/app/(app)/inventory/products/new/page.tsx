@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ChangeEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -21,11 +21,13 @@ import { Field, FormError } from "@/features/auth/form-parts";
 
 export default function NewProductPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { status, user } = useAuth();
+  const canManage = user?.permissions.includes("products.manage_products") ?? false;
   const canChangePrices = user?.permissions.includes("products.change_prices") ?? false;
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     category: "",
@@ -52,8 +54,11 @@ export default function NewProductPage() {
           setCategoriesLoading(false);
         }
       })
-      .catch(() => {
-        if (mounted) setCategoriesLoading(false);
+      .catch((caught: unknown) => {
+        if (mounted) {
+          setCategoriesError((caught as ApiError).message);
+          setCategoriesLoading(false);
+        }
       });
     return () => {
       mounted = false;
@@ -131,6 +136,28 @@ export default function NewProductPage() {
     }
   };
 
+  if (status === "checking") {
+    return (
+      <section className="flex items-center justify-center py-8 text-ink-secondary">
+        Checking access...
+      </section>
+    );
+  }
+
+  if (!canManage) {
+    return (
+      <section className="space-y-4">
+        <header>
+          <h1 className="page-title text-2xl font-semibold tracking-tight text-ink">Add Product</h1>
+        </header>
+        <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
+          Your role does not include managing the product catalogue. Ask an owner if you need
+          access.
+        </div>
+      </section>
+    );
+  }
+
   if (categoriesLoading) {
     return (
       <section className="flex items-center justify-center py-8 text-ink-secondary">
@@ -148,6 +175,7 @@ export default function NewProductPage() {
         </p>
       </header>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {categoriesError && <p className="form-error">{categoriesError}</p>}
         <FormError
           error={
             formError

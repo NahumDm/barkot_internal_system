@@ -634,3 +634,63 @@ def test_grouped_stock_count_calculates_individual_and_combined_variances(
     assert current_stock(heineken) == Decimal("70.000")
     assert current_stock(bedele) == Decimal("41.000")
     assert StockCount.objects.get(pk=count_id).status == "APPROVED"
+
+
+def test_a_duplicate_count_line_is_refused_instead_of_collapsed(
+    client: Client, staff_login: Any, product: Product
+) -> None:
+    """Two quantities for one line must not let the last one silently win."""
+    staff_login(client, Role.Code.CASHIER)
+    opened = client.post(
+        COUNTS_URL,
+        {"products": [product.pk]},
+        content_type="application/json",
+    )
+    assert opened.status_code == 201, opened.content
+    count = opened.json()
+    item_id = count["items"][0]["id"]
+
+    response = client.post(
+        f"{COUNTS_URL}{count['id']}/complete/",
+        {
+            "items": [
+                {"item": item_id, "counted_quantity": "1"},
+                {"item": item_id, "counted_quantity": "2"},
+            ]
+        },
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400, response.content
+    assert response.json()["error"]["code"] == "validation_error"
+    assert StockCount.objects.get(pk=count["id"]).status == "DRAFT"
+
+
+def test_non_finite_counted_quantities_are_refused(
+    client: Client, staff_login: Any, product: Product
+) -> None:
+    """NaN and Infinity cannot become ledger quantities or a 500."""
+    staff_login(client, Role.Code.CASHIER)
+    opened = client.post(
+        COUNTS_URL,
+        {"products": [product.pk]},
+        content_type="application/json",
+    )
+    count = opened.json()
+    item_id = count["items"][0]["id"]
+
+    for value in ("NaN", "Infinity", "-Infinity"):
+        response = client.post(
+            f"{COUNTS_URL}{count['id']}/complete/",
+            {"items": [{"item": item_id, "counted_quantity": value}]},
+            content_type="application/json",
+        )
+        assert response.status_code == 400, (value, response.content)
+        assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_malformed_movement_filters_are_400s(client: Client, staff_login: Any) -> None:
+    staff_login(client, Role.Code.CASHIER)
+
+    assert client.get(MOVEMENTS_URL, {"product": "not-an-id"}).status_code == 400
+    assert client.get(MOVEMENTS_URL, {"kind": "NOT_A_KIND"}).status_code == 400

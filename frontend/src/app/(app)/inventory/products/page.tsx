@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -586,10 +586,14 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(false);
   const [categoriesError, setCategoriesError] = useState<ApiError | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const requestId = useRef(0);
 
   const fetchProducts = useCallback(async () => {
+    const request = ++requestId.current;
     setLoading(true);
     setError(null);
+    setProducts([]);
+    setCount(0);
     try {
       const query: Record<string, string | number | boolean> = {
         page,
@@ -601,13 +605,14 @@ export default function ProductsPage() {
       if (categoryFilter !== "all") query.category = categoryFilter;
 
       const response = await listProducts({ query });
+      if (request !== requestId.current) return;
       setProducts(response.results);
       setPages(response.pages);
       setCount(response.count);
     } catch (caught) {
-      setError(caught as ApiError);
+      if (request === requestId.current) setError(caught as ApiError);
     } finally {
-      setLoading(false);
+      if (request === requestId.current) setLoading(false);
     }
   }, [page, pageSize, search, activeFilter, stockTrackedFilter, categoryFilter]);
 
@@ -621,7 +626,7 @@ export default function ProductsPage() {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchProducts();
   }, [fetchProducts]);
 
@@ -633,19 +638,16 @@ export default function ProductsPage() {
   const handleSearchSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPage(1);
-    fetchProducts();
   };
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setPage(1);
-    fetchProducts();
   };
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pages) {
       setPage(newPage);
-      fetchProducts();
     }
   };
 
@@ -662,25 +664,39 @@ export default function ProductsPage() {
             Manage the product catalogue — add, edit, or retire products.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleCreateClick}
-          className="btn btn-primary self-start sm:self-auto"
-        >
-          Add Product
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            onClick={handleCreateClick}
+            className="btn btn-primary self-start sm:self-auto"
+          >
+            Add Product
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSearchSubmit} className="flex flex-col gap-4">
         <ProductFilters
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
           activeFilter={activeFilter}
-          onActiveFilterChange={setActiveFilter}
+          onActiveFilterChange={(value) => {
+            setActiveFilter(value);
+            setPage(1);
+          }}
           stockTrackedFilter={stockTrackedFilter}
-          onStockTrackedFilterChange={setStockTrackedFilter}
+          onStockTrackedFilterChange={(value) => {
+            setStockTrackedFilter(value);
+            setPage(1);
+          }}
           categoryFilter={categoryFilter}
-          onCategoryFilterChange={setCategoryFilter}
+          onCategoryFilterChange={(value) => {
+            setCategoryFilter(value);
+            setPage(1);
+          }}
           categories={categories}
         />
       </form>

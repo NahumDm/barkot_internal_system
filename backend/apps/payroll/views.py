@@ -46,6 +46,7 @@ from apps.accounts.permissions import (
     CanViewPayroll,
 )
 from apps.core.pagination import BarkotPagination
+from apps.core.query_params import positive_int
 from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, PayrollRun
 from apps.payroll.serializers import (
     PayrollDeductionCreateSerializer,
@@ -265,10 +266,10 @@ class PayrollDeductionViewSet(
         queryset = super().get_queryset()
         payroll_item = self.request.query_params.get("payroll_item")
         if payroll_item:
-            queryset = queryset.filter(payroll_item_id=payroll_item)
+            queryset = queryset.filter(payroll_item_id=positive_int(payroll_item, "payroll_item"))
         run = self.request.query_params.get("run")
         if run:
-            queryset = queryset.filter(payroll_item__run_id=run)
+            queryset = queryset.filter(payroll_item__run_id=positive_int(run, "run"))
         return queryset
 
     def create(self, request: Request, *args, **kwargs) -> Response:

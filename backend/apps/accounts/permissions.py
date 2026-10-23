@@ -345,19 +345,6 @@ class IsOwner(BasePermission):
         return getattr(role, "code", None) == Role.Code.OWNER
 
 
-class IsCashierOrOwner(BasePermission):
-    """Only Cashier or Owner roles can access dashboard."""
-
-    def has_permission(self, request: Request, view: Any) -> bool:
-        user = getattr(request, "user", None)
-        if not user or not getattr(user, "is_authenticated", False):
-            return False
-        role = getattr(user, "role", None)
-        if not role:
-            return False
-        return getattr(role, "code", None) in (Role.Code.CASHIER, Role.Code.OWNER)
-
-
 class CanCreateExpense(HasRolePermission):
     """Submit an expense for approval."""
 

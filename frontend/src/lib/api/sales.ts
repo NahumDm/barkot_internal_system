@@ -6,7 +6,7 @@
  */
 
 import { apiFetch, type RequestOptions } from "./client";
-import { type ApiError, type ErrorDetails } from "./errors";
+import { type ApiError } from "./errors";
 
 export interface SaleItem {
   id: number;

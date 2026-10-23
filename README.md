@@ -61,7 +61,7 @@ Coordinated Universal Time, UTC).
 | **Backend** | Django 5.2 Long-Term Support (LTS) + Django REST Framework (DRF) — 12 Django apps, a complete Application Programming Interface (API) under `/api/v1/`, and an OpenAPI (Open API Specification) schema with zero validation errors |
 | **Frontend** | Next.js 16 — login, dashboard, sales, inventory, finance, payroll, reports, settings, and refusal states |
 | **Auth & security** | Session auth, Cross-Site Request Forgery (CSRF) protection, the role matrix (27 capabilities × 4 roles), layered rate limiting, production hardening |
-| **Tests** | 1,289 backend · 111 frontend unit · 43 stubbed + 14 live End-to-End (E2E) tests |
+| **Tests** | 1,471 backend · 125 frontend unit · 48 stubbed + 19 live End-to-End (E2E) tests |
 | **Continuous Integration (CI) gates** | ruff (lint + format), mypy, `makemigrations --check`, OpenAPI validation, ESLint, Prettier, `tsc`, Vitest, Playwright |
 | **Hardening (Phase D)** | Rate limiting, audit coverage, E2E suites, backups + restore drill, production runbook, observability, and a local deployment rehearsal — complete |
 | **Deployment** | The production stack (`db` + `api` + `web`) is rehearsed locally from `docker-compose.prod.yml`; the target-host Virtual Private Server (VPS) rehearsal is **blocked on client decisions 9 and 10** |
@@ -81,7 +81,7 @@ decides on a payment provider, fiscal/e-invoicing, and email — see [Open decis
 | **Products** | Product catalogue, categories, price history with validity windows, crate/bottle quantity modes |
 | **Finance** | Expenses with categories (create/edit/delete with approval), and a derived balance (income − expenses − payroll) |
 | **Payroll** | Monthly runs, per-employee payslips frozen at approval, deductions (advance, absence, late, other) |
-| **Reports** | Financial, inventory and payroll tabs with Comma-Separated Values (CSV) export |
+| **Reports** | Financial, inventory and payroll tabs, each downloadable as a PDF; CSV remains available on the API for compatibility |
 | **Dashboard** | The day's headline numbers |
 | **Settings & users** | Staff accounts, roles, and business settings (Owner-only) |
 
@@ -459,13 +459,13 @@ against a real stack at the top.
 
 | Layer | Tool | Scale | What it proves |
 | --- | --- | --- | --- |
-| Backend unit / integration | pytest | 1,289 tests | Domain invariants, the full permission-matrix cross-product, session rules, throttles, idempotency under real thread contention, production config guards |
+| Backend unit / integration | pytest | 1,471 tests | Domain invariants, the full permission-matrix cross-product, session rules, throttles, idempotency under real thread contention, production config guards |
 | API contract suite | `backend/tests/api/contract.py` | auto-discovery | Every mounted endpoint satisfies the invariant rules (auth, envelope, JSON, pagination, version). A new endpoint is checked automatically |
 | Access sweep | `backend/tests/api/test_access_sweep.py` | every route | Real signed-out requests assert 401/403 with the correct envelope; pinned non-vacuous and mutation-checked |
 | Endpoint audit | `backend/tests/api/test_audit_coverage.py` | every write endpoint | Each state-changing endpoint writes exactly one audit row per scenario |
-| Frontend unit | Vitest + Testing Library | 111 tests | Component and logic behaviour |
-| E2E — stubbed | Playwright | 43 tests | Screens against stubbed states a real server will not produce on demand (dead backend, 502, forced password change) |
-| E2E — live | Playwright | 14 tests | A browser against a real Django + Postgres: real session, real CSRF, real 403, real rows. A stub cannot catch frontend/backend drift; this half can |
+| Frontend unit | Vitest + Testing Library | 125 tests | Component and logic behaviour |
+| E2E — stubbed | Playwright | 48 tests | Screens against stubbed states a real server will not produce on demand (dead backend, 502, forced password change) |
+| E2E — live | Playwright | 19 tests | A browser against a real Django + Postgres: real session, real CSRF, real 403, real rows. A stub cannot catch frontend/backend drift; this half can |
 
 **CI** (`.github/workflows/ci.yml`, GitHub Actions) runs the same gates on `main` and on pull
 requests:

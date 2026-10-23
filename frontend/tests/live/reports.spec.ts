@@ -56,7 +56,7 @@ function monthLabel(): string {
 
 test.describe.configure({ mode: "serial" });
 
-test("the Manager reads financial, inventory and payroll, and downloads the CSV", async ({
+test("the Manager reads financial, inventory and payroll, and downloads the PDF", async ({
   page,
 }) => {
   // The sign-in may have to sit out the tail of the A5 login window, which can
@@ -103,6 +103,12 @@ test("the Manager reads financial, inventory and payroll, and downloads the CSV"
     net: `-${net}`,
   });
 
+  await expectPdfDownload(
+    page,
+    'a[href*="/reports/financial/"][href*="export=pdf"]',
+    /^financial-.*\.pdf$/,
+  );
+
   // --- Inventory: the product's ledger is what the voided sale left it - the
   // opening stock - and no count was ever recorded, so variances are empty.
   await page.getByRole("button", { name: "Inventory" }).click();
@@ -117,6 +123,17 @@ test("the Manager reads financial, inventory and payroll, and downloads the CSV"
   expect(balance).toMatchObject({ products: 1 });
   const variance = await readPage(page, "/reports/inventory/variance/");
   expect(variance).toMatchObject({ start: monthStart(), end: expect.any(String), lines: 0 });
+
+  await expectPdfDownload(
+    page,
+    'a[href*="/reports/inventory/stock-balance/"][href*="export=pdf"]',
+    /^stock-balance-.*\.pdf$/,
+  );
+  await expectPdfDownload(
+    page,
+    'a[href*="/reports/inventory/variance/"][href*="export=pdf"]',
+    /^stock-variance-.*\.pdf$/,
+  );
 
   // --- Payroll: the run the manager generated is on screen, now approved and
   // paid by the previous story. Its tiles carry the gross, the deduction and the
@@ -143,22 +160,20 @@ test("the Manager reads financial, inventory and payroll, and downloads the CSV"
   expect(statuses.find((bucket) => bucket.status === "PAID")).toBeDefined();
 
   // --- Export: the anchor becomes an attachment whose rows are the same money
-  // the screen printed, downloaded with the browser's own session.
+  // the screen printed, downloaded with the browser's own session. The API
+  // checks above prove the data; this proves a signed-in browser receives a
+  // real PDF rather than an error page or a JSON body.
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Download CSV" }).click();
+  await page.getByRole("link", { name: "Download PDF" }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^payroll-.*\.csv$/);
+  expect(download.suggestedFilename()).toMatch(/^payroll-.*\.pdf$/);
 
   const stream = await download.createReadStream();
   expect(stream).not.toBeNull();
   const chunks: Buffer[] = [];
   for await (const chunk of stream as AsyncIterable<Buffer>) chunks.push(chunk);
-  const csv = Buffer.concat(chunks).toString("utf8");
-  expect(csv).toContain(monthStart());
-  expect(csv).toContain("PAID");
-  expect(csv).toContain(wage);
-  expect(csv).toContain(DEDUCTION);
-  expect(csv).toContain(net);
+  const pdf = Buffer.concat(chunks);
+  expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
 });
 
 /** GET a report over the browser's own session and assert it succeeded. */
@@ -175,4 +190,25 @@ async function readBalance(page: Page, path: string): Promise<Record<string, unk
   const response = await page.request.get(`/api/v1${path}?date=${todayISO()}`);
   expect(response.status()).toBe(200);
   return (await response.json()) as Record<string, unknown>;
+}
+
+/**
+ * Click one export link and prove the browser received a PDF attachment.
+ *
+ * The href is the selector because the Inventory tab has two links with the
+ * same "Download PDF" text; choosing by role name alone would be ambiguous and
+ * could silently download the wrong report.
+ */
+async function expectPdfDownload(page: Page, selector: string, filename: RegExp): Promise<void> {
+  const downloadPromise = page.waitForEvent("download");
+  await page.locator(selector).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(filename);
+
+  const stream = await download.createReadStream();
+  expect(stream).not.toBeNull();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream as AsyncIterable<Buffer>) chunks.push(chunk);
+  const pdf = Buffer.concat(chunks);
+  expect(pdf.subarray(0, 5).toString("ascii")).toBe("%PDF-");
 }

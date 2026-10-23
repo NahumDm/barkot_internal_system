@@ -270,6 +270,28 @@ def test_a_contract_cannot_end_before_it_starts(client: Client, staff_login: Any
     assert EmployeeProfile.objects.count() == 0
 
 
+def test_moving_only_the_start_date_is_checked_against_the_saved_end(
+    client: Client, staff_login: Any, profile: EmployeeProfile
+) -> None:
+    """A PATCH cannot leave a contract ending before it starts."""
+    staff_login(client, Role.Code.OWNER)
+    profile.contract_end_date = date(2026, 6, 30)
+    profile.save(update_fields=["contract_end_date", "updated_at"])
+
+    response = client.patch(
+        f"{EMPLOYEES_URL}{profile.pk}/",
+        {"start_date": "2026-07-01"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400, response.content
+    assert (
+        "cannot end before it starts" in response.json()["error"]["details"]["contract_end_date"][0]
+    )
+    profile.refresh_from_db()
+    assert profile.start_date == date(2026, 1, 5)
+
+
 # ── Edit ────────────────────────────────────────────────────────────────────
 
 
@@ -497,7 +519,10 @@ def test_a_contract_pdf_is_stored_without_its_client_name_or_a_url(
 
 
 def test_uploading_a_replacement_leaves_one_file(
-    client: Client, staff_login: Any, profile: EmployeeProfile
+    client: Client,
+    staff_login: Any,
+    profile: EmployeeProfile,
+    django_capture_on_commit_callbacks: Any,
 ) -> None:
     """One record, one document: the previous file is removed, not orphaned.
 
@@ -505,11 +530,15 @@ def test_uploading_a_replacement_leaves_one_file(
         client: The Django test client.
         staff_login: Fixture signing the client in as the Owner.
         profile: The record whose contract is being re-uploaded.
+        django_capture_on_commit_callbacks: Runs ``on_commit`` hooks after the
+            requests, as a real commit would. The deletion is deferred so a
+            rollback cannot lose the file the database still points at.
     """
     staff_login(client, Role.Code.OWNER)
 
-    first = _upload_document(client, profile.pk, payload=PDF_BYTES + b"\n% first draft\n")
-    second = _upload_document(client, profile.pk, payload=PDF_BYTES + b"\n% signed draft\n")
+    with django_capture_on_commit_callbacks(execute=True):
+        first = _upload_document(client, profile.pk, payload=PDF_BYTES + b"\n% first draft\n")
+        second = _upload_document(client, profile.pk, payload=PDF_BYTES + b"\n% signed draft\n")
 
     assert first.status_code == 200, first.content
     assert second.status_code == 200, second.content

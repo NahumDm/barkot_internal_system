@@ -23,7 +23,9 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from apps.accounts.permissions import CanCreateSale, CanViewSales, CanVoidSale
+from apps.core.enums import PaymentStatus, SaleStatus
 from apps.core.pagination import BarkotPagination
+from apps.core.query_params import choice_value, datetime_value
 from apps.sales.models import Sale
 from apps.sales.serializers import (
     SaleCreateSerializer,
@@ -77,7 +79,11 @@ class SaleViewSet(viewsets.ModelViewSet):
 
     http_method_names = ["get", "post", "head", "options"]
 
-    queryset = Sale.objects.prefetch_related("items__product", "payments").order_by(
+    # The API exposes the status filter and the receipt history, so it must be
+    # able to read voided rows. The default manager deliberately hides them from
+    # operational queries (finance, dashboard, stock); ``all_rows`` is the
+    # history view this endpoint is.
+    queryset = Sale.all_rows.prefetch_related("items__product", "payments").order_by(
         "-sold_at", "-id"
     )
     pagination_class = BarkotPagination
@@ -101,16 +107,24 @@ class SaleViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         status_filter = self.request.query_params.get("status")
         if status_filter:
+            status_filter = choice_value(
+                status_filter, "status", [choice for choice, _label in SaleStatus.choices]
+            )
             qs = qs.filter(status=status_filter)
         payment_status = self.request.query_params.get("payment_status")
         if payment_status:
+            payment_status = choice_value(
+                payment_status,
+                "payment_status",
+                [choice for choice, _label in PaymentStatus.choices],
+            )
             qs = qs.filter(payment_status=payment_status)
         sold_after = self.request.query_params.get("sold_after")
         if sold_after:
-            qs = qs.filter(sold_at__gte=sold_after)
+            qs = qs.filter(sold_at__gte=datetime_value(sold_after, "sold_after"))
         sold_before = self.request.query_params.get("sold_before")
         if sold_before:
-            qs = qs.filter(sold_at__lt=sold_before)
+            qs = qs.filter(sold_at__lt=datetime_value(sold_before, "sold_before"))
         search = self.request.query_params.get("search")
         if search:
             qs = qs.filter(reference__icontains=search)
@@ -168,7 +182,7 @@ class SaleViewSet(viewsets.ModelViewSet):
             "Requires ``sales.void_sale`` (Manager, Owner)."
         ),
         request=VoidSaleSerializer,
-        responses={200: None},
+        responses={204: None},
         tags=["sales"],
     )
     @action(detail=True, methods=["post"], url_path="void")

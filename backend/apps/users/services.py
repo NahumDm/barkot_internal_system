@@ -220,10 +220,12 @@ def store_document(
     profile.document = document
     profile.save(update_fields=["document", "updated_at"])
 
-    # Deleted after the column points at the new file, so a failure here cannot
-    # leave the record naming a document that no longer exists.
+    # Delete only after the transaction commits. The column already points at
+    # the new file, but if the audit write or commit fails the database rolls
+    # back to the old path; deleting earlier would leave that path pointing at
+    # a file that no longer exists.
     if replaced is not None:
-        replaced.delete(save=False)
+        transaction.on_commit(lambda: replaced.delete(save=False))
 
     AuditLog.record(
         action=AuditLog.Action.UPDATE,

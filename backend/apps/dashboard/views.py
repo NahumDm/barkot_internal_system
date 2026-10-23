@@ -13,7 +13,6 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsCashierOrOwner
 from apps.dashboard.serializers import DashboardQuerySerializer, DashboardSerializer
 from apps.dashboard.services import dashboard_summary
 
@@ -21,7 +20,10 @@ from apps.dashboard.services import dashboard_summary
 class DashboardView(APIView):
     """The role-scoped dashboard summary (spec §7.4)."""
 
-    permission_classes = [IsAuthenticated, IsCashierOrOwner]
+    # Any signed-in role may open the dashboard; ``dashboard_summary`` includes
+    # only the sections that role's permissions grant. A role gate here would
+    # deny the Manager and Barman data the matrix explicitly gives them.
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="Get the dashboard summary for a local-date period",

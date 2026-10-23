@@ -53,7 +53,7 @@ class StockBalanceRow:
     last_counted_on: date | None
     delta: Decimal | None
 
-    def as_dict(self) -> dict[str, object]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "product_id": self.product_id,
             "sku": self.sku,
@@ -76,7 +76,7 @@ class StockBalanceReport:
     def in_stock_total(self) -> Decimal:
         return quantize_quantity(sum((row.ledger_balance for row in self.rows), ZERO_QUANTITY))
 
-    def as_dict(self) -> dict[str, object]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "as_of": self.as_of.isoformat(),
             "in_stock_total": str(self.in_stock_total),
@@ -101,7 +101,7 @@ class StockVarianceRow:
     variance: Decimal
     note: str
 
-    def as_dict(self) -> dict[str, object]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "stock_count_id": self.stock_count_id,
             "reference": self.reference,
@@ -137,7 +137,7 @@ class StockVarianceReport:
     def variance_total(self) -> Decimal:
         return quantize_quantity(sum((row.variance for row in self.rows), ZERO_QUANTITY))
 
-    def as_dict(self) -> dict[str, object]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "start": self.start.isoformat(),
             "end": self.end.isoformat(),
@@ -163,7 +163,7 @@ class PayrollRunRow:
     deduction_total: Decimal
     net_total: Decimal
 
-    def as_dict(self) -> dict[str, object]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "run_id": self.run_id,
             "period_month": self.period_month.isoformat(),
@@ -188,7 +188,7 @@ class PayrollStatusBucket:
     deduction_total: Decimal
     net_total: Decimal
 
-    def as_dict(self) -> dict[str, object]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "status": self.status,
             "status_display": self.status_display,
@@ -232,7 +232,7 @@ class PayrollReport:
     def net_total(self) -> Decimal:
         return quantize_money(sum((row.net_total for row in self.rows), ZERO_MONEY))
 
-    def as_dict(self) -> dict[str, object]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "start": self.start.isoformat(),
             "end": self.end.isoformat(),

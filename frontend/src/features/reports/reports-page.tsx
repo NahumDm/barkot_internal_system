@@ -31,7 +31,7 @@ import { EmptyNote, ErrorBanner, LoadingNote, StatusChip } from "@/features/payr
  * counts, and the payroll tab reads run rows — the screen is a projection of
  * what the domains already decided, so it cannot disagree with them (spec §6.2).
  *
- * Exports are plain anchors to a URL carrying ``export=csv``. The backend
+ * Exports are plain anchors to a URL carrying ``export=pdf``. The backend
  * answers with ``Content-Disposition: attachment``, so the browser downloads
  * the file; the URL is same-origin, so the session cookie travels with it.
  */
@@ -140,8 +140,6 @@ function DownloadPdf({ href, label = "Download PDF" }: { href: string; label?: s
   );
 }
 
-const DownloadCsv = DownloadPdf;
-
 function FinancialTab({
   start,
   end,
@@ -179,10 +177,14 @@ function FinancialTab({
 
   const changeStart = (value: string) => {
     setLoading(true);
+    setBalance(null);
+    setError(null);
     onStart(value);
   };
   const changeEnd = (value: string) => {
     setLoading(true);
+    setBalance(null);
+    setError(null);
     onEnd(value);
   };
 
@@ -302,14 +304,20 @@ function InventoryTab({
 
   const changeAsOf = (value: string) => {
     setBalanceLoading(true);
+    setBalance(null);
+    setBalanceError(null);
     onAsOf(value);
   };
   const changeStart = (value: string) => {
     setVarianceLoading(true);
+    setVariance(null);
+    setVarianceError(null);
     period.onStart(value);
   };
   const changeEnd = (value: string) => {
     setVarianceLoading(true);
+    setVariance(null);
+    setVarianceError(null);
     period.onEnd(value);
   };
 
@@ -482,10 +490,14 @@ function PayrollTab({
 
   const changeStart = (value: string) => {
     setLoading(true);
+    setReport(null);
+    setError(null);
     onStart(value);
   };
   const changeEnd = (value: string) => {
     setLoading(true);
+    setReport(null);
+    setError(null);
     onEnd(value);
   };
 

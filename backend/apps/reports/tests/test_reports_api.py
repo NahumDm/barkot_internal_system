@@ -311,40 +311,83 @@ def test_payroll_report_is_scoped_to_the_months_asked_for(
     assert february.json()["summary"]["runs"] == 0
 
 
-def test_each_report_can_be_downloaded_as_csv(
-    client: Client, staff_login: Any, employee: Any
-) -> None:
-    staff_login(client, Role.Code.OWNER)
+def _run_with_deduction(client: Client) -> None:
+    """Create the payroll state every export needs: one run and one advance."""
     run = generate_run(client)
     item_id = client.get(f"{RUNS_URL}{run['id']}/items/").json()["results"][0]["id"]
-    client.post(
+    deduction = client.post(
         DEDUCTIONS_URL,
         {"payroll_item": item_id, "deduction_type": "ADVANCE", "amount": "500.00"},
         content_type="application/json",
     )
+    assert deduction.status_code == 201, deduction.content
 
-    financial = client.get(FINANCIAL_URL, {**OCTOBER, "export": "pdf"})
-    payroll = client.get(PAYROLL_URL, {**OCTOBER, "export": "pdf"})
-    balance = client.get(STOCK_BALANCE_URL, {"date": today().isoformat(), "export": "pdf"})
-    variance = client.get(VARIANCE_URL, {**OCTOBER, "export": "pdf"})
 
-    assert financial.status_code == 200
-    assert financial["Content-Type"].startswith("application/pdf")
-    assert financial["Content-Disposition"].startswith("attachment; filename=")
-    assert financial.content.startswith(b"%PDF")
+def test_each_report_can_be_downloaded_as_csv(
+    client: Client, staff_login: Any, employee: Any
+) -> None:
+    staff_login(client, Role.Code.OWNER)
+    _run_with_deduction(client)
 
-    # PDFs are binary - just verify data is rendered
-    assert b"GENERATED" in payroll.content or b"17500.00" in payroll.content
+    financial = client.get(FINANCIAL_URL, {**OCTOBER, "export": "csv"})
+    payroll = client.get(PAYROLL_URL, {**OCTOBER, "export": "csv"})
+    balance = client.get(STOCK_BALANCE_URL, {"date": today().isoformat(), "export": "csv"})
+    variance = client.get(VARIANCE_URL, {**OCTOBER, "export": "csv"})
+
+    for response in (financial, payroll, balance, variance):
+        assert response.status_code == 200, response.content
+        assert response["Content-Type"].startswith("text/csv")
+        assert response["Content-Disposition"].startswith("attachment; filename=")
+        assert response.content.startswith(b"\xef\xbb\xbf")
+
+    financial_text = financial.content.decode("utf-8-sig")
+    assert financial_text.splitlines()[0] == (
+        "Period,Income (cash),Income (mobile banking),Income (total),"
+        "Expenses (total),Payroll (total),Net,Currency"
+    )
+    assert "2026-10-01 to 2026-10-31" in financial_text
+
+    payroll_text = payroll.content.decode("utf-8-sig")
+    assert payroll_text.splitlines()[0] == (
+        "Period month,Status,Employees,Gross total,Deduction total,Net total"
+    )
+    assert "2026-10-01,GENERATED,1,18000.00,500.00,17500.00" in payroll_text
 
     balance_text = balance.content.decode("utf-8-sig")
     assert balance_text.splitlines()[0] == (
         "SKU,Product,Ledger balance,Last counted,Last counted on,Delta"
     )
 
-    assert variance.status_code == 200
-    assert variance.content.decode("utf-8-sig").splitlines()[0] == (
+    variance_text = variance.content.decode("utf-8-sig")
+    assert variance_text.splitlines()[0] == (
         "Count reference,Status,Counted on,SKU,Product,Expected,Counted,Variance,Note"
     )
+
+
+def test_each_report_can_be_downloaded_as_pdf(
+    client: Client, staff_login: Any, employee: Any
+) -> None:
+    staff_login(client, Role.Code.OWNER)
+    _run_with_deduction(client)
+
+    financial = client.get(FINANCIAL_URL, {**OCTOBER, "export": "pdf"})
+    payroll = client.get(PAYROLL_URL, {**OCTOBER, "export": "pdf"})
+    balance = client.get(STOCK_BALANCE_URL, {"date": today().isoformat(), "export": "pdf"})
+    variance = client.get(VARIANCE_URL, {**OCTOBER, "export": "pdf"})
+
+    expected_names = (
+        "financial-2026-10-01-2026-10-31.pdf",
+        "payroll-2026-10-01-2026-10-31.pdf",
+        f"stock-balance-{today().isoformat()}-{today().isoformat()}.pdf",
+        "stock-variance-2026-10-01-2026-10-31.pdf",
+    )
+    for response, filename in zip(
+        (financial, payroll, balance, variance), expected_names, strict=True
+    ):
+        assert response.status_code == 200, response.content
+        assert response["Content-Type"].startswith("application/pdf")
+        assert response["Content-Disposition"] == f'attachment; filename="{filename}"'
+        assert response.content.startswith(b"%PDF")
 
 
 def test_a_generated_payroll_run_does_not_enter_the_financial_report(

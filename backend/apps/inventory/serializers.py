@@ -305,27 +305,33 @@ class StockCountSerializer(serializers.ModelSerializer):
         )
 
 
+class StockCountItemInputSerializer(serializers.Serializer):
+    """One counted line in a completion request."""
+
+    item = serializers.IntegerField(min_value=1)
+    counted_quantity = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        min_value=Decimal("0.000"),
+    )
+
+
 class StockCountCompleteSerializer(serializers.Serializer):
-    items = serializers.ListField(child=serializers.DictField())
+    items = StockCountItemInputSerializer(many=True, allow_empty=False)
 
     def validate_items(self, value: list[dict]) -> list[dict]:
-        if not value:
-            raise serializers.ValidationError("Counted items are required.")
-        normalized = []
+        # A repeated item would be collapsed by the view's dict comprehension,
+        # silently keeping only the last quantity. The service compares the set
+        # of ids, so it would accept that request as complete. Refuse it here.
+        seen: set[int] = set()
         for item in value:
-            if "item" not in item or "counted_quantity" not in item:
+            item_id = item["item"]
+            if item_id in seen:
                 raise serializers.ValidationError(
-                    "Each counted item requires item and counted_quantity."
+                    f"Item {item_id} appears more than once in this count."
                 )
-            try:
-                item_id = int(item["item"])
-                quantity = Decimal(str(item["counted_quantity"]))
-            except (TypeError, ValueError, ArithmeticError) as exc:
-                raise serializers.ValidationError("Counted quantities must be numeric.") from exc
-            if quantity < 0:
-                raise serializers.ValidationError("Counted quantity cannot be negative.")
-            normalized.append({"item": item_id, "counted_quantity": quantity})
-        return normalized
+            seen.add(item_id)
+        return value
 
 
 class StockMovementSerializer(serializers.ModelSerializer):

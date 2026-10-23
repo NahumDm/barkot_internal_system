@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import { listSales, voidSale, type SaleListItem, type PaginatedResponse } from "@/lib/api/sales";
+import { listSales, voidSale, type SaleListItem } from "@/lib/api/sales";
 import { type ApiError, isValidationError, isPermissionDenied, isNotFound } from "@/lib/api/errors";
+import { useAuth } from "@/features/auth/auth-provider";
 import { Field, FormError } from "@/features/auth/form-parts";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
@@ -48,7 +49,15 @@ function PaymentStatusBadge({ status }: { status: string }) {
   );
 }
 
-function SaleRow({ sale, onVoid }: { sale: SaleListItem; onVoid: (id: number) => void }) {
+function SaleRow({
+  sale,
+  onVoid,
+  canVoid,
+}: {
+  sale: SaleListItem;
+  onVoid: (id: number) => void;
+  canVoid: boolean;
+}) {
   return (
     <tr className="border-b border-border hover:bg-surface/50">
       <td className="px-3 py-2 text-sm text-ink font-mono">{sale.reference}</td>
@@ -61,21 +70,31 @@ function SaleRow({ sale, onVoid }: { sale: SaleListItem; onVoid: (id: number) =>
       <td className="px-3 py-2 text-sm">
         <PaymentStatusBadge status={sale.payment_status} />
       </td>
-      <td className="px-3 py-2 text-sm">
-        {sale.status === "COMPLETED" && (
-          <button
-            onClick={() => onVoid(sale.id)}
-            className="rounded border border-danger bg-surface px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
-          >
-            Void
-          </button>
-        )}
-      </td>
+      {canVoid && (
+        <td className="px-3 py-2 text-sm">
+          {sale.status === "COMPLETED" && (
+            <button
+              onClick={() => onVoid(sale.id)}
+              className="rounded border border-danger bg-surface px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
+            >
+              Void
+            </button>
+          )}
+        </td>
+      )}
     </tr>
   );
 }
 
-function SalesTable({ sales, onVoid }: { sales: SaleListItem[]; onVoid: (id: number) => void }) {
+function SalesTable({
+  sales,
+  onVoid,
+  canVoid,
+}: {
+  sales: SaleListItem[];
+  onVoid: (id: number) => void;
+  canVoid: boolean;
+}) {
   if (sales.length === 0) {
     return <div className="text-center py-8 text-ink-secondary">No sales found.</div>;
   }
@@ -103,14 +122,16 @@ function SalesTable({ sales, onVoid }: { sales: SaleListItem[]; onVoid: (id: num
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
               Payment
             </th>
-            <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Actions
-            </th>
+            {canVoid && (
+              <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
+                Actions
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
           {sales.map((sale) => (
-            <SaleRow key={sale.id} sale={sale} onVoid={onVoid} />
+            <SaleRow key={sale.id} sale={sale} onVoid={onVoid} canVoid={canVoid} />
           ))}
         </tbody>
       </table>
@@ -191,61 +212,11 @@ function PaginationControls({
   );
 }
 
-function SalesFilters({
-  search,
-  onSearchChange,
-  statusFilter,
-  onStatusFilterChange,
-  paymentStatusFilter,
-  onPaymentStatusFilterChange,
-}: {
-  search: string;
-  onSearchChange: (value: string) => void;
-  statusFilter: "all" | "COMPLETED" | "VOIDED";
-  onStatusFilterChange: (value: "all" | "COMPLETED" | "VOIDED") => void;
-  paymentStatusFilter: "all" | string;
-  onPaymentStatusFilterChange: (value: "all" | string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="min-w-0 flex-1">
-        <Field
-          label="Search"
-          type="search"
-          value={search}
-          onChange={onSearchChange}
-          errors={[]}
-          autoComplete="off"
-          hint="Search by reference"
-        />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <select
-          value={statusFilter}
-          onChange={(e) => onStatusFilterChange(e.target.value as "all" | "COMPLETED" | "VOIDED")}
-          className="control control--inline"
-        >
-          <option value="all">All statuses</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="VOIDED">Voided</option>
-        </select>
-        <select
-          value={paymentStatusFilter}
-          onChange={(e) => onPaymentStatusFilterChange(e.target.value)}
-          className="control control--inline"
-        >
-          <option value="all">All payment statuses</option>
-          <option value="PAID">Paid</option>
-          <option value="PARTIAL">Partial</option>
-          <option value="UNPAID">Unpaid</option>
-        </select>
-      </div>
-    </div>
-  );
-}
-
 export default function SalesPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canCreate = user?.permissions.includes("sales.create_sale") ?? false;
+  const canVoid = user?.permissions.includes("sales.void_sale") ?? false;
 
   const [sales, setSales] = useState<SaleListItem[]>([]);
   const [page, setPage] = useState(1);
@@ -254,13 +225,16 @@ export default function SalesPage() {
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "COMPLETED" | "VOIDED">("all");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<"all" | string>("all");
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
 
   const fetchSales = useCallback(async () => {
+    const request = ++requestId.current;
     setLoading(true);
     setError(null);
+    setSales([]);
+    setCount(0);
     try {
       const query: Record<string, string | number | boolean> = {
         page,
@@ -268,40 +242,37 @@ export default function SalesPage() {
       };
       if (search) query.search = search;
       if (statusFilter !== "all") query.status = statusFilter;
-      if (paymentStatusFilter !== "all") query.payment_status = paymentStatusFilter;
 
       const response = await listSales({ query });
+      if (request !== requestId.current) return;
       setSales(response.results);
       setPages(response.pages);
       setCount(response.count);
     } catch (caught) {
-      setError(caught as ApiError);
+      if (request === requestId.current) setError(caught as ApiError);
     } finally {
-      setLoading(false);
+      if (request === requestId.current) setLoading(false);
     }
-  }, [page, pageSize, search, statusFilter, paymentStatusFilter]);
+  }, [page, pageSize, search, statusFilter]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSales();
   }, [fetchSales]);
 
   const handleSearchSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPage(1);
-    fetchSales();
   };
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setPage(1);
-    fetchSales();
   };
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pages) {
       setPage(newPage);
-      fetchSales();
     }
   };
 
@@ -333,13 +304,15 @@ export default function SalesPage() {
           <h1 className="text-2xl font-semibold text-ink">Sales</h1>
           <p className="text-sm text-ink-secondary">View and manage sales transactions.</p>
         </div>
-        <button
-          type="button"
-          onClick={handleCreateClick}
-          className="btn btn-primary self-start sm:self-auto"
-        >
-          New Sale
-        </button>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={handleCreateClick}
+            className="btn btn-primary self-start sm:self-auto"
+          >
+            New Sale
+          </button>
+        )}
       </div>
 
       <form onSubmit={handleSearchSubmit} className="flex flex-col gap-6">
@@ -349,7 +322,10 @@ export default function SalesPage() {
               label="Search"
               type="search"
               value={search}
-              onChange={setSearch}
+              onChange={(value) => {
+                setSearch(value);
+                setPage(1);
+              }}
               errors={[]}
               autoComplete="off"
               hint="Search by reference"
@@ -358,7 +334,10 @@ export default function SalesPage() {
           <div className="flex flex-wrap gap-2">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | "COMPLETED" | "VOIDED")}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as "all" | "COMPLETED" | "VOIDED");
+                setPage(1);
+              }}
               className="control control--inline"
             >
               <option value="all">All statuses</option>
@@ -377,7 +356,7 @@ export default function SalesPage() {
         </div>
       ) : (
         <>
-          <SalesTable sales={sales} onVoid={handleVoid} />
+          <SalesTable sales={sales} onVoid={handleVoid} canVoid={canVoid} />
           {pages > 1 && (
             <PaginationControls
               page={page}

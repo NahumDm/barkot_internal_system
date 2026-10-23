@@ -51,6 +51,19 @@ class Category(TimeStampedModel):
     def __str__(self) -> str:
         return self.name
 
+    @property
+    def product_count(self) -> int:
+        """Number of products in this category.
+
+        The list view annotates ``_product_count`` for a single-query page.
+        The fallback keeps the serializer correct for an instance returned by
+        ``create`` or ``update``, where no annotation has been applied.
+        """
+        annotated = getattr(self, "_product_count", None)
+        if annotated is not None:
+            return annotated
+        return self.products.count()
+
 
 class ProductQuerySet(models.QuerySet["Product"]):
     """QuerySet for :class:`Product`."""

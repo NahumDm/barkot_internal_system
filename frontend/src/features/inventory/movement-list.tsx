@@ -8,11 +8,23 @@ import type { ApiError } from "@/lib/api/errors";
 export default function MovementList() {
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     listStockMovements({ query: { page_size: 100 } })
-      .then((response) => setMovements(response.results))
-      .catch((value: unknown) => setError(value as ApiError));
+      .then((response) => {
+        if (active) setMovements(response.results);
+      })
+      .catch((value: unknown) => {
+        if (active) setError(value as ApiError);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
@@ -27,6 +39,7 @@ export default function MovementList() {
         </p>
       </div>
       {error && <p className="form-error">{error.message}</p>}
+      {loading && <p className="text-sm text-ink-secondary">Loading movements...</p>}
       <div className="overflow-x-auto rounded border border-border bg-surface">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
@@ -57,7 +70,7 @@ export default function MovementList() {
             ))}
           </tbody>
         </table>
-        {movements.length === 0 && !error && (
+        {!loading && movements.length === 0 && !error && (
           <p className="p-6 text-center text-sm text-ink-secondary">No stock movements found.</p>
         )}
       </div>

@@ -15,6 +15,7 @@ import {
   isRequestTimeout,
   isValidationError,
 } from "@/lib/api/errors";
+import { useAuth } from "@/features/auth/auth-provider";
 import { Field, FormError } from "@/features/auth/form-parts";
 
 interface GroupedProduct {
@@ -145,6 +146,8 @@ function describeSaleError(error: unknown): string {
 
 export default function NewSalePage() {
   const router = useRouter();
+  const { status, user } = useAuth();
+  const canCreate = user?.permissions.includes("sales.create_sale") ?? false;
   const formRef = useRef<HTMLFormElement>(null);
 
   const [groupedProducts, setGroupedProducts] = useState<GroupedProduct[]>([]);
@@ -345,6 +348,27 @@ export default function NewSalePage() {
       if (isValidationError(error)) focusFirstInvalid();
     }
   };
+
+  if (status === "checking") {
+    return (
+      <section className="flex items-center justify-center py-8 text-ink-secondary">
+        Checking access...
+      </section>
+    );
+  }
+
+  if (!canCreate) {
+    return (
+      <section className="space-y-4">
+        <header>
+          <h1 className="page-title text-2xl font-semibold tracking-tight text-ink">New Sale</h1>
+        </header>
+        <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
+          Your role does not include recording sales. Ask an owner if you need access.
+        </div>
+      </section>
+    );
+  }
 
   if (productsLoading) {
     return (

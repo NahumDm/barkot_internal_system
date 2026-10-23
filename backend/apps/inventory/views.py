@@ -17,7 +17,9 @@ from apps.accounts.permissions import (
     CanRecordBreakage,
     CanViewInventory,
 )
+from apps.core.enums import MovementKind
 from apps.core.pagination import BarkotPagination
+from apps.core.query_params import choice_value, positive_int
 from apps.inventory.models import BreakageRecord, StockCount, StockMovement, StockReceipt
 from apps.inventory.serializers import (
     BreakageCreateSerializer,
@@ -296,8 +298,9 @@ class StockMovementViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = super().get_queryset()
         product = self.request.query_params.get("product")
         if product:
-            queryset = queryset.filter(product_id=product)
+            queryset = queryset.filter(product_id=positive_int(product, "product"))
         kind = self.request.query_params.get("kind")
         if kind:
+            kind = choice_value(kind, "kind", [choice for choice, _label in MovementKind.choices])
             queryset = queryset.filter(kind=kind)
         return queryset

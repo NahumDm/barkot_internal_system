@@ -153,7 +153,11 @@ class EmployeeUpdateSerializer(serializers.Serializer):
         if self.instance is None:  # pragma: no cover - the view always sets one
             return attrs
         start = attrs.get("start_date", self.instance.start_date)
-        _validate_contract_dates(start, attrs.get("contract_end_date"))
+        # A PATCH that moves only the start date must still be checked against
+        # the end date already on file; otherwise a contract can be left ending
+        # before it starts with no field in this request to blame.
+        end = attrs.get("contract_end_date", self.instance.contract_end_date)
+        _validate_contract_dates(start, end)
         return attrs
 
 

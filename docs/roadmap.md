@@ -32,17 +32,17 @@ spec must not be read as "Phases 1–4 still ahead".
 
 ## Where the project actually stands
 
-Measured, not assumed (last verified after D0):
+Measured, not assumed (last verified after the full audit):
 
 | Layer | State |
 | --- | --- |
 | Domain models | 9 apps with models, 11 migrations applied |
 | Service/use-case layer | 8 apps with services (accounts, dashboard, finance, inventory, payroll, products, reports, sales) |
-| Tests | 1244 backend passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, rate-limit configuration and the write-throttle load test, idempotency keys and receipt allocation under real thread contention, plus per-domain acceptance tests |
-| Static analysis | mypy clean over 179 files, ruff clean |
+| Tests | 1471 backend passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, rate-limit configuration and the write-throttle load test, idempotency keys and receipt allocation under real thread contention, plus per-domain acceptance tests |
+| Static analysis | mypy clean over 202 files, ruff clean |
 | **API endpoints** | **Phases A–C complete: auth, products, sales, finance, inventory, payroll, reports, users/roles/settings and the dashboard, behind an OpenAPI schema that validates with 0 errors** |
-| **Frontend** | **Typed client and protected route group with a screen per domain through C6; 83 Vitest, 34 stubbed and 14 live Playwright tests green** |
-| `reports` app | C4 — financial, inventory and payroll reports with CSV export |
+| **Frontend** | **Typed client and protected route group with a screen per domain through C6; 125 Vitest, 48 stubbed and 19 live Playwright tests green** |
+| `reports` app | C4 — financial, inventory and payroll reports with PDF downloads and CSV API compatibility |
 | `audit` app | Model and `record()`; written by services, D1 asks for per-endpoint coverage |
 | Audit coverage | Services call `AuditLog.record()`, so most state changes are already audited |
 

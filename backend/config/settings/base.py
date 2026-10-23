@@ -107,6 +107,7 @@ ASGI_APPLICATION = "config.asgi.application"
 
 # ── Database ───────────────────────────────────────────────────────────────
 # PostgreSQL is the system of record (spec P02). Use SQLite in-memory for tests if requested.
+DATABASES: dict[str, dict[str, str | int]]
 if os.environ.get("USE_SQLITE") == "1" or os.environ.get("DJANGO_TEST_USE_SQLITE") == "1":
     DATABASES = {
         "default": {

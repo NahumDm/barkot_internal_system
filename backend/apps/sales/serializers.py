@@ -8,12 +8,18 @@ success shapes.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 
 from rest_framework import serializers
 
+from apps.core.business_time import now_utc
 from apps.products.models import Product
 from apps.sales.models import Payment, Sale, SaleItem
+
+#: How far a caller without void authority may move ``sold_at``. A till clock
+#: can drift by seconds; it cannot legitimately be a day out.
+SOLD_AT_TOLERANCE = timedelta(minutes=5)
 
 
 class SaleItemSerializer(serializers.ModelSerializer):
@@ -152,6 +158,29 @@ class SaleCreateSerializer(serializers.Serializer):
     sold_at = serializers.DateTimeField(required=False)
     idempotency_key = serializers.CharField(max_length=64, required=False)
 
+    def _caller_may(self, permission: str) -> bool:
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return bool(user and getattr(user, "is_authenticated", False) and user.has_perm(permission))
+
+    def validate_sold_at(self, value):
+        """Bound backdating to roles allowed to void, and forbid the future.
+
+        ``sold_at`` moves revenue, stock movements and the day's reference
+        sequence. A Cashier's till may have a clock a few seconds out, but a
+        timestamp hours or days away is a different transaction. Manager and
+        Owner (the roles holding ``sales.void_sale``) may record a legitimate
+        past sale; a future-dated one is never valid.
+        """
+        if value is None:
+            return value
+        moment = now_utc()
+        if value > moment + SOLD_AT_TOLERANCE:
+            raise serializers.ValidationError("A sale cannot be recorded in the future.")
+        if value < moment - SOLD_AT_TOLERANCE and not self._caller_may("sales.void_sale"):
+            raise serializers.ValidationError("Backdating a sale requires manager authorization.")
+        return value
+
     def validate(self, attrs: dict) -> dict:
         lines = attrs.get("lines", [])
         payments = attrs.get("payments", [])
@@ -163,8 +192,11 @@ class SaleCreateSerializer(serializers.Serializer):
                 "payments": ["A sale must have at least one payment."]
             })
 
-        # Check for duplicate products in lines
+        # Check for duplicate products in lines, and whether the caller may set
+        # a line price rather than take the catalogue's. Price control is a
+        # separate capability; otherwise a Cashier could sell at zero.
         seen = set()
+        may_override_price = self._caller_may("products.change_prices")
         for line in lines:
             product = line["product"]
             if product.pk in seen:
@@ -172,6 +204,13 @@ class SaleCreateSerializer(serializers.Serializer):
                     "lines": [f"Product {product.sku!r} appears twice. Combine the lines instead."]
                 })
             seen.add(product.pk)
+            if line.get("unit_price") is not None and not may_override_price:
+                raise serializers.ValidationError({
+                    "lines": [
+                        f"Changing the sale price of {product.sku!r} requires price-change "
+                        "permission."
+                    ]
+                })
 
         return attrs
 

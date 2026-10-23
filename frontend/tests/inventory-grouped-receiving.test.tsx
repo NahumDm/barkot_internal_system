@@ -10,7 +10,27 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AuthProvider } from "@/features/auth/auth-provider";
 import InventoryForm from "@/features/inventory/inventory-forms";
+import type { AuthUser } from "@/lib/api/auth";
+
+const RECEIVER: AuthUser = {
+  id: 1,
+  username: "e2e-manager",
+  display_name: "Mimi Manager",
+  role: "manager",
+  role_name: "Manager",
+  permissions: [
+    "inventory.receive_stock",
+    "inventory.record_breakage",
+    "inventory.complete_stock_count",
+    "inventory.approve_adjustment",
+  ],
+  email: "",
+  phone_number: "",
+  is_temporary_password: false,
+  last_login: null,
+};
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -144,6 +164,9 @@ function stubApi(postResponse = RECEIPT): void {
     "fetch",
     vi.fn(async (input: string | URL | Request) => {
       const { pathname } = new URL(String(input), "http://localhost");
+      if (pathname.endsWith("/auth/me/")) {
+        return jsonResponse({ user: RECEIVER });
+      }
       if (pathname.endsWith("/inventory/receipts/price-groups/")) {
         return jsonResponse(PRICE_GROUPS);
       }
@@ -158,8 +181,16 @@ function stubApi(postResponse = RECEIPT): void {
   );
 }
 
+function renderReceiving() {
+  return render(
+    <AuthProvider>
+      <InventoryForm mode="receive" />
+    </AuthProvider>,
+  );
+}
+
 async function renderGrouped() {
-  render(<InventoryForm mode="receive" />);
+  renderReceiving();
   fireEvent.click(await screen.findByRole("button", { name: /Grouped Receiving/ }));
 }
 
@@ -179,7 +210,7 @@ afterEach(() => {
 
 describe("grouped stock receiving", () => {
   it("keeps standard receiving as the default mode", async () => {
-    render(<InventoryForm mode="receive" />);
+    renderReceiving();
 
     expect(await screen.findByLabelText(/Supplier/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save record" })).toBeInTheDocument();

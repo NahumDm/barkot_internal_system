@@ -48,10 +48,14 @@ export default function BalanceOverview() {
 
   const changeStart = (value: string) => {
     setLoading(true);
+    setBalance(null);
+    setError(null);
     setStart(value);
   };
   const changeEnd = (value: string) => {
     setLoading(true);
+    setBalance(null);
+    setError(null);
     setEnd(value);
   };
 

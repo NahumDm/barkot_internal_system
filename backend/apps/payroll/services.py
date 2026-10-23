@@ -34,6 +34,7 @@ from apps.core.enums import PayrollDeductionType, PayrollItemStatus, PayrollRunS
 from apps.core.exceptions import (
     ExcessiveDeduction,
     InvalidDeductionAmount,
+    InvalidEmployeeSelection,
     InvalidStateTransition,
 )
 from apps.core.money import ZERO_MONEY, quantize_money
@@ -80,10 +81,24 @@ def generate_payroll_run(
     if PayrollRun.all_rows.filter(period_month=month).exists():
         raise InvalidStateTransition(f"A payroll run already exists for {month:%Y-%m}.")
 
-    employees = Employee.objects.select_related("profile").filter(status="ACTIVE")
-    if employee_ids is not None:
-        employees = employees.filter(pk__in=employee_ids)
-    employees = [emp for emp in employees if emp.is_employable]
+    active = Employee.objects.select_related("profile").filter(status="ACTIVE")
+    if employee_ids is None:
+        employees = [employee for employee in active if employee.is_employable]
+    else:
+        requested = set(employee_ids)
+        if len(requested) != len(employee_ids):
+            raise InvalidEmployeeSelection("An employee appears more than once in this run.")
+        found = {employee.pk: employee for employee in active.filter(pk__in=requested)}
+        missing = requested - found.keys()
+        ineligible = {pk for pk, employee in found.items() if not employee.is_employable}
+        if missing or ineligible:
+            details = sorted(missing | ineligible)
+            raise InvalidEmployeeSelection(
+                "These employees are unknown, inactive, or not employable: "
+                + ", ".join(str(pk) for pk in details)
+                + "."
+            )
+        employees = [found[pk] for pk in employee_ids]
 
     if not employees:
         raise InvalidStateTransition("No active employees are available for this payroll run.")

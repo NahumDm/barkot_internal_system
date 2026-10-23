@@ -104,11 +104,6 @@ function pdfUrl(path: string, query: Record<string, QueryValue>): string {
   return `${API_BASE_URL}${path}?${params.toString()}`;
 }
 
-/** Backward-compatible alias. */
-function csvUrl(path: string, query: Record<string, QueryValue>): string {
-  return pdfUrl(path, query);
-}
-
 export function getFinancialReport(start: string, end: string): Promise<FinanceBalance> {
   return get<FinanceBalance>("/reports/financial/", { query: { start, end } });
 }
@@ -117,8 +112,6 @@ export function getFinancialReport(start: string, end: string): Promise<FinanceB
 export function financialPdfUrl(start: string, end: string): string {
   return pdfUrl("/reports/financial/", { start, end });
 }
-
-export const financialCsvUrl = financialPdfUrl;
 
 export function getStockBalance(date: string): Promise<StockBalanceReport> {
   return get<StockBalanceReport>("/reports/inventory/stock-balance/", { query: { date } });
@@ -129,8 +122,6 @@ export function stockBalancePdfUrl(date: string): string {
   return pdfUrl("/reports/inventory/stock-balance/", { date });
 }
 
-export const stockBalanceCsvUrl = stockBalancePdfUrl;
-
 export function getStockVariance(start: string, end: string): Promise<StockVarianceReport> {
   return get<StockVarianceReport>("/reports/inventory/variance/", { query: { start, end } });
 }
@@ -140,8 +131,6 @@ export function stockVariancePdfUrl(start: string, end: string): string {
   return pdfUrl("/reports/inventory/variance/", { start, end });
 }
 
-export const stockVarianceCsvUrl = stockVariancePdfUrl;
-
 export function getPayrollReport(start: string, end: string): Promise<PayrollReport> {
   return get<PayrollReport>("/reports/payroll/", { query: { start, end } });
 }
@@ -150,5 +139,3 @@ export function getPayrollReport(start: string, end: string): Promise<PayrollRep
 export function payrollPdfUrl(start: string, end: string): string {
   return pdfUrl("/reports/payroll/", { start, end });
 }
-
-export const payrollCsvUrl = payrollPdfUrl;

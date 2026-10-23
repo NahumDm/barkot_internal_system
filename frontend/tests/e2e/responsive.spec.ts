@@ -151,4 +151,31 @@ test.describe("responsive frame", () => {
       }
     }
   });
+
+  test("every route fits at tablet, desktop and phone-landscape sizes", async ({ page }) => {
+    // Five viewports times the twenty routes below. The API is absent in the
+    // stubbed project, so each navigation settles quickly; the budget is for a
+    // cold production server rendering every route for the first time.
+    test.setTimeout(900_000);
+    await stubSignedIn(page);
+    const viewports: Array<[number, number, string]> = [
+      [768, 1024, "tablet portrait"],
+      [1024, 900, "small desktop"],
+      [1440, 900, "desktop"],
+      [844, 390, "phone landscape"],
+      [932, 430, "large phone landscape"],
+    ];
+
+    for (const [width, height, label] of viewports) {
+      await page.setViewportSize({ width, height });
+      for (const route of ROUTES) {
+        await page.goto(route);
+        await expect(page.locator("aside.sidebar")).toBeAttached();
+        expect(
+          await pageOverflow(page),
+          `${route} at ${width}x${height} (${label})`,
+        ).toBeLessThanOrEqual(1);
+      }
+    }
+  });
 });

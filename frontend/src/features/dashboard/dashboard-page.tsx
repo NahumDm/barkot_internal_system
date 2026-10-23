@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { DateRangeFilter } from "@/components/date-range-filter";
@@ -45,8 +46,6 @@ function monthStartToday(): string {
 export default function DashboardPage() {
   const { user } = useAuth();
   const granted = user?.permissions ?? [];
-  const role = (user?.role ?? "").toString().toUpperCase();
-  const canAccess = role === "CASHIER" || role === "OWNER";
   const canViewSales = granted.includes("sales.view_sales");
   const canViewInventory = granted.includes("inventory.view_inventory");
   const canViewFinance = granted.includes("finance.view_reports");
@@ -81,32 +80,23 @@ export default function DashboardPage() {
 
   const changeStart = (value: string) => {
     setLoading(true);
+    setData(null);
+    setError(null);
     setStart(value);
   };
   const changeEnd = (value: string) => {
     setLoading(true);
+    setData(null);
+    setError(null);
     setEnd(value);
   };
   const resetToMonth = () => {
     setLoading(true);
+    setData(null);
+    setError(null);
     setStart(initialStart);
     setEnd(todayISO());
   };
-
-  if (!canAccess) {
-    return (
-      <section className="space-y-6">
-        <PageHeader
-          eyebrow="Overview"
-          title="Dashboard"
-          blurb="The position of the business for the period, read straight from each domain."
-        />
-        <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
-          Dashboard is only available for cashier and owner.
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="space-y-6">
@@ -212,12 +202,12 @@ function SalesPanel({ sales }: { sales: DashboardSales }) {
             {money(sales.total)}
           </p>
         </div>
-        <a
+        <Link
           href="/sales"
           className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
         >
           Open sales
-        </a>
+        </Link>
       </div>
       {sales.recent.length === 0 ? (
         <EmptyNote>No sales in this period.</EmptyNote>
@@ -254,12 +244,12 @@ function InventoryPanel({ inventory }: { inventory: DashboardInventory }) {
           <h2 className="panel-title text-sm font-semibold text-ink">Inventory</h2>
           <p className="panel-sub text-xs text-ink-secondary">As of {dateStamp(inventory.as_of)}</p>
         </div>
-        <a
+        <Link
           href="/inventory"
           className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
         >
           Open inventory
-        </a>
+        </Link>
       </div>
       <dl className="panel-list-lg mt-3 space-y-3 text-sm">
         <Line label="In stock" value={inventory.in_stock_total} />
@@ -279,12 +269,12 @@ function FinancePanel({ finance }: { finance: FinanceBalance }) {
             {dateStamp(finance.period_start)} – {dateStamp(finance.period_end)}
           </p>
         </div>
-        <a
+        <Link
           href="/reports"
           className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
         >
           Open reports
-        </a>
+        </Link>
       </div>
       <dl className="mt-3 space-y-3 text-sm">
         <Line label="Income" value={money(finance.income.total, finance.currency)} />
@@ -316,12 +306,12 @@ function PayrollPanel({ payroll }: { payroll: DashboardPayroll }) {
           <h2 className="panel-title text-sm font-semibold text-ink">Payroll</h2>
           <p className="panel-sub text-xs text-ink-secondary">{monthLabel(payroll.period_month)}</p>
         </div>
-        <a
+        <Link
           href="/payroll/runs"
           className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
         >
           Open payroll
-        </a>
+        </Link>
       </div>
       <div className="mt-3 space-y-3 text-sm">
         <StatusChip status={payroll.status} display={payroll.status_display} />

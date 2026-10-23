@@ -19,15 +19,22 @@ function onHandLabel(product: ProductListItem): string {
 export default function InventoryOverview() {
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     listInventoryProducts()
       .then((response) => {
-        if (active) setProducts(response.results);
+        if (active) {
+          setProducts(response.results);
+          setError(null);
+        }
       })
       .catch((value: unknown) => {
         if (active) setError(value as ApiError);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
@@ -46,6 +53,7 @@ export default function InventoryOverview() {
         </p>
       </div>
       {error && <p className="form-error">{error.message}</p>}
+      {loading && <p className="text-sm text-ink-secondary">Loading stock...</p>}
       <div className="overflow-x-auto rounded border border-border bg-surface">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
@@ -75,7 +83,7 @@ export default function InventoryOverview() {
             ))}
           </tbody>
         </table>
-        {products.length === 0 && !error && (
+        {!loading && products.length === 0 && !error && (
           <p className="p-6 text-center text-sm text-ink-secondary">No tracked products found.</p>
         )}
       </div>

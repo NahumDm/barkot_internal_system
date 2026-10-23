@@ -50,10 +50,13 @@ const nextServer = {
   command: "npm run build && npm run start",
   url: FRONTEND_READY_URL,
   env: {
-    // A production build, so the dev proxy is off unless asked for. These two
-    // are the ask: Next forwards /api/v1/ to the Django above, keeping the
-    // browser on one origin exactly as Nginx does in production.
-    API_PROXY_ENABLED: "1",
+    // A production build, so the dev proxy is off unless asked for. The live
+    // project is the ask: Next forwards /api/v1/ to the Django above, keeping
+    // the browser on one origin exactly as Nginx does in production. The
+    // stubbed project has no Django, so proxying there would only turn every
+    // intentionally un-stubbed call into a connection-refused log and a
+    // hanging browser resource; a fast 404 is the honest answer.
+    API_PROXY_ENABLED: liveProjectSelected() ? "1" : "0",
     API_PROXY_TARGET: API_ORIGIN,
   },
   reuseExistingServer: !process.env.CI,

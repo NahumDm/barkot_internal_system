@@ -697,3 +697,23 @@ def test_a_payroll_employee_reports_the_profile_details(
     assert body["phone_number"] == "+251911234567"
     assert body["start_date"] == "2026-01-05"
     assert body["monthly_wage"] == "18000.00"
+
+
+def test_unknown_employee_ids_refuse_the_whole_run(
+    client: Client, staff_login: Any, employee: Employee
+) -> None:
+    """A partial run would silently omit the staff the caller named."""
+    staff_login(client, Role.Code.OWNER)
+
+    response = _generate(client, employee_ids=[employee.pk, 999_999])
+
+    assert response.status_code == 400, response.content
+    assert response.json()["error"]["code"] == "invalid_employee_selection"
+    assert PayrollRun.objects.count() == 0
+
+
+def test_malformed_deduction_filters_are_400s(client: Client, staff_login: Any) -> None:
+    staff_login(client, Role.Code.MANAGER)
+
+    assert client.get(DEDUCTIONS_URL, {"run": "not-an-id"}).status_code == 400
+    assert client.get(DEDUCTIONS_URL, {"payroll_item": "not-an-id"}).status_code == 400

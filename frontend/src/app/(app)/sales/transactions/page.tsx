@@ -1,13 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { listSales, type SaleListItem, type Payment } from "@/lib/api/sales";
 import { type ApiError } from "@/lib/api/errors";
 import { Field, FormError } from "@/features/auth/form-parts";
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const PAGE_SIZE = 20;
 
 function formatMoney(amount: string, currency: string): string {
   return `${Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
@@ -68,16 +67,20 @@ export default function SalesTransactionsPage() {
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [count, setCount] = useState(0);
-  const [pageSize, setPageSize] = useState(20);
+  const pageSize = PAGE_SIZE;
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "COMPLETED" | "VOIDED">("all");
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
 
   const fetchSales = useCallback(async () => {
+    const request = ++requestId.current;
     setLoading(true);
     setError(null);
+    setSales([]);
+    setCount(0);
     try {
       const query: Record<string, string | number | boolean> = {
         page,
@@ -87,18 +90,19 @@ export default function SalesTransactionsPage() {
       if (statusFilter !== "all") query.status = statusFilter;
 
       const response = await listSales({ query });
+      if (request !== requestId.current) return;
       setSales(response.results);
       setPages(response.pages);
       setCount(response.count);
     } catch (caught) {
-      setError(caught as ApiError);
+      if (request === requestId.current) setError(caught as ApiError);
     } finally {
-      setLoading(false);
+      if (request === requestId.current) setLoading(false);
     }
   }, [page, pageSize, search, statusFilter]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchSales();
   }, [fetchSales]);
 
@@ -147,9 +151,10 @@ export default function SalesTransactionsPage() {
         </div>
         <select
           value={statusFilter}
-          onChange={(event) =>
-            setStatusFilter(event.target.value as "all" | "COMPLETED" | "VOIDED")
-          }
+          onChange={(event) => {
+            setStatusFilter(event.target.value as "all" | "COMPLETED" | "VOIDED");
+            setPage(1);
+          }}
           className="control control--inline"
         >
           <option value="all">All statuses</option>

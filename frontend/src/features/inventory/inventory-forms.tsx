@@ -17,6 +17,7 @@ import {
 import type { ProductListItem } from "@/lib/api/products";
 import type { ApiError } from "@/lib/api/errors";
 import { crateLabel, crateSize } from "@/lib/crates";
+import { useAuth } from "@/features/auth/auth-provider";
 
 type Mode = "receive" | "breakage" | "count";
 type ReceiveSubMode = "standard" | "grouped";
@@ -38,7 +39,17 @@ function describeError(error: ApiError): string {
   return details[0] ?? error.message;
 }
 
+const REQUIRED_PERMISSION: Record<Mode, string> = {
+  receive: "inventory.receive_stock",
+  breakage: "inventory.record_breakage",
+  count: "inventory.complete_stock_count",
+};
+
 export default function InventoryForm({ mode }: { mode: Mode }) {
+  const { status, user } = useAuth();
+  const granted = user?.permissions ?? [];
+  const allowed = granted.includes(REQUIRED_PERMISSION[mode]);
+  const canApprove = granted.includes("inventory.approve_adjustment");
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [priceGroups, setPriceGroups] = useState<PriceGroup[]>([]);
   const [product, setProduct] = useState("");
@@ -458,6 +469,31 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
       totalItems: count.items.length,
     };
   }, [count, physicalCounts]);
+
+  if (status === "checking") {
+    return (
+      <section className="max-w-4xl space-y-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        <p className="text-sm text-ink-secondary">Checking access...</p>
+      </section>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <section className="max-w-4xl space-y-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
+            Inventory
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        </div>
+        <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
+          Your role does not include this inventory action. Ask an owner if you need access.
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="max-w-4xl space-y-6">
@@ -1060,6 +1096,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
                             type="number"
                             min="0"
                             step="1"
+                            aria-label={`Physical quantity for ${item.product_name}`}
                             placeholder="Enter count"
                             value={rawVal}
                             onChange={(e) => {
@@ -1202,13 +1239,15 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
               <span className="text-xs text-ink-secondary">
                 Manager authorization required to post variance adjustment to the movement ledger.
               </span>
-              <button
-                disabled={saving}
-                onClick={approveCount}
-                className="btn bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
-              >
-                {saving ? "Approving adjustment..." : "Approve adjustment"}
-              </button>
+              {canApprove && (
+                <button
+                  disabled={saving}
+                  onClick={approveCount}
+                  className="btn bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
+                >
+                  {saving ? "Approving adjustment..." : "Approve adjustment"}
+                </button>
+              )}
             </div>
           )}
 

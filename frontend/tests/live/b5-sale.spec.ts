@@ -35,6 +35,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { readSeedSummary } from "./environment";
 import { signIn } from "./signin";
+import { wirePost } from "./wire";
 
 const seed = readSeedSummary();
 
@@ -139,12 +140,14 @@ test("a Cashier records a sale: real session, stock down once, void refused", as
   // Server truth, over the same session.
   expect(await readStock(page)).toBe(AFTER_SALE);
   const reference = (await row.locator("td").first().innerText()).trim();
-  expect(await readSale(page, reference)).toMatchObject({
+  const sale = await readSale(page, reference);
+  expect(sale).toMatchObject({
     reference,
     status: "COMPLETED",
     payment_status: "PAID",
     total: TOTAL,
   });
+  const saleId = (sale as { id: number }).id;
 
   // The sale's income side is on the till too: the dashboard's Takings and
   // Transactions tiles are the money the ledger took in, not a number the
@@ -163,23 +166,20 @@ test("a Cashier records a sale: real session, stock down once, void refused", as
     page.getByText("Transactions", { exact: true }).locator("..").getByText("1", { exact: true }),
   ).toBeVisible();
 
-  // The screen offers Void to anyone who can see the row; Django is what
-  // refuses. The confirm has to be accepted or the request is never sent and
-  // this test would pass without the backend ever being asked - Playwright
-  // dismisses dialogs by default, so the handler below is load-bearing.
+  // The screen does not offer a Cashier an action the matrix withholds, so the
+  // refusal is checked at the wire rather than by clicking a button that must
+  // not exist. This still asks Django itself, with the browser's real session
+  // and CSRF token: hiding the control is convenience, the 403 is the boundary.
   await page.goto("/sales");
-  const dialogs: { kind: string; message: string }[] = [];
-  page.on("dialog", (dialog) => {
-    dialogs.push({ kind: dialog.type(), message: dialog.message() });
-    if (dialog.type() === "confirm") void dialog.accept();
-    else void dialog.dismiss();
+  await expect(row).toBeVisible();
+  await expect(row.getByRole("button", { name: "Void" })).toHaveCount(0);
+
+  const refused = await wirePost(page, `/api/v1/sales/${saleId}/void/`, {
+    reason: "customer changed their mind",
   });
+  expect(refused.status).toBe(403);
+  expect(JSON.stringify(refused.body)).toContain(REFUSED);
 
-  await row.getByRole("button", { name: "Void" }).click();
-
-  await expect
-    .poll(() => dialogs.filter((d) => d.kind === "alert").map((d) => d.message))
-    .toContain(REFUSED);
   // Refused means refused: the sale is still standing and the stock is still
   // where the sale left it.
   await expect(row).toContainText("COMPLETED");

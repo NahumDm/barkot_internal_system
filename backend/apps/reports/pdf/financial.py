@@ -11,26 +11,26 @@ from apps.reports.pdf.utils import format_period
 
 def financial_report_pdf(*, start: date, end: date) -> HttpResponse:
     balance = finance_balance(start=start, end=end)
-    b = balance.as_dict()
+    currency = balance.currency
 
     summary_rows = [
         ("Period", format_period(start, end)),
-        ("Income (cash)", f"{b['income_cash']} {b['currency']}"),
-        ("Income (mobile banking)", f"{b['income_mobile_banking']} {b['currency']}"),
-        ("Income (total)", f"{b['income_total']} {b['currency']}"),
-        ("Expenses (total)", f"{b['expenses_total']} {b['currency']}"),
-        ("Payroll (total)", f"{b['payroll_total']} {b['currency']}"),
-        ("Net", f"{b['net']} {b['currency']}"),
+        ("Income (cash)", f"{balance.income_cash} {currency}"),
+        ("Income (mobile banking)", f"{balance.income_mobile_banking} {currency}"),
+        ("Income (total)", f"{balance.income_total} {currency}"),
+        ("Expenses (total)", f"{balance.expenses_total} {currency}"),
+        ("Payroll (total)", f"{balance.payroll_total} {currency}"),
+        ("Net", f"{balance.net} {currency}"),
     ]
 
-    headers = ["Item", "Amount (ETB)" if b["currency"] == "ETB" else "Amount"]
+    headers = ["Item", "Amount (ETB)" if currency == "ETB" else "Amount"]
     rows = [
-        ["Income (cash)", f"{b['income_cash']} {b['currency']}"],
-        ["Income (mobile banking)", f"{b['income_mobile_banking']} {b['currency']}"],
-        ["Income (total)", f"{b['income_total']} {b['currency']}"],
-        ["Expenses (total)", f"{b['expenses_total']} {b['currency']}"],
-        ["Payroll (total)", f"{b['payroll_total']} {b['currency']}"],
-        ["Net", f"{b['net']} {b['currency']}"],
+        ["Income (cash)", f"{balance.income_cash} {currency}"],
+        ["Income (mobile banking)", f"{balance.income_mobile_banking} {currency}"],
+        ["Income (total)", f"{balance.income_total} {currency}"],
+        ["Expenses (total)", f"{balance.expenses_total} {currency}"],
+        ["Payroll (total)", f"{balance.payroll_total} {currency}"],
+        ["Net", f"{balance.net} {currency}"],
     ]
 
     return _build_pdf(

@@ -97,6 +97,19 @@ class ImmutableRecord(BARKOTDomainError):
     default_message = "This record cannot be modified."
 
 
+class ProductNotPriced(BARKOTDomainError):
+    """A sale named a product with no catalogue price at the sale moment.
+
+    This is a 400 rather than a 500: the request is coherent, but it cannot be
+    priced. It also covers a backdated sale that predates the product's first
+    price row, which the product model raises as ``DoesNotExist``.
+    """
+
+    code = "product_not_priced"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "A product on this sale has no price at the sale time."
+
+
 class InconsistentTotals(BARKOTDomainError):
     """Supplied subtotals do not reconcile with the underlying line items.
 
@@ -107,6 +120,19 @@ class InconsistentTotals(BARKOTDomainError):
     code = "inconsistent_totals"
     status_code = status.HTTP_400_BAD_REQUEST
     default_message = "The supplied totals do not match the line items."
+
+
+class InvalidEmployeeSelection(BARKOTDomainError):
+    """A payroll run named employees who are unknown or not employable.
+
+    Silently generating a run with only the subset that happened to match would
+    pay some staff and omit others while answering 201, leaving the caller to
+    discover the omission from the payslips.
+    """
+
+    code = "invalid_employee_selection"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "One or more selected employees cannot be included in this run."
 
 
 class InvalidDeductionAmount(BARKOTDomainError):

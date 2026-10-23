@@ -34,12 +34,12 @@ python -c "import zipfile,xml.etree.ElementTree as ET;W='{http://schemas.openxml
 - C1: finance balance, expense categories, expense recording, approval, audit records, API client, and finance screens.
 - C2: payroll employees, monthly runs through generated→approved→paid, deductions with a reason, API client, and payroll screens.
 - C3: inventory receipts, breakage/waste, stock counts, variance approval, movement history, ledger-backed stock overview, API client, and inventory screens.
-- C4: date-filtered financial/inventory/payroll reports with CSV export; stubbed and live E2E.
+- C4: date-filtered financial/inventory/payroll reports with PDF downloads in the UI and CSV compatibility on the API; stubbed and live E2E.
 - C5: staff account administration, the read-only roles catalogue, and the system settings row. Owner-only — a Manager is refused at every endpoint and on the screen. Acceptance tests, API client, settings screen, and stubbed + live E2E.
 - C6: role-scoped dashboard summary. One read-only `GET /dashboard/` whose tiles delegate to the services that own them (balance, stock balance, sales totals, latest run), each `null` when the role lacks the grant. Acceptance tests, API client, dashboard screen, and stubbed + live E2E. **Phase C is complete.**
 - D0: rate limiting on all state-changing endpoints (spec §9.3). Every POST/PUT/PATCH/DELETE on every endpoint, 60 a minute per client address, installed as DRF's `DEFAULT_THROTTLE_CLASSES` so a new endpoint cannot be exempt by omission; reads are never throttled and login keeps its stricter 5/m. Configuration assertions, reads-don't-spend, per-address isolation, login/write budget separation, window reset, and the load test that expects 429.
 - D1: audit coverage (P06). `backend/tests/api/test_audit_coverage.py` holds one scenario per state-changing endpoint (31 method/path pairs) that drives the real view and asserts exactly one new `AuditLog` row with the right action, object type, actor, object id and summary, plus a completeness test that compares the discovered unsafe surface against the scenario table — a new endpoint with no scenario fails the suite, and a mutation re-exposed on `SalesViewSet` fails it too (DRF drops `http_method_names`-blocked methods from discovery, so the two surfaces cannot drift apart). Writing it closed real gaps: product/category `perform_create` and `set_price` logged `actor=None`; `open_stock_count`, payroll's `add_deduction`, a new `add_employee` service, and product/category update/delete services did not record at all; `AuditLog.Action.DELETE` did not exist.
-- D2: the five §23.1 scenarios mapped onto the live suite, green locally and in CI. Scenario 1.1's income half: `b5-sale.spec.ts` now asserts the dashboard Takings and Transactions tiles after the sale, not just the stock movement. Scenario 1.4's deduction: `payroll.spec.ts` records a 500 "Salary advance" with a written reason and ties the deductions register to the run (total_deductions 500.00 / net_amount 11500.00) and to `reports.spec.ts`, which reads the run as its net (financial payroll_total, payroll tab tiles, deductions-by-type panel and the CSV). Scenarios 2 and 3 (C3's first browser coverage): new `stock.spec.ts` — the Barman receives 50 units at 20.00/unit (receipt completed on the wire with line cost 1000.00, one IN movement, shelf 40 → 90) and a Manager opens a count at 90, counts 89, completes it (variance −1.000), a Cashier is refused approve over the wire (backend's own 403 envelope), and the Manager's approval posts a COUNT_VARIANCE OUT 1.000 movement that lands in the variance report. Scenario 1.5's refusals: new `refusals.spec.ts` — the Cashier's payroll no-access note, a 403 on approve-run and on set-price, and the Owner (the only role with `products.change_prices`) getting a 201 where the Cashier got 403. The wire-based refusals needed `frontend/tests/live/wire.ts` (same-origin `page.evaluate(fetch)`, CSRF token from the cookie, so the 403 is Django's permission answer rather than a CSRF defence). The seed (`seed_e2e.py`, `environment.ts`) now also creates a Barman.
+- D2: the five §23.1 scenarios mapped onto the live suite, green locally and in CI. Scenario 1.1's income half: `b5-sale.spec.ts` now asserts the dashboard Takings and Transactions tiles after the sale, not just the stock movement. Scenario 1.4's deduction: `payroll.spec.ts` records a 500 "Salary advance" with a written reason and ties the deductions register to the run (total_deductions 500.00 / net_amount 11500.00) and to `reports.spec.ts`, which reads the run as its net (financial payroll_total, payroll tab tiles, deductions-by-type panel and the PDF). Scenarios 2 and 3 (C3's first browser coverage): new `stock.spec.ts` — the Barman receives 50 units at 20.00/unit (receipt completed on the wire with line cost 1000.00, one IN movement, shelf 40 → 90) and a Manager opens a count at 90, counts 89, completes it (variance −1.000), a Cashier is refused approve over the wire (backend's own 403 envelope), and the Manager's approval posts a COUNT_VARIANCE OUT 1.000 movement that lands in the variance report. Scenario 1.5's refusals: new `refusals.spec.ts` — the Cashier's payroll no-access note, a 403 on approve-run and on set-price, and the Owner (the only role with `products.change_prices`) getting a 201 where the Cashier got 403. The wire-based refusals needed `frontend/tests/live/wire.ts` (same-origin `page.evaluate(fetch)`, CSRF token from the cookie, so the 403 is Django's permission answer rather than a CSRF defence). The seed (`seed_e2e.py`, `environment.ts`) now also creates a Barman.
 
 ### Next
 
@@ -94,11 +94,11 @@ Inventory writes call the existing services in `apps.inventory.services`. The mo
 ### Payroll C2
 
 - `GET /api/v1/payroll/employees/`
-- `GET/POST /api/v1/payroll/runs/`
+- `GET/POST /api/v1/payroll/runs/` — POST generates the month
 - `GET /api/v1/payroll/runs/{id}/`
-- `POST /api/v1/payroll/runs/{id}/generate/`
+- `GET /api/v1/payroll/runs/{id}/items/`
 - `POST /api/v1/payroll/runs/{id}/approve/`
-- `POST /api/v1/payroll/runs/{id}/pay/`
+- `POST /api/v1/payroll/runs/{id}/mark-paid/`
 
 Payroll runs flow generated→approved→paid. Deductions retain a reason. Statutory tax, overtime, absence, and deduction calculations are deliberately not invented (client decisions still open).
 
@@ -108,9 +108,9 @@ Payroll runs flow generated→approved→paid. Deductions retain a reason. Statu
 - `GET /api/v1/reports/inventory/stock-balance/?date=`
 - `GET /api/v1/reports/inventory/variance/?start=&end=`
 - `GET /api/v1/reports/payroll/?start=&end=`
-- `GET /api/v1/reports/...?export=csv`
+- `GET /api/v1/reports/...?export=pdf` (CSV also accepted)
 
-All report endpoints take the same `?start=&end=` business-date range and CSV format. Reports aggregate authoritative domain data; they never keep parallel totals.
+All report endpoints take the same `?start=&end=` business-date range. JSON is the default; `?export=pdf` returns the report as a PDF attachment and `?export=csv` is retained for compatibility. The reports screen offers PDF downloads. Reports aggregate authoritative domain data; they never keep parallel totals.
 
 ### Accounts C5
 
@@ -201,7 +201,7 @@ Run from `backend`:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-Last verified result after D1: **1250 passed** (1244 after D0; +33 for the D1 audit suite and the sales 405 test, −27 sales contract/sweep/throttle parametrizations that no longer exist once `http_method_names` removed the mutations from discovery), with 45 known deprecation warnings from `drf_spectacular` on the current Python runtime. mypy is clean across **181 files**. OpenAPI validation had 0 errors and 5 enum-name warnings (three `status` collisions, `PaymentStatusEnum`, and `CodeEnum` — the last from the roles endpoint; all cosmetic).
+Last verified result: **1471 passed**, with 55 known deprecation warnings from `drf_spectacular` on the current Python runtime. mypy is clean across **202 files**. OpenAPI validation had 0 errors and 7 enum-name warnings (three `status` collisions, two `quantity_mode` collisions, `PaymentStatusEnum`, and `CodeEnum` — the last from the roles endpoint; all cosmetic).
 
 For the local Compose database, use the project defaults explicitly when running host tooling:
 
@@ -228,7 +228,7 @@ npm run build
 npm run test:e2e
 ```
 
-Last verified: **83 Vitest tests** (after C6), and **34 stubbed Playwright tests** plus **14 live Playwright tests** re-run green after D2. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
+Last verified: **125 Vitest tests**, **48 stubbed Playwright tests** and **19 live Playwright tests** green after the full audit. The live run required these local-only overrides because the checked-in harness defaults still use historical `barket` names while this Compose volume uses `barkot`:
 
 ```powershell
 $env:E2E_DB_NAME='barkot_e2e'

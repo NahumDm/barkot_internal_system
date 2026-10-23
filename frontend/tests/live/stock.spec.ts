@@ -165,6 +165,13 @@ test("a count closes with its variance, and only an approver can post it", async
   const cashierPage = await cashierContext.newPage();
   await signIn(cashierPage, seed.cashier);
 
+  // The API refuses the write; the screen must not offer it in the first place.
+  // This is the real `/auth/me/` answer, not a stubbed permission list.
+  await cashierPage.goto("/inventory/receive");
+  await expect(
+    cashierPage.getByText("Your role does not include this inventory action."),
+  ).toBeVisible();
+
   await signIn(page, seed.manager);
   await page.goto("/inventory/counts");
 
@@ -176,7 +183,7 @@ test("a count closes with its variance, and only an approver can post it", async
   await expect(page.getByText("90.000", { exact: true }).first()).toBeVisible();
   const countId = Number((await countHeading.textContent())?.match(/#(\d+)/)?.[1]);
 
-  await page.getByLabel("Physical quantity").fill(COUNTED);
+  await page.getByLabel(`Physical quantity for ${seed.product.name}`).fill(COUNTED);
   await page.getByRole("button", { name: "Complete count" }).click();
 
   // The variance is the whole point of the screen: expected 90 counts against
@@ -205,7 +212,7 @@ test("a count closes with its variance, and only an approver can post it", async
   // Approval is the Manager's job and it moves the ledger: 89 on the shelf, an
   // OUT variance movement, and the variance report's first line.
   await page.getByRole("button", { name: "Approve adjustment" }).click();
-  await expect(page.getByText("Adjustment posted to the ledger.")).toBeVisible();
+  await expect(page.getByText("Stock adjustment approved and ledger updated.")).toBeVisible();
   await expect(page.getByRole("heading", { name: /^Count #\d+ · APPROVED/ })).toBeVisible();
 
   const approved = await readCount(page, countId);

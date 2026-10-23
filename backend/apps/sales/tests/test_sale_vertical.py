@@ -31,6 +31,7 @@ compares a balance, rather than only checking that the numbers moved.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -356,6 +357,118 @@ def test_a_sale_is_listed_with_its_total_for_a_cashier(
     assert row["payment_status"] == PaymentStatus.PAID
     assert row["payment_status_display"]
     assert Decimal(row["total"]) == EXPECTED_TOTAL
+    assert row["item_count"] == 1
+
+
+def test_a_cashier_cannot_override_a_line_price(
+    client: Client, staff_login: Callable[..., Any], stocked: Product
+) -> None:
+    """Price control is not part of ``sales.create_sale``.
+
+    The catalogue price is resolved server-side. A caller that supplies its own
+    line price is trying to bypass that resolution, and only a role holding
+    ``products.change_prices`` may do so.
+    """
+    staff_login(client, Role.Code.CASHIER)
+    body = sale_body(stocked)
+    body["lines"][0]["unit_price"] = "0.01"
+    body["payments"][0]["amount"] = "0.03"
+
+    response = client.post(SALES_URL, data=body, content_type="application/json")
+
+    assert response.status_code == 400, response.content
+    assert response.json()["error"]["code"] == "validation_error"
+    assert Sale.objects.count() == 0
+
+
+def test_an_owner_may_override_a_line_price(
+    client: Client, staff_login: Callable[..., Any], stocked: Product
+) -> None:
+    """The price-change grant is the one that makes an override deliberate."""
+    staff_login(client, Role.Code.OWNER)
+    body = sale_body(stocked)
+    body["lines"][0]["unit_price"] = "20.00"
+    body["payments"][0]["amount"] = "60.00"
+
+    response = client.post(SALES_URL, data=body, content_type="application/json")
+
+    assert response.status_code == 201, response.content
+    assert Decimal(response.json()["items"][0]["unit_price"]) == Decimal("20.00")
+
+
+def test_a_cashier_cannot_backdate_a_sale_but_a_manager_can(
+    client: Client, staff_login: Callable[..., Any], stocked: Product
+) -> None:
+    """``sold_at`` moves revenue and stock across days, so it needs authority."""
+    yesterday = (now_utc() - timedelta(days=1)).isoformat()
+    staff_login(client, Role.Code.CASHIER)
+    refused = post_sale(client, stocked, sold_at=yesterday)
+    assert refused.status_code == 400, refused.content
+    assert "manager authorization" in refused.json()["error"]["details"]["sold_at"][0].lower()
+
+    client.logout()
+    staff_login(client, Role.Code.MANAGER)
+    # A backdated sale must resolve the price that was in effect then, so give
+    # the product a price row that predates the sale moment.
+    ProductPrice.objects.create(
+        product=stocked,
+        unit_price=UNIT_PRICE,
+        effective_from=now_utc() - timedelta(days=2),
+    )
+    accepted = post_sale(client, stocked, sold_at=yesterday)
+    assert accepted.status_code == 201, accepted.content
+    assert accepted.json()["sold_at"].startswith(yesterday[:10])
+
+
+def test_a_product_with_no_price_is_a_400_not_a_500(
+    client: Client, staff_login: Callable[..., Any], category: Category
+) -> None:
+    """An unpriceable line is a request error, not an unhandled model lookup."""
+    unpriced = Product.objects.create(
+        category=category,
+        name="Unpriced water",
+        sku="BEV-WATER-001",
+        is_stock_tracked=False,
+    )
+    staff_login(client, Role.Code.CASHIER)
+    body = sale_body(unpriced)
+    body["payments"][0]["amount"] = "25.00"
+
+    response = client.post(SALES_URL, data=body, content_type="application/json")
+
+    assert response.status_code == 400, response.content
+    assert response.json()["error"]["code"] == "product_not_priced"
+
+
+def test_a_voided_sale_is_still_visible_in_history(
+    client: Client, staff_login: Callable[..., Any], stocked: Product
+) -> None:
+    """The documented status filter must be able to find the row it names."""
+    staff_login(client, Role.Code.MANAGER)
+    assert post_sale(client, stocked).status_code == 201
+    sale = Sale.objects.get()
+    voided = client.post(
+        f"{SALES_URL}{sale.pk}/void/",
+        data={"reason": "customer changed their mind"},
+        content_type="application/json",
+    )
+    assert voided.status_code == 204, voided.content
+
+    listed = client.get(SALES_URL, {"status": SaleStatus.VOIDED})
+    assert listed.status_code == 200
+    assert listed.json()["count"] == 1
+    assert listed.json()["results"][0]["reference"] == sale.reference
+
+    detail = client.get(f"{SALES_URL}{sale.pk}/")
+    assert detail.status_code == 200, detail.content
+    assert detail.json()["status"] == SaleStatus.VOIDED
+
+
+def test_malformed_sale_filters_are_400s(client: Client, staff_login: Callable[..., Any]) -> None:
+    """A bad date or status must not reach the ORM as an uncaught exception."""
+    staff_login(client, Role.Code.CASHIER)
+    assert client.get(SALES_URL, {"sold_after": "not-a-date"}).status_code == 400
+    assert client.get(SALES_URL, {"status": "NOT_A_STATUS"}).status_code == 400
 
 
 # --------------------------------------- D1: the record is fixed once recorded

@@ -98,7 +98,7 @@ function CategoryManager() {
         <div className="mt-4">
           <ErrorBanner error={error} />
           {loading && <LoadingNote label="Loading categories..." />}
-          {!loading && categories.length === 0 && (
+          {!loading && !error && categories.length === 0 && (
             <EmptyNote>No categories yet. Add the first one below.</EmptyNote>
           )}
           {!loading && categories.length > 0 && (

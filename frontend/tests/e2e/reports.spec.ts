@@ -4,7 +4,7 @@
  * evidence).
  *
  * The report endpoints are read-only projections, so the states worth proving
- * are the screen-side ones: the three tabs render the four responses, the CSV
+ * are the screen-side ones: the three tabs render the four responses, the PDF
  * anchor becomes a download, and a role without `finance.view_reports` is told
  * so and is never asked for the data.
  *
@@ -143,7 +143,7 @@ function json(body: unknown, status = 200) {
   return { status, contentType: "application/json", body: JSON.stringify(body) };
 }
 
-test("the financial tab renders the balance projection and offers its CSV", async ({ page }) => {
+test("the financial tab renders the balance projection and offers its PDF", async ({ page }) => {
   await stubSignedIn(page, MANAGER);
   await page.route("**/api/v1/reports/financial/*", (route) => route.fulfill(json(FINANCIAL)));
 
@@ -157,11 +157,12 @@ test("the financial tab renders the balance projection and offers its CSV", asyn
   await expect(page.getByText("3,500.00 ETB", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("35,500.00 ETB", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("23,726.50 ETB", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Download CSV" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download PDF" })).toBeVisible();
 });
 
 test("the inventory tab shows the ledger and approved variances", async ({ page }) => {
   await stubSignedIn(page, MANAGER);
+  await page.route("**/api/v1/reports/financial/*", (route) => route.fulfill(json(FINANCIAL)));
   await page.route("**/api/v1/reports/inventory/stock-balance/*", (route) =>
     route.fulfill(json(STOCK_BALANCE)),
   );
@@ -184,6 +185,7 @@ test("the inventory tab shows the ledger and approved variances", async ({ page 
 
 test("the payroll tab renders runs, summary and deductions by type", async ({ page }) => {
   await stubSignedIn(page, MANAGER);
+  await page.route("**/api/v1/reports/financial/*", (route) => route.fulfill(json(FINANCIAL)));
   await page.route("**/api/v1/reports/payroll/*", (route) => route.fulfill(json(PAYROLL)));
 
   await page.goto("/reports");
@@ -216,22 +218,23 @@ test("a role without reports access is told so and is never asked for the data",
   expect(requests).toBe(0);
 });
 
-test("the CSV anchor downloads a spreadsheet from the period on screen", async ({ page }) => {
+test("the PDF anchor downloads a report from the period on screen", async ({ page }) => {
   await stubSignedIn(page, MANAGER);
   await stubCsrf(page);
+  await page.route("**/api/v1/reports/financial/*", (route) => route.fulfill(json(FINANCIAL)));
   await page.route("**/api/v1/reports/payroll/*", (route) => route.fulfill(json(PAYROLL)));
-  // The download URL is the same route with `export=csv`; the answer changes
+  // The download URL is the same route with `export=pdf`; the answer changes
   // shape the way the backend's does - an attachment rather than JSON.
   await page.route("**/api/v1/reports/payroll/*", (route) => {
     const url = new URL(route.request().url());
-    if (url.searchParams.get("export") !== "csv") return route.fulfill(json(PAYROLL));
+    if (url.searchParams.get("export") !== "pdf") return route.fulfill(json(PAYROLL));
     return route.fulfill({
       status: 200,
-      contentType: "text/csv; charset=utf-8",
+      contentType: "application/pdf",
       headers: {
-        "content-disposition": 'attachment; filename="payroll-2026-10-01-2026-10-07.csv"',
+        "content-disposition": 'attachment; filename="payroll-2026-10-01-2026-10-07.pdf"',
       },
-      body: `\ufeffperiod_month,status,currency,employees,gross_total,deduction_total,net_total\r\n2026-10-01,GENERATED,ETB,1,36000.00,500.00,35500.00\r\n`,
+      body: "%PDF-1.4\n% test export\n",
     });
   });
 
@@ -239,7 +242,7 @@ test("the CSV anchor downloads a spreadsheet from the period on screen", async (
   await page.getByRole("button", { name: "Payroll" }).click();
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Download CSV" }).last().click();
+  await page.getByRole("link", { name: "Download PDF" }).last().click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^payroll-.*\.csv$/);
+  expect(download.suggestedFilename()).toMatch(/^payroll-.*\.pdf$/);
 });

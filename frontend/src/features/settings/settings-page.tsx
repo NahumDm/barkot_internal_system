@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import {
   createStaffUser,
@@ -77,10 +77,12 @@ function UsersSection({ selfId }: { selfId: number }) {
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<RoleSummary[]>([]);
+  const [rolesError, setRolesError] = useState<ApiError | null>(null);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const userRequest = useRef(0);
 
   const [username, setUsername] = useState("");
   const [newRole, setNewRole] = useState("");
@@ -92,6 +94,7 @@ function UsersSection({ selfId }: { selfId: number }) {
 
   useEffect(() => {
     let active = true;
+    const request = ++userRequest.current;
     listStaffUsers({
       query: {
         page_size: 200,
@@ -101,16 +104,16 @@ function UsersSection({ selfId }: { selfId: number }) {
       },
     })
       .then((value) => {
-        if (active) {
+        if (active && request === userRequest.current) {
           setUsers(value.results);
           setError(null);
         }
       })
       .catch((value: unknown) => {
-        if (active) setError(value as ApiError);
+        if (active && request === userRequest.current) setError(value as ApiError);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active && request === userRequest.current) setLoading(false);
       });
     return () => {
       active = false;
@@ -123,27 +126,36 @@ function UsersSection({ selfId }: { selfId: number }) {
       .then((value) => {
         if (active) {
           setRoles(value.results);
+          setRolesError(null);
           setNewRole((current) => current || (value.results[0]?.code ?? ""));
         }
       })
-      .catch(() => {
-        if (active) setRoles([]);
+      .catch((value: unknown) => {
+        if (active) {
+          setRoles([]);
+          setRolesError(value as ApiError);
+        }
       });
     return () => {
       active = false;
     };
   }, []);
 
-  const changeSearch = (value: string) => {
+  const beginFilterChange = () => {
     setLoading(true);
+    setUsers(null);
+    setError(null);
+  };
+  const changeSearch = (value: string) => {
+    beginFilterChange();
     setSearch(value);
   };
   const changeActive = (value: string) => {
-    setLoading(true);
+    beginFilterChange();
     setActiveFilter(value);
   };
   const changeRole = (value: string) => {
-    setLoading(true);
+    beginFilterChange();
     setRoleFilter(value);
   };
 
@@ -173,6 +185,8 @@ function UsersSection({ selfId }: { selfId: number }) {
       setActiveFilter("");
       setRoleFilter("");
       setLoading(true);
+      setUsers(null);
+      setError(null);
       setRefresh((value) => value + 1);
     } catch (value) {
       setCreateError(value as ApiError);
@@ -262,6 +276,7 @@ function UsersSection({ selfId }: { selfId: number }) {
           the password blank to create a locked account.
         </p>
         <form onSubmit={submitCreate} className="mt-3 space-y-3">
+          <ErrorBanner error={rolesError} />
           <ErrorBanner error={createError} />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <TextInput
@@ -276,7 +291,7 @@ function UsersSection({ selfId }: { selfId: number }) {
               onChange={setNewRole}
               options={roleOptions}
               disabled={roles.length === 0}
-              placeholder="Loading roles..."
+              placeholder={rolesError ? "Roles unavailable" : "Loading roles..."}
             />
             <TextInput
               label="Email"
@@ -354,11 +369,16 @@ function UserRow({
     setError(null);
     try {
       const input: StaffUserUpdateInput = {
-        role: draftRole,
         email: draftEmail,
         phone_number: draftPhone,
       };
-      if (!isSelf) input.is_active = draftActive;
+      // The server refuses a role change on your own account, so do not send
+      // the disabled field at all. A stale draft role must not turn a contact
+      // update into a failed request.
+      if (!isSelf) {
+        input.role = draftRole;
+        input.is_active = draftActive;
+      }
       onChanged(await updateStaffUser(user.id, input));
       setEditing(false);
     } catch (value) {

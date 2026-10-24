@@ -22,7 +22,7 @@ const BARMAN: StubUser = {
     "inventory.view_inventory",
     "inventory.receive_stock",
     "inventory.record_breakage",
-    "sales.view_sales",
+    "bono.view_bono",
   ],
   email: "",
   phone_number: "",
@@ -42,6 +42,8 @@ const CASHIER: StubUser = {
     "inventory.complete_stock_count",
     "sales.view_sales",
     "sales.create_sale",
+    "bono.view_bono",
+    "bono.submit_report",
   ],
   email: "",
   phone_number: "",
@@ -80,6 +82,31 @@ const PRODUCT = {
   current_stock: "10.000",
 };
 
+const BONO_TYPE = {
+  id: 1,
+  code: "11111111-1111-1111-1111-111111111111",
+  name: "House Bono",
+  color: "#8E192F",
+  selling_price: "100.00",
+  currency: "ETB",
+  is_active: true,
+  notes: "",
+  active_pairings: [],
+  pending_review_count: 0,
+  created_at: "2026-01-01T00:00:00+00:00",
+  updated_at: "2026-01-01T00:00:00+00:00",
+};
+
+const BONO_SUMMARY = {
+  operational_date: "2026-10-23",
+  day_status: "OPEN",
+  operations_locked: false,
+  bono_totals: [],
+  staff_balances: [],
+  latest_report: null,
+  in_progress_dates: [],
+};
+
 const SALE = {
   id: 1,
   reference: "S-2026-001",
@@ -113,14 +140,32 @@ async function stubLists(page: import("@playwright/test").Page): Promise<void> {
   await page.route("**/api/v1/sales/**", (route) => route.fulfill(json(pageOf([SALE]))));
 }
 
-test("a Barman is never offered sale, count or catalogue writes", async ({ page }) => {
+async function stubBono(page: import("@playwright/test").Page): Promise<void> {
+  await page.route("**/api/v1/bono/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/summary/")) return route.fulfill(json(BONO_SUMMARY));
+    if (path.endsWith("/types/")) return route.fulfill(json(pageOf([BONO_TYPE])));
+    return route.fulfill(json(pageOf([])));
+  });
+}
+
+test("a Barman is never offered sales, count, catalogue writes or Bono custody actions", async ({
+  page,
+}) => {
   await stubSignedIn(page, BARMAN);
   await stubLists(page);
+  await stubBono(page);
 
-  await page.goto("/sales");
-  await expect(page.getByRole("heading", { name: "Sales" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "New Sale" })).toHaveCount(0);
-  await expect(page.getByRole("columnheader", { name: "Actions" })).toHaveCount(0);
+  await page.goto("/bono");
+  await expect(
+    page.getByRole("heading", { name: "Custody and daily reconciliation" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sales", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Custody actions" })).toHaveCount(0);
+
+  await page.goto("/bono/reports");
+  await expect(page.getByRole("heading", { name: "Daily reports" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Prepare a report" })).toHaveCount(0);
 
   await page.goto("/inventory/products");
   await expect(page.getByRole("heading", { name: "Products" })).toBeVisible();
@@ -145,6 +190,7 @@ test("direct URLs a Barman may not open explain the refusal", async ({ page }) =
   test.setTimeout(120_000);
   await stubSignedIn(page, BARMAN);
   await stubLists(page);
+  await stubBono(page);
 
   const refusals: Array<[string, string]> = [
     ["/sales/transactions/new", "Your role does not include recording sales."],
@@ -152,6 +198,7 @@ test("direct URLs a Barman may not open explain the refusal", async ({ page }) =
     ["/inventory/products/new", "Your role does not include managing the product catalogue."],
     ["/inventory/categories", "Your role does not include managing product categories."],
     ["/finance", "Your role does not include viewing finance."],
+    ["/bono/configuration", "Your role does not include Bono configuration."],
     ["/reports", "Your role does not include reports."],
     ["/payroll/runs", "Your role does not include payroll."],
     ["/employees", "Your role does not include the employee register."],
@@ -167,6 +214,7 @@ test("direct URLs a Barman may not open explain the refusal", async ({ page }) =
 test("a Cashier keeps the sale and count actions the matrix grants", async ({ page }) => {
   await stubSignedIn(page, CASHIER);
   await stubLists(page);
+  await stubBono(page);
 
   await page.goto("/sales");
   await expect(page.getByRole("button", { name: "New Sale" })).toBeVisible();
@@ -175,6 +223,10 @@ test("a Cashier keeps the sale and count actions the matrix grants", async ({ pa
   await page.goto("/sales/transactions/new");
   await expect(page.getByText("Your role does not include recording sales.")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "New Sale" })).toBeVisible();
+
+  await page.goto("/bono/reports");
+  await expect(page.getByRole("heading", { name: "Prepare a report" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Daily reports" })).toBeVisible();
 
   await page.goto("/inventory/counts");
   await expect(page.getByRole("button", { name: "Open count" })).toBeVisible();

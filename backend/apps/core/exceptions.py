@@ -187,6 +187,80 @@ class ExcessiveDeduction(BARKOTDomainError):
     default_message = "Deductions cannot exceed gross pay."
 
 
+class BonoPriceMismatch(BARKOTDomainError):
+    """Products proposed for one Bono type do not share its equal selling price."""
+
+    code = "bono_price_mismatch"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "Every product paired to one Bono type must currently sell at the same price."
+
+
+class BonoTypeConflict(BARKOTDomainError):
+    """A product or display label would collide with another active Bono configuration."""
+
+    code = "bono_type_conflict"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "That Bono configuration conflicts with an existing type or pairing."
+
+
+class BonoActivityInProgress(BARKOTDomainError):
+    """A configuration change touches an operational day that has not been approved."""
+
+    code = "bono_activity_in_progress"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = (
+        "This change affects Bono activity on a day without an approved report. "
+        "Confirm the affected days and give a reason to continue."
+    )
+
+
+class BonoReviewPending(BARKOTDomainError):
+    """A price-change pairing review is still open, so the pairing cannot be reused."""
+
+    code = "bono_review_pending"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "An owner price review is still pending for this Bono pairing."
+
+
+class BonoAllocationExceeded(BARKOTDomainError):
+    """A transfer or loss would take more tokens than the source staff member holds."""
+
+    code = "bono_allocation_exceeded"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "The staff member does not hold enough Bonos for this movement."
+
+
+class BonoReportLocked(BARKOTDomainError):
+    """Operational writes are closed because the day's report has been submitted."""
+
+    code = "bono_report_locked"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = (
+        "Bono operations for this day are locked while its report is submitted or approved."
+    )
+
+
+class BonoReportIncomplete(BARKOTDomainError):
+    """A report is missing a count or an explanation the reconciliation requires."""
+
+    code = "bono_report_incomplete"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = (
+        "Complete every physical count and explain every variance or Bono discrepancy."
+    )
+
+
+class BonoReportStale(BARKOTDomainError):
+    """Underlying activity changed after the draft report was generated."""
+
+    code = "bono_report_stale"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = (
+        "Bono or stock activity changed after this report was prepared. "
+        "Refresh the report before submitting it."
+    )
+
+
 class SessionExpired(BARKOTDomainError):
     """The session idled past the configured limit and has been ended (spec §9.3).
 

@@ -77,6 +77,18 @@ PAYROLL_PERMISSIONS: Final[tuple[str, ...]] = (
     "payroll.manage_payroll_employees",
 )
 
+#: Bono is its own accountability workflow. Configuration, shop-floor custody
+#: and signed daily reports are separate grants because the job that hands out a
+#: token, the job that writes off a loss and the job that signs the day off are
+#: intentionally not the same pair of hands.
+BONO_PERMISSIONS: Final[tuple[str, ...]] = (
+    "bono.view_bono",
+    "bono.manage_configuration",
+    "bono.manage_operations",
+    "bono.submit_report",
+    "bono.approve_report",
+)
+
 ADMINISTRATION_PERMISSIONS: Final[tuple[str, ...]] = (
     "users.manage_employees",
     "audit.view_audit_log",
@@ -92,6 +104,7 @@ ALL_PERMISSIONS: Final[tuple[str, ...]] = (
     + PRODUCT_PERMISSIONS
     + FINANCE_PERMISSIONS
     + PAYROLL_PERMISSIONS
+    + BONO_PERMISSIONS
     + ADMINISTRATION_PERMISSIONS
 )
 
@@ -101,22 +114,32 @@ _CASHIER_SHOPFLOOR: Final[tuple[str, ...]] = (
     "inventory.complete_stock_count",
     "sales.view_sales",
     "sales.create_sale",
+    "bono.view_bono",
+    "bono.submit_report",
 )
 
-_MANAGER: Final[tuple[str, ...]] = (
-    *_CASHIER_SHOPFLOOR,
-    "inventory.receive_stock",
-    "inventory.record_breakage",
-    "inventory.approve_adjustment",
-    "sales.void_sale",
-    "finance.view_reports",
-    "finance.create_expense",
-    "finance.approve_expense",
-    "finance.manage_expense_categories",
-    "payroll.view_payroll",
-    "payroll.create_deduction",
-    "users.manage_employees",
-    "audit.view_audit_log",
+_MANAGER: Final[tuple[str, ...]] = tuple(
+    permission
+    for permission in (
+        *_CASHIER_SHOPFLOOR,
+        "inventory.receive_stock",
+        "inventory.record_breakage",
+        "inventory.approve_adjustment",
+        "sales.void_sale",
+        "finance.view_reports",
+        "finance.create_expense",
+        "finance.approve_expense",
+        "finance.manage_expense_categories",
+        "payroll.view_payroll",
+        "payroll.create_deduction",
+        "bono.manage_operations",
+        "users.manage_employees",
+        "audit.view_audit_log",
+    )
+    # The Manager records custody; the Cashier prepares and submits the daily
+    # report, and the Owner signs it off. Inheriting the shopfloor tuple would
+    # otherwise hand the Manager the Cashier's report-submission grant.
+    if permission != "bono.submit_report"
 )
 
 #: Role code → permission codenames. The Owner is given everything explicitly
@@ -129,7 +152,7 @@ ROLE_MATRIX: Final[dict[str, tuple[str, ...]]] = {
         "inventory.view_inventory",
         "inventory.receive_stock",
         "inventory.record_breakage",
-        "sales.view_sales",
+        "bono.view_bono",
     ),
     Role.Code.CASHIER: _CASHIER_SHOPFLOOR,
     Role.Code.MANAGER: _MANAGER,
@@ -139,17 +162,19 @@ ROLE_MATRIX: Final[dict[str, tuple[str, ...]]] = {
 #: Descriptive text for each role, used by the seed migration.
 ROLE_DESCRIPTIONS: Final[dict[str, str]] = {
     Role.Code.BARMAN: (
-        "Receives stock and records breakage or waste. Does not sell, count stock or "
-        "approve adjustments."
+        "Receives stock, records breakage or waste and reads Bono operational "
+        "allocations. Does not sell, count stock, approve adjustments or open Sales."
     ),
     Role.Code.CASHIER: (
-        "Records individual sales and completes stock counts. Cannot void sales or "
-        "approve variances."
+        "Records individual sales, completes stock counts and prepares/submits the "
+        "daily Bono report. Cannot void sales, configure Bono or approve reports."
     ),
     Role.Code.MANAGER: (
         "Reviews and approves counts and variances, records and approves expenses, "
-        "manages the employee register and views reports. Reads payroll and records "
-        "deductions, but does not generate payroll runs or manage payroll employees."
+        "manages the employee register and views reports. Records Bono issues, "
+        "transfers and losses, reads payroll and records deductions, but does not "
+        "configure Bono, submit or approve Bono reports, generate payroll runs or "
+        "manage payroll employees."
     ),
     Role.Code.OWNER: (
         "Full access. Sole approver of payroll runs and the only role that manages "
@@ -171,6 +196,11 @@ ViewReports = "finance.view_reports"
 GeneratePayrollRun = "payroll.generate_run"
 ApprovePayrollRun = "payroll.approve_run"
 MarkPayrollPaid = "payroll.mark_paid"
+ViewBono = "bono.view_bono"
+ManageBonoConfiguration = "bono.manage_configuration"
+ManageBonoOperations = "bono.manage_operations"
+SubmitBonoReport = "bono.submit_report"
+ApproveBonoReport = "bono.approve_report"
 ManageUsers = "accounts.manage_users"
 
 
@@ -405,6 +435,36 @@ class CanManagePayrollEmployees(HasRolePermission):
     required_permission = "payroll.manage_payroll_employees"
 
 
+class CanViewBono(HasRolePermission):
+    """Read Bono operations, custody balances and daily reports."""
+
+    required_permission = "bono.view_bono"
+
+
+class CanManageBonoConfiguration(HasRolePermission):
+    """Create/retire Bono types, pair products and resolve price reviews. Owner-only."""
+
+    required_permission = "bono.manage_configuration"
+
+
+class CanManageBonoOperations(HasRolePermission):
+    """Issue tokens, transfer custody and record losses. Manager and Owner."""
+
+    required_permission = "bono.manage_operations"
+
+
+class CanSubmitBonoReport(HasRolePermission):
+    """Prepare, adjust, refresh and submit the daily Bono report. Cashier and Owner."""
+
+    required_permission = "bono.submit_report"
+
+
+class CanApproveBonoReport(HasRolePermission):
+    """Approve, reject or start a correction on a submitted Bono report. Owner-only."""
+
+    required_permission = "bono.approve_report"
+
+
 class CanManageEmployees(HasRolePermission):
     """Maintain the employee register: the staff records themselves, their
     contracts and their documents. Independent of ``accounts.manage_users``,
@@ -466,6 +526,11 @@ PERMISSION_CLASSES: dict[str, type[HasRolePermission]] = {
         CanMarkPayrollPaid,
         CanCreateDeduction,
         CanManagePayrollEmployees,
+        CanViewBono,
+        CanManageBonoConfiguration,
+        CanManageBonoOperations,
+        CanSubmitBonoReport,
+        CanApproveBonoReport,
         CanManageEmployees,
         CanViewAuditLog,
         CanManageUsers,

@@ -4,17 +4,20 @@ import { navGroups, visibleNavGroups } from "@/components/layout/nav";
 describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
   const flat = navGroups.flatMap((group) => group.items);
 
-  it("defines exactly 19 nav items", () => {
-    expect(flat).toHaveLength(19);
+  it("defines exactly 22 nav items", () => {
+    expect(flat).toHaveLength(22);
   });
 
-  it("covers every normative route of spec §7.4 plus the category manager and the register", () => {
+  it("covers every normative route of spec §7.4 plus the category manager, register and Bono", () => {
     const routes = new Set(flat.map((item) => item.href));
     expect(routes).toEqual(
       new Set([
         "/dashboard",
         "/sales",
         "/sales/transactions",
+        "/bono",
+        "/bono/reports",
+        "/bono/configuration",
         "/inventory",
         "/inventory/products",
         "/inventory/categories",
@@ -40,11 +43,12 @@ describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
     expect(new Set(hrefs).size).toBe(hrefs.length);
   });
 
-  it("orders sections per UX §3.1 (dashboard, sales, inventory, finance, payroll, staff, reports, settings)", () => {
+  it("orders sections per UX §3.1 with Bono after sales", () => {
     const groupings = navGroups.map((group) => group.heading ?? group.items[0].label);
     expect(groupings).toEqual([
       "Dashboard",
       "Sales",
+      "Bono",
       "Inventory",
       "Finance",
       "Payroll",
@@ -67,7 +71,7 @@ describe("sidebar visibility by role", () => {
       "inventory.view_inventory",
       "inventory.receive_stock",
       "inventory.record_breakage",
-      "sales.view_sales",
+      "bono.view_bono",
     ],
     cashier: [
       "products.view_products",
@@ -75,6 +79,8 @@ describe("sidebar visibility by role", () => {
       "inventory.complete_stock_count",
       "sales.view_sales",
       "sales.create_sale",
+      "bono.view_bono",
+      "bono.submit_report",
     ],
     manager: [
       "products.view_products",
@@ -92,6 +98,8 @@ describe("sidebar visibility by role", () => {
       "finance.manage_expense_categories",
       "payroll.view_payroll",
       "payroll.create_deduction",
+      "bono.view_bono",
+      "bono.manage_operations",
       "users.manage_employees",
       "audit.view_audit_log",
     ],
@@ -118,6 +126,11 @@ describe("sidebar visibility by role", () => {
       "payroll.mark_paid",
       "payroll.create_deduction",
       "payroll.manage_payroll_employees",
+      "bono.view_bono",
+      "bono.manage_configuration",
+      "bono.manage_operations",
+      "bono.submit_report",
+      "bono.approve_report",
       "users.manage_employees",
       "audit.view_audit_log",
       "accounts.manage_users",
@@ -136,7 +149,7 @@ describe("sidebar visibility by role", () => {
   });
 
   it("gives the owner every destination (spec §7.4)", () => {
-    expect(hrefsFor(PERMISSIONS.owner)).toHaveLength(19);
+    expect(hrefsFor(PERMISSIONS.owner)).toHaveLength(22);
   });
 
   it("hides settings from a manager but keeps their finance, payroll, register and reports work", () => {
@@ -146,7 +159,10 @@ describe("sidebar visibility by role", () => {
     expect(hrefs).toContain("/payroll/runs");
     expect(hrefs).toContain("/employees");
     expect(hrefs).toContain("/reports");
-    expect(hrefs).toHaveLength(17);
+    expect(hrefs).toContain("/bono");
+    expect(hrefs).toContain("/bono/reports");
+    expect(hrefs).not.toContain("/bono/configuration");
+    expect(hrefs).toHaveLength(19);
   });
 
   it("hides finance, payroll, reports and settings from a cashier", () => {
@@ -155,24 +171,29 @@ describe("sidebar visibility by role", () => {
       "/dashboard",
       "/sales",
       "/sales/transactions",
+      "/bono",
+      "/bono/reports",
       "/inventory",
       "/inventory/products",
       "/inventory/counts",
       "/inventory/movements",
     ]);
+    expect(hrefs).not.toContain("/bono/configuration");
   });
 
-  it("hides stock count and the finance, payroll, reports and settings sections from a barman", () => {
+  it("gives a barman Bono read access but no Sales, stock count, finance or settings", () => {
     const hrefs = hrefsFor(PERMISSIONS.barman);
     expect(hrefs).not.toContain("/inventory/counts");
+    expect(hrefs).not.toContain("/sales");
     expect(hrefs).not.toContain("/finance");
     expect(hrefs).not.toContain("/payroll/runs");
     expect(hrefs).not.toContain("/reports");
     expect(hrefs).not.toContain("/settings");
+    expect(hrefs).not.toContain("/bono/configuration");
     expect(hrefs).toEqual([
       "/dashboard",
-      "/sales",
-      "/sales/transactions",
+      "/bono",
+      "/bono/reports",
       "/inventory",
       "/inventory/products",
       "/inventory/receive",
@@ -185,6 +206,6 @@ describe("sidebar visibility by role", () => {
     const headings = visibleNavGroups(PERMISSIONS.cashier).map(
       (group) => group.heading ?? group.items[0].label,
     );
-    expect(headings).toEqual(["Dashboard", "Sales", "Inventory"]);
+    expect(headings).toEqual(["Dashboard", "Sales", "Bono", "Inventory"]);
   });
 });

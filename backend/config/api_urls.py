@@ -25,6 +25,7 @@ urlpatterns = [
     path("finance/", include("apps.finance.urls")),
     path("inventory/", include("apps.inventory.urls")),
     path("payroll/", include("apps.payroll.urls")),
+    path("bono/", include("apps.bono.urls")),
     path("reports/", include("apps.reports.urls")),
     path("dashboard/", include("apps.dashboard.urls")),
     # The employee register lives at the root of the version

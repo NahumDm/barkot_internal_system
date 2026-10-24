@@ -43,7 +43,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -54,10 +54,23 @@ from django.test import Client
 
 from apps.accounts.models import Role
 from apps.audit.models import AuditLog
-from apps.core.business_time import now_utc
+from apps.bono.models import BonoIncidentKind, BonoReport, BonoType
+from apps.bono.services import (
+    add_pairings,
+    approve_report,
+    create_bono_type,
+    create_incident,
+    create_issue,
+    create_report,
+    submit_report,
+    update_report,
+)
+from apps.core.business_time import business_date, now_utc
 from apps.inventory.services import ReceiptLineInput, receive_stock
 from apps.payroll.models import Employee, PayrollItem
+from apps.payroll.services import generate_payroll_run
 from apps.products.models import Category, Product, ProductPrice
+from apps.products.services import set_product_price
 from apps.users.models import EmployeeProfile
 from conftest import TEST_PASSWORD
 from tests.api.contract import discover_endpoints
@@ -683,6 +696,423 @@ def _prepare_completed_count(
     return {"pk": context["pk"]}
 
 
+# ----------------------------------------------------------------------- Bono prepare helpers
+
+
+def _make_bono_catalogue(sku: str = "BONO-AUD-001", name: str = "Audit Bono Beer") -> Product:
+    """A priced whole-bottle product a Bono type can pair.
+
+    The pairing rule only accepts active, stock-tracked whole bottles whose
+    current selling price equals the Bono's price, so the row deliberately
+    sets every one of those flags plus the 25.00 price.
+
+    Args:
+        sku: A SKU unique within the test database.
+        name: A name unique within the test category.
+
+    Returns:
+        The created :class:`Product`.
+    """
+    category, _created = Category.objects.get_or_create(
+        name="Bono Beers", defaults={"display_order": 1}
+    )
+    product = Product.objects.create(
+        category=category,
+        name=name,
+        sku=sku,
+        unit="bottle",
+        quantity_mode="WHOLE",
+        is_stock_tracked=True,
+        is_active=True,
+    )
+    ProductPrice.objects.create(
+        product=product,
+        unit_price=Decimal("25.00"),
+        currency="ETB",
+        effective_from=now_utc() - timedelta(seconds=5),
+    )
+    return product
+
+
+def _make_bono_crew(full_name: str = "Abel Tesfaye") -> EmployeeProfile:
+    """A staff register row who can be handed Bono custody.
+
+    Args:
+        full_name: The register entry's name.
+
+    Returns:
+        The created :class:`EmployeeProfile`.
+    """
+    return EmployeeProfile.objects.create(
+        full_name=full_name,
+        position="Barman",
+        start_date=business_date(now_utc()) - timedelta(days=90),
+    )
+
+
+def _create_audit_bono_type(owner: Any) -> BonoType:
+    """Create the active 25.00 Bono type the bono scenarios share.
+
+    Args:
+        owner: The acting Owner, stamped onto the record.
+
+    Returns:
+        The created :class:`BonoType`.
+    """
+    return create_bono_type(
+        name="Audit Bono",
+        color="#0F766E",
+        selling_price=Decimal("25.00"),
+        currency="ETB",
+        actor=owner,
+    )
+
+
+def _prepare_bono_type(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """One active Bono type, addressed by a path's ``{pk}`` placeholder.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``.
+    """
+    return {"pk": _create_audit_bono_type(owner).pk}
+
+
+def _prepare_bono_paired_type(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A Bono type with one paired product and one still free.
+
+    ``bono_pk`` addresses the type's own endpoints, ``pairing_pk`` the pairing
+    endpoints, ``product_pk`` the bottle already paired and
+    ``free_product_pk`` a second bottle a pairing request may still add.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``bono_pk``, ``pairing_pk``, ``product_pk`` and
+        ``free_product_pk``.
+    """
+    bono_type = _create_audit_bono_type(owner)
+    product = _make_bono_catalogue()
+    add_pairings(bono_type=bono_type, products=[product], actor=owner)
+    return {
+        "bono_pk": bono_type.pk,
+        "pairing_pk": bono_type.pairings.get(product=product).pk,
+        "product_pk": product.pk,
+        "free_product_pk": _make_bono_catalogue(sku="BONO-AUD-002", name="Audit Bono Lager").pk,
+    }
+
+
+def _prepare_bono_pairing(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """The one pairing of ``_prepare_bono_paired_type``, for ``{pk}`` paths.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk`` naming the pairing.
+    """
+    return {"pk": _prepare_bono_paired_type(client, owner, make_staff)["pairing_pk"]}
+
+
+def _prepare_bono_open_review(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A pairing whose product price moved, leaving an Owner review open.
+
+    The price change runs through the pricing service, which is what opens
+    the review, so its audit rows land before the snapshot the request is
+    counted from.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk`` naming the pairing.
+    """
+    context = _prepare_bono_paired_type(client, owner, make_staff)
+    set_product_price(
+        product=Product.objects.get(pk=context["product_pk"]),
+        unit_price=Decimal("30.00"),
+        currency="ETB",
+        actor=owner,
+    )
+    return {"pk": context["pairing_pk"]}
+
+
+def _prepare_bono_type_products(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A Bono type with its own ``pk`` untouched by any open day activity.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk`` naming the type and ``free_product_pk``.
+    """
+    context = _prepare_bono_paired_type(client, owner, make_staff)
+    return {"pk": context["bono_pk"], "free_product_pk": context["free_product_pk"]}
+
+
+def _prepare_bono_day(client: Client, owner: Any, make_staff: Callable[..., Any]) -> dict[str, Any]:
+    """An open Bono day with an initial hand-out to one staff member.
+
+    Five tokens leave the counter, so a two-token transfer or a one-token
+    loss can never be refused by the custody rule, which would otherwise
+    turn the scenario's request into a validation refusal instead of the
+    audited write.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``bono_pk``, ``employee_pk``, ``colleague_pk``,
+        ``operational_date`` and ``day``.
+    """
+    bono_type = _create_audit_bono_type(owner)
+    add_pairings(bono_type=bono_type, products=[_make_bono_catalogue()], actor=owner)
+    employee = _make_bono_crew()
+    colleague = _make_bono_crew("Hana Girma")
+    operational_date = business_date(now_utc())
+    create_issue(
+        operational_date=operational_date,
+        bono_type=bono_type,
+        employee=employee,
+        kind="INITIAL",
+        quantity=5,
+        actor=owner,
+    )
+    return {
+        "bono_pk": bono_type.pk,
+        "employee_pk": employee.pk,
+        "colleague_pk": colleague.pk,
+        "operational_date": operational_date.isoformat(),
+        "day": operational_date,
+    }
+
+
+def _record_bono_loss(context: dict[str, Any], owner: Any) -> Any:
+    """Record one lost-token incident against the prepared day's holder.
+
+    Args:
+        context: The ``_prepare_bono_day`` context whose holder loses one.
+        owner: The acting Owner.
+
+    Returns:
+        The created pending :class:`BonoIncident`.
+    """
+    return create_incident(
+        operational_date=context["day"],
+        kind=BonoIncidentKind.LOST_BONO,
+        bono_type=BonoType.objects.get(pk=context["bono_pk"]),
+        responsible_employee=EmployeeProfile.objects.get(pk=context["employee_pk"]),
+        quantity=1,
+        reason="Lost on the floor",
+        actor=owner,
+    )
+
+
+def _prepare_bono_pending_incident(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A recorded but unresolved lost-Bono incident, addressed by ``pk``.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``.
+    """
+    return {"pk": _record_bono_loss(_prepare_bono_day(client, owner, make_staff), owner).pk}
+
+
+def _prepare_bono_deductible_incident(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A lost token with a payroll line belonging to the same staff member.
+
+    The deduction endpoint refuses a payroll item that names a different
+    employee than the incident's responsible staff member, so the run is
+    generated from that very profile before the snapshot.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk`` and ``item_pk``.
+    """
+    context = _prepare_bono_day(client, owner, make_staff)
+    incident = _record_bono_loss(context, owner)
+    profile = EmployeeProfile.objects.get(pk=context["employee_pk"])
+    payroll_employee = Employee.from_profile(profile, monthly_wage=Decimal("18000.00"))
+    run = generate_payroll_run(period=context["day"], employee_ids=[payroll_employee.pk])
+    return {"pk": incident.pk, "item_pk": run.items.get().pk}
+
+
+def _fill_bono_report(report: BonoReport, owner: Any) -> None:
+    """Enter the counts that let the report reach ``SUBMITTED``.
+
+    Four tokens used and one returned account for all five issued, and a
+    physical closing count of zero on the paired product matches the expected
+    stock, so no validation holds the submission back.
+
+    Args:
+        report: The draft to fill.
+        owner: The acting Owner.
+    """
+    update_report(
+        report=report,
+        bono_lines=[{"id": report.bono_lines.get().pk, "used_quantity": 4, "returned_quantity": 1}],
+        product_lines=[{"id": report.product_lines.get().pk, "physical_closing_quantity": "0.000"}],
+        actor=owner,
+    )
+
+
+def _prepare_bono_report_draft(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A draft daily report with its stock and token activity snapshotted.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``, ``bono_line_pk``, ``product_line_pk``, ``day``,
+        ``bono_pk`` and ``employee_pk``.
+    """
+    context = _prepare_bono_day(client, owner, make_staff)
+    report = create_report(operational_date=context["day"], actor=owner)
+    return {
+        **context,
+        "pk": report.pk,
+        "bono_line_pk": report.bono_lines.get().pk,
+        "product_line_pk": report.product_lines.get().pk,
+    }
+
+
+def _prepare_bono_report_edit(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A draft whose token and product line placeholders are both filled.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``, ``bono_line_pk`` and ``product_line_pk``.
+    """
+    context = _prepare_bono_report_draft(client, owner, make_staff)
+    return {key: context[key] for key in ("pk", "bono_line_pk", "product_line_pk")}
+
+
+def _prepare_bono_stale_report(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A draft whose activity changed after the snapshot, the exact state ``refresh/`` exists for.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``.
+    """
+    context = _prepare_bono_report_draft(client, owner, make_staff)
+    create_issue(
+        operational_date=context["day"],
+        bono_type=BonoType.objects.get(pk=context["bono_pk"]),
+        employee=EmployeeProfile.objects.get(pk=context["employee_pk"]),
+        kind="ADDITIONAL",
+        quantity=1,
+        actor=owner,
+    )
+    return {"pk": context["pk"]}
+
+
+def _prepare_bono_filled_report(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A draft whose counts are complete and ready for submission.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``.
+    """
+    context = _prepare_bono_report_draft(client, owner, make_staff)
+    _fill_bono_report(BonoReport.objects.get(pk=context["pk"]), owner)
+    return {"pk": context["pk"]}
+
+
+def _prepare_bono_submitted_report(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """A submitted report awaiting the Owner's decision.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``.
+    """
+    context = _prepare_bono_filled_report(client, owner, make_staff)
+    submit_report(report=BonoReport.objects.get(pk=context["pk"]), actor=owner)
+    return {"pk": context["pk"]}
+
+
+def _prepare_bono_approved_report(
+    client: Client, owner: Any, make_staff: Callable[..., Any]
+) -> dict[str, Any]:
+    """An approved report, the only state ``correct/`` may reopen.
+
+    Args:
+        client: The Django test client (unused).
+        owner: The signed-in Owner.
+        make_staff: The user factory (unused).
+
+    Returns:
+        Context with ``pk``.
+    """
+    context = _prepare_bono_submitted_report(client, owner, make_staff)
+    approve_report(report=BonoReport.objects.get(pk=context["pk"]), actor=owner)
+    return {"pk": context["pk"]}
+
+
 # ----------------------------------------------------------------------- request bodies
 
 
@@ -836,6 +1266,118 @@ def _run_create_sale(client: Client, ctx: dict[str, Any]) -> Any:
     )
 
 
+def _run_bono_open_report(client: Client, ctx: dict[str, Any]) -> Any:
+    """Open one draft Bono report for the prepared day."""
+    return client.post(
+        "/api/v1/bono/reports/",
+        {"operational_date": ctx["day"].isoformat(), "notes": "Audit day"},
+        content_type="application/json",
+    )
+
+
+def _run_bono_record_issue(client: Client, ctx: dict[str, Any]) -> Any:
+    """Record an additional token hand-out on the prepared day."""
+    return client.post(
+        "/api/v1/bono/issues/",
+        {
+            "operational_date": ctx["operational_date"],
+            "bono_type": ctx["bono_pk"],
+            "employee": ctx["employee_pk"],
+            "kind": "ADDITIONAL",
+            "quantity": 1,
+        },
+        content_type="application/json",
+    )
+
+
+def _run_bono_record_transfer(client: Client, ctx: dict[str, Any]) -> Any:
+    """Move two of the holder's five tokens to the colleague."""
+    return client.post(
+        "/api/v1/bono/transfers/",
+        {
+            "operational_date": ctx["operational_date"],
+            "bono_type": ctx["bono_pk"],
+            "from_employee": ctx["employee_pk"],
+            "to_employee": ctx["colleague_pk"],
+            "quantity": 2,
+            "reason": "Evening shift hand-over",
+        },
+        content_type="application/json",
+    )
+
+
+def _run_bono_record_loss(client: Client, ctx: dict[str, Any]) -> Any:
+    """Record one lost token against the prepared day's holder."""
+    return client.post(
+        "/api/v1/bono/incidents/",
+        {
+            "operational_date": ctx["operational_date"],
+            "kind": "LOST_BONO",
+            "bono_type": ctx["bono_pk"],
+            "responsible_employee": ctx["employee_pk"],
+            "quantity": 1,
+            "reason": "Token lost on the floor",
+        },
+        content_type="application/json",
+    )
+
+
+def _run_bono_deduct(client: Client, ctx: dict[str, Any]) -> Any:
+    """Charge the replacement value of the lost token to the payroll line."""
+    return client.post(
+        f"/api/v1/bono/incidents/{ctx['pk']}/deduct/",
+        {
+            "payroll_item": ctx["item_pk"],
+            "amount": "25.00",
+            "reason": "Replacement value of the lost token",
+        },
+        content_type="application/json",
+    )
+
+
+def _run_bono_pair_products(client: Client, ctx: dict[str, Any]) -> Any:
+    """Pair the free bottle with the prepared Bono type."""
+    return client.post(
+        "/api/v1/bono/types/{pk}/products/".format(**ctx),
+        {"products": [ctx["free_product_pk"]]},
+        content_type="application/json",
+    )
+
+
+def _bono_report_edit_body(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Return the report body that fills the prepared draft's both lines.
+
+    Args:
+        ctx: The ``_prepare_bono_report_edit`` context.
+
+    Returns:
+        A JSON-ready request body.
+    """
+    return {
+        "notes": "Counted after the shift",
+        "bono_lines": [{"id": ctx["bono_line_pk"], "used_quantity": 4, "returned_quantity": 1}],
+        "product_lines": [{"id": ctx["product_line_pk"], "physical_closing_quantity": "0.000"}],
+    }
+
+
+def _run_bono_edit_report_patch(client: Client, ctx: dict[str, Any]) -> Any:
+    """PATCH the prepared draft's token and product lines."""
+    return client.patch(
+        f"/api/v1/bono/reports/{ctx['pk']}/",
+        _bono_report_edit_body(ctx),
+        content_type="application/json",
+    )
+
+
+def _run_bono_edit_report_put(client: Client, ctx: dict[str, Any]) -> Any:
+    """PUT the prepared draft's token and product lines."""
+    return client.put(
+        f"/api/v1/bono/reports/{ctx['pk']}/",
+        _bono_report_edit_body(ctx),
+        content_type="application/json",
+    )
+
+
 # ------------------------------------------------------------------------ the scenarios
 
 
@@ -865,6 +1407,146 @@ SCENARIOS: dict[str, Scenario] = {
                 "new_password_confirm": NEW_PASSWORD,
             },
         ),
+    ),
+    "POST /api/v1/bono/incidents/": Scenario(
+        action=AuditLog.Action.CREATE,
+        object_type="bono.BonoIncident",
+        prepare=_prepare_bono_day,
+        request=_run_bono_record_loss,
+    ),
+    "POST /api/v1/bono/incidents/{pk}/deduct/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoIncident",
+        prepare=_prepare_bono_deductible_incident,
+        request=_run_bono_deduct,
+    ),
+    "POST /api/v1/bono/incidents/{pk}/resolve/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoIncident",
+        prepare=_prepare_bono_pending_incident,
+        request=_post(
+            "/api/v1/bono/incidents/{pk}/resolve/",
+            {
+                "resolution_status": "RESOLVED",
+                "resolution_notes": "Manager confirmed the loss after checking the floor",
+            },
+        ),
+    ),
+    "POST /api/v1/bono/issues/": Scenario(
+        action=AuditLog.Action.CREATE,
+        object_type="bono.BonoIssue",
+        prepare=_prepare_bono_day,
+        request=_run_bono_record_issue,
+    ),
+    "POST /api/v1/bono/pairings/{pk}/remove/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoType",
+        prepare=_prepare_bono_pairing,
+        request=_post("/api/v1/bono/pairings/{pk}/remove/", {"reason": "The beer leaves the menu"}),
+    ),
+    "POST /api/v1/bono/pairings/{pk}/review/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoType",
+        prepare=_prepare_bono_open_review,
+        request=_post(
+            "/api/v1/bono/pairings/{pk}/review/",
+            {"resolution": "RETAIN", "reason": "The new menu price is correct"},
+        ),
+    ),
+    "POST /api/v1/bono/reports/": Scenario(
+        action=AuditLog.Action.CREATE,
+        object_type="bono.BonoReport",
+        prepare=_prepare_bono_day,
+        request=_run_bono_open_report,
+    ),
+    "PATCH /api/v1/bono/reports/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoReport",
+        prepare=_prepare_bono_report_edit,
+        request=_run_bono_edit_report_patch,
+    ),
+    "PUT /api/v1/bono/reports/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoReport",
+        prepare=_prepare_bono_report_edit,
+        request=_run_bono_edit_report_put,
+    ),
+    "POST /api/v1/bono/reports/{pk}/approve/": Scenario(
+        action=AuditLog.Action.APPROVE,
+        object_type="bono.BonoReport",
+        prepare=_prepare_bono_submitted_report,
+        request=_post("/api/v1/bono/reports/{pk}/approve/", {}),
+    ),
+    "POST /api/v1/bono/reports/{pk}/correct/": Scenario(
+        action=AuditLog.Action.CREATE,
+        object_type="bono.BonoReport",
+        prepare=_prepare_bono_approved_report,
+        request=_post(
+            "/api/v1/bono/reports/{pk}/correct/",
+            {"reason": "The used token count was mis-keyed"},
+        ),
+    ),
+    "POST /api/v1/bono/reports/{pk}/refresh/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoReport",
+        prepare=_prepare_bono_stale_report,
+        request=_post("/api/v1/bono/reports/{pk}/refresh/", {}),
+    ),
+    "POST /api/v1/bono/reports/{pk}/reject/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoReport",
+        prepare=_prepare_bono_submitted_report,
+        request=_post(
+            "/api/v1/bono/reports/{pk}/reject/",
+            {"reason": "The till total does not match the counted stock"},
+        ),
+    ),
+    "POST /api/v1/bono/reports/{pk}/submit/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoReport",
+        prepare=_prepare_bono_filled_report,
+        request=_post("/api/v1/bono/reports/{pk}/submit/", {}),
+    ),
+    "POST /api/v1/bono/transfers/": Scenario(
+        action=AuditLog.Action.CREATE,
+        object_type="bono.BonoTransfer",
+        prepare=_prepare_bono_day,
+        request=_run_bono_record_transfer,
+    ),
+    "POST /api/v1/bono/types/": Scenario(
+        action=AuditLog.Action.CREATE,
+        object_type="bono.BonoType",
+        prepare=_no_prerequisites,
+        request=_post(
+            "/api/v1/bono/types/",
+            {"name": "Audit Bono", "color": "#0F766E", "selling_price": "25.00"},
+        ),
+    ),
+    "PATCH /api/v1/bono/types/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoType",
+        prepare=_prepare_bono_type,
+        request=_patch("/api/v1/bono/types/{pk}/", {"name": "Audit Bono Renamed"}),
+    ),
+    "PUT /api/v1/bono/types/{pk}/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoType",
+        prepare=_prepare_bono_type,
+        request=_put(
+            "/api/v1/bono/types/{pk}/",
+            {
+                "name": "Audit Bono Renamed",
+                "color": "#0F766E",
+                "is_active": True,
+                "notes": "Renamed by the audit scenario",
+            },
+        ),
+    ),
+    "POST /api/v1/bono/types/{pk}/products/": Scenario(
+        action=AuditLog.Action.UPDATE,
+        object_type="bono.BonoType",
+        prepare=_prepare_bono_type_products,
+        request=_run_bono_pair_products,
     ),
     "POST /api/v1/employees/": Scenario(
         action=AuditLog.Action.CREATE,

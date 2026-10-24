@@ -200,6 +200,7 @@ def set_product_price(
         raise BARKOTDomainError(f"Currency {currency!r} must be a 3-letter ISO code.")
 
     moment = effective_from or now_utc()
+    previous = product.current_price()
 
     price = ProductPrice.objects.create(
         product=product,
@@ -207,6 +208,24 @@ def set_product_price(
         currency=currency,
         effective_from=moment,
     )
+
+    # Bono pairings are an equal-selling-price promise. A price change is not
+    # allowed to silently reinterpret which products share a token, so the Bono
+    # domain opens an Owner review inside this same transaction. The hook is
+    # imported lazily because the Bono domain itself depends on products.
+    if previous is not None and (
+        previous.unit_price != price.unit_price or previous.currency != currency
+    ):
+        from apps.bono.services import flag_pairings_for_price_change
+
+        flag_pairings_for_price_change(
+            product=product,
+            previous_price=previous.unit_price,
+            new_price=price.unit_price,
+            currency=price.currency,
+            effective_from=moment,
+            actor=actor,
+        )
 
     AuditLog.record(
         action=AuditLog.Action.CREATE,

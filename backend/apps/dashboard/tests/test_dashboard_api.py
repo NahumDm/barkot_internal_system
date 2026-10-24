@@ -103,19 +103,34 @@ def test_anonymous_access_is_refused(client: Client) -> None:
     assert response.json()["error"]["code"] == "not_authenticated"
 
 
-def test_shopfloor_roles_see_only_the_tiles_they_may_read(client: Client, staff_login: Any) -> None:
-    """A Cashier or Barman gets sales and inventory, and a null finance/payroll tile."""
-    for role in (Role.Code.CASHIER, Role.Code.BARMAN):
-        staff_login(client, role)
+def test_the_cashier_sees_only_the_sales_and_inventory_tiles(
+    client: Client, staff_login: Any
+) -> None:
+    """The Cashier gets sales and inventory, and a null finance/payroll tile."""
+    staff_login(client, Role.Code.CASHIER)
 
-        response = client.get(DASHBOARD_URL)
+    response = client.get(DASHBOARD_URL)
 
-        assert response.status_code == 200, response.content
-        body = response.json()
-        assert body["sales"] is not None
-        assert body["inventory"] is not None
-        assert body["finance"] is None
-        assert body["payroll"] is None
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert body["sales"] is not None
+    assert body["inventory"] is not None
+    assert body["finance"] is None
+    assert body["payroll"] is None
+
+
+def test_the_barman_gets_inventory_without_the_sales_tile(client: Client, staff_login: Any) -> None:
+    """The Barman no longer opens Sales; the dashboard must not leak it either."""
+    staff_login(client, Role.Code.BARMAN)
+
+    response = client.get(DASHBOARD_URL)
+
+    assert response.status_code == 200, response.content
+    body = response.json()
+    assert body["sales"] is None
+    assert body["inventory"] is not None
+    assert body["finance"] is None
+    assert body["payroll"] is None
 
 
 def test_default_period_is_the_current_month_to_date(client: Client, staff_login: Any) -> None:

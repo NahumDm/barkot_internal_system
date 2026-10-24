@@ -37,6 +37,18 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
+    heading: "Bono",
+    items: [
+      { label: "Overview", href: "/bono", permissions: ["bono.view_bono"] },
+      { label: "Daily Reports", href: "/bono/reports", permissions: ["bono.view_bono"] },
+      {
+        label: "Configuration",
+        href: "/bono/configuration",
+        permissions: ["bono.manage_configuration"],
+      },
+    ],
+  },
+  {
     heading: "Inventory",
     items: [
       { label: "Overview", href: "/inventory", permissions: ["inventory.view_inventory"] },

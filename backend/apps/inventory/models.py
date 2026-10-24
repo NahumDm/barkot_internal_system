@@ -190,16 +190,20 @@ class StockMovementQuerySet(models.QuerySet["StockMovement"]):
         """Movements of one product."""
         return self.filter(product=product) if product is not None else self.none()
 
-    def balance_for(self, product: Product) -> Decimal:
-        """Return the ledger-derived current stock of ``product``.
+    def balance_for(self, product: Product, *, before: datetime | None = None) -> Decimal:
+        """Return the ledger-derived stock of ``product``.
 
         This is *the* definition of current stock (spec §12). Sign handling lives
         in ``_DIRECTION_SIGN`` so the arithmetic cannot differ between the
-        dashboard, a stock report and this method.
+        dashboard, a stock report and this method. Passing ``before`` returns the
+        opening balance at that instant, which is what a reconciliation report
+        needs and what a second implementation of the sign arithmetic would get
+        subtly wrong.
         """
-        total = self.filter(product=product).aggregate(total=Sum(F("quantity") * _DIRECTION_SIGN))[
-            "total"
-        ]
+        queryset = self.filter(product=product)
+        if before is not None:
+            queryset = queryset.filter(occurred_at__lt=before)
+        total = queryset.aggregate(total=Sum(F("quantity") * _DIRECTION_SIGN))["total"]
         return total if total is not None else Decimal("0.000")
 
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useT } from "@/lib/i18n/context";
 
 import { DateField, DateRangeFilter } from "@/components/date-range-filter";
 import {
@@ -45,6 +46,7 @@ function monthStartToday(): { start: string; end: string } {
 }
 
 export default function ReportsPage() {
+  const t = useT();
   const { status, user } = useAuth();
   const canView = user?.permissions.includes("finance.view_reports") ?? false;
   const checking = status === "checking";

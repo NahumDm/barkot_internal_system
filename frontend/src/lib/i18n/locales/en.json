@@ -22,5 +22,12 @@
   "nav.staff": "Staff",
   "nav.employeeRegister": "Employee Register",
   "nav.reports": "Reports",
-  "nav.settings": "Settings"
+  "nav.settings": "Settings",
+  "dashboard.eyebrow": "Overview",
+  "dashboard.title": "Dashboard",
+  "dashboard.blurb": "The position of the business for the period, read straight from each domain.",
+  "dashboard.thisMonth": "This month",
+  "dashboard.loading": "Loading dashboard...",
+  "dashboard.noSales": "No sales recorded for this period.",
+  "dashboard.salesNotShown": "Sales are not shown for your role."
 }

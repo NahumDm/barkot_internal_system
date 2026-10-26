@@ -22,5 +22,12 @@
   "nav.staff": "ሰራተኞች",
   "nav.employeeRegister": "የሰራተኛ መዝገብ",
   "nav.reports": "ሪፖርቶች",
-  "nav.settings": "ቅንብሮች"
+  "nav.settings": "ቅንብሮች",
+  "dashboard.eyebrow": "አጠቃላይ እይታ",
+  "dashboard.title": "ዳሽቦርድ",
+  "dashboard.blurb": "የንግዱ ሁኔታ ለወቅቱ፣ በቀጥታ ከእያንዳንዱ ዘርፍ የተነበበ።",
+  "dashboard.thisMonth": "በዚህ ወር",
+  "dashboard.loading": "ዳሽቦርድ በመጫን ላይ...",
+  "dashboard.noSales": "በዚህ ወቅት ምንም ሽያጭ አልተመዘገበም።",
+  "dashboard.salesNotShown": "ሽያጭ ለእርስዎ ሚና አይታይም።"
 }

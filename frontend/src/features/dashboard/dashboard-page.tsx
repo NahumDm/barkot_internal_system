@@ -14,6 +14,7 @@ import {
 import type { ApiError } from "@/lib/api/errors";
 import type { FinanceBalance } from "@/lib/api/finance";
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { dateStamp, money, monthLabel, todayISO } from "@/features/payroll/format";
 import {
   EmptyNote,
@@ -45,6 +46,7 @@ function monthStartToday(): string {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const t = useT();
   const granted = user?.permissions ?? [];
   const canViewSales = granted.includes("sales.view_sales");
   const canViewInventory = granted.includes("inventory.view_inventory");
@@ -101,18 +103,18 @@ export default function DashboardPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        eyebrow="Overview"
-        title="Dashboard"
-        blurb="The position of the business for the period, read straight from each domain."
+        eyebrow={t("dashboard.eyebrow")}
+        title={t("dashboard.title")}
+        blurb={t("dashboard.blurb")}
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <DateRangeFilter start={start} end={end} onStart={changeStart} onEnd={changeEnd} />
         <button type="button" onClick={resetToMonth} className="btn btn-secondary">
-          This month
+          {t("dashboard.thisMonth")}
         </button>
       </div>
       <ErrorBanner error={error} />
-      {loading && <LoadingNote label="Loading dashboard..." />}
+      {loading && <LoadingNote label={t("dashboard.loading")} />}
       {data && !loading && (
         <>
           <MetricsGrid data={data} />
@@ -120,9 +122,9 @@ export default function DashboardPage() {
             {data.sales ? (
               <SalesPanel sales={data.sales} />
             ) : canViewSales ? (
-              <SectionNote>No sales recorded for this period.</SectionNote>
+              <SectionNote>{t("dashboard.noSales")}</SectionNote>
             ) : (
-              <SectionNote>Sales are not shown for your role.</SectionNote>
+              <SectionNote>{t("dashboard.salesNotShown")}</SectionNote>
             )}
             {data.inventory ? (
               <InventoryPanel inventory={data.inventory} />

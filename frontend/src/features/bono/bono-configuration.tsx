@@ -18,6 +18,7 @@ import {
   type BonoType,
 } from "@/lib/api/bono";
 import { listProducts, type ProductListItem } from "@/lib/api/products";
+import { useT } from "@/lib/i18n/context";
 import { useBonoPermissions } from "./permissions";
 import { BonoColorDot, BonoPageHeader, LoadingNote, formatDay, formatTimestamp } from "./parts";
 
@@ -153,6 +154,7 @@ function PairingReviewForm({
 
 export default function BonoConfigurationPage() {
   const permissions = useBonoPermissions();
+  const t = useT();
   const [types, setTypes] = useState<BonoType[]>([]);
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [summary, setSummary] = useState<BonoDaySummary | null>(null);

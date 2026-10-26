@@ -369,7 +369,7 @@ export default function PayrollRuns() {
         <form onSubmit={generate} className="space-y-4 rounded border border-border bg-surface p-4">
           <div>
             <h2 className="text-sm font-semibold text-ink">
-              Generate payroll for {monthLabel(month)}
+              {t("payroll.generateFor").replace("{month}", monthLabel(month))}
             </h2>
             <p className="mt-1 text-sm text-ink-secondary">
               Gross pay is read from each employee&apos;s monthly wage at the moment of generation,

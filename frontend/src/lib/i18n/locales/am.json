@@ -86,5 +86,11 @@
   "inventory.notSet": "አልተቀናበረም",
   "inventory.productsTitle": "ምርቶች",
   "bono.newTypeTitle": "አዲስ የቦኖ ዓይነት",
-  "finance.balanceTitle": "የንግድ ቀሪ ብዛት"
+  "finance.balanceTitle": "የንግድ ቀሪ ብዛት",
+  "payroll.generateFor": "የደመወዝ ማስላት ላይክ {month}",
+  "reports.title": "ሪፖርቶች",
+  "settings.eyebrow": "ቅንብሮች",
+  "settings.title": "ቅንብሮች",
+  "settings.blurb": "የሰራተኞች መለያዎች፣ የንግድ ሚናዎች እና የስርዓት ቅንብሮች።",
+  "settings.checkingAccess": "መዳረሻ በመጠቆም ላይ..."
 }

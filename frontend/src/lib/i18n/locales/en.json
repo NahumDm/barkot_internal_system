@@ -86,5 +86,11 @@
   "inventory.notSet": "Not set",
   "inventory.productsTitle": "Products",
   "bono.newTypeTitle": "New Bono type",
-  "finance.balanceTitle": "Business balance"
+  "finance.balanceTitle": "Business balance",
+  "payroll.generateFor": "Generate payroll for {month}",
+  "reports.title": "Reports",
+  "settings.eyebrow": "Settings",
+  "settings.title": "Settings",
+  "settings.blurb": "Staff accounts, business roles and system configuration.",
+  "settings.checkingAccess": "Checking access..."
 }

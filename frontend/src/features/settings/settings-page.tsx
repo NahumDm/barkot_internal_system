@@ -53,12 +53,12 @@ export default function SettingsPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        eyebrow="Settings"
-        title="Settings"
-        blurb="Staff accounts, business roles and system configuration."
+        eyebrow={t("settings.eyebrow")}
+        title={t("settings.title")}
+        blurb={t("settings.blurb")}
       />
       {checking ? (
-        <LoadingNote label="Checking access..." />
+        <LoadingNote label={t("settings.checkingAccess")} />
       ) : !allowed ? (
         <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
           Your role does not include account settings. Ask an owner if you need access.

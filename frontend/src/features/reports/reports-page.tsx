@@ -64,7 +64,7 @@ export default function ReportsPage() {
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
             Reports
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Reports</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("reports.title")}</h1>
           <p className="mt-1 text-sm text-ink-secondary">
             Financial, inventory and payroll views with date filters and PDF export.
           </p>

@@ -83,5 +83,6 @@
   "sales.colPayment": "ክፍያ",
   "sales.colActions": "ተግባራት",
   "sales.voidAction": "አሰር",
-  "inventory.notSet": "አልተቀናበረም"
+  "inventory.notSet": "አልተቀናበረም",
+  "inventory.productsTitle": "ምርቶች"
 }

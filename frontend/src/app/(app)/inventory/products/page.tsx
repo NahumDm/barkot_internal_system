@@ -661,7 +661,7 @@ export default function ProductsPage() {
     <section className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Products</h1>
+          <h1 className="text-2xl font-semibold text-ink">{t("inventory.productsTitle")}</h1>
           <p className="text-sm text-ink-secondary">
             Manage the product catalogue — add, edit, or retire products.
           </p>

@@ -83,5 +83,6 @@
   "sales.colPayment": "Payment",
   "sales.colActions": "Actions",
   "sales.voidAction": "Void",
-  "inventory.notSet": "Not set"
+  "inventory.notSet": "Not set",
+  "inventory.productsTitle": "Products"
 }

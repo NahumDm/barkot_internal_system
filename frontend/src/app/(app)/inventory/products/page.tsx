@@ -20,7 +20,7 @@ import { Field, FormError } from "@/features/auth/form-parts";
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 function formatPrice(price: { unit_price: string; currency: string } | null): string {
-  if (!price) return t("inventory.notSet");
+  if (!price) return "Not set";
   return `${Number(price.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${price.currency}`;
 }
 

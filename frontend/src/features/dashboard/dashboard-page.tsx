@@ -129,23 +129,23 @@ export default function DashboardPage() {
             {data.inventory ? (
               <InventoryPanel inventory={data.inventory} />
             ) : canViewInventory ? (
-              <SectionNote>No stock to show for this period.</SectionNote>
+              <SectionNote>{t("dashboard.noStock")}</SectionNote>
             ) : (
-              <SectionNote>Stock is not shown for your role.</SectionNote>
+              <SectionNote>{t("dashboard.stockNotShown")}</SectionNote>
             )}
             {data.finance ? (
               <FinancePanel finance={data.finance} />
             ) : canViewFinance ? (
-              <SectionNote>Nothing recorded for this period yet.</SectionNote>
+              <SectionNote>{t("dashboard.noFinance")}</SectionNote>
             ) : (
-              <SectionNote>Finance is not shown for your role.</SectionNote>
+              <SectionNote>{t("dashboard.financeNotShown")}</SectionNote>
             )}
             {data.payroll ? (
               <PayrollPanel payroll={data.payroll} />
             ) : canViewPayroll ? (
-              <SectionNote>No payroll run has been generated yet.</SectionNote>
+              <SectionNote>{t("dashboard.noPayroll")}</SectionNote>
             ) : (
-              <SectionNote>Payroll is not shown for your role.</SectionNote>
+              <SectionNote>{t("dashboard.payrollNotShown")}</SectionNote>
             )}
           </div>
         </>
@@ -155,33 +155,34 @@ export default function DashboardPage() {
 }
 
 function MetricsGrid({ data }: { data: DashboardResponse }) {
+  const t = useT();
   const metrics: { label: string; value: string }[] = [];
 
   if (data.sales) {
     metrics.push(
-      { label: "Takings", value: money(data.sales.total) },
-      { label: "Cash", value: money(data.sales.cash) },
-      { label: "Mobile banking", value: money(data.sales.mobile_banking) },
-      { label: "Transactions", value: String(data.sales.transactions) },
+      { label: t("dashboard.takings"), value: money(data.sales.total) },
+      { label: t("dashboard.cash"), value: money(data.sales.cash) },
+      { label: t("dashboard.mobileBanking"), value: money(data.sales.mobile_banking) },
+      { label: t("dashboard.transactions"), value: String(data.sales.transactions) },
     );
   }
   if (data.inventory) {
     metrics.push(
-      { label: "In stock", value: data.inventory.in_stock_total },
-      { label: "Products", value: String(data.inventory.products) },
+      { label: t("dashboard.inStock"), value: data.inventory.in_stock_total },
+      { label: t("dashboard.products"), value: String(data.inventory.products) },
     );
   }
   if (data.finance) {
     metrics.push(
-      { label: "Net result", value: money(data.finance.net, data.finance.currency) },
+      { label: t("dashboard.netResult"), value: money(data.finance.net, data.finance.currency) },
       {
-        label: "Approved expenses",
+        label: t("dashboard.approvedExpenses"),
         value: money(data.finance.expenses_total, data.finance.currency),
       },
     );
   }
   if (data.payroll) {
-    metrics.push({ label: "Latest run net", value: money(data.payroll.net_total) });
+    metrics.push({ label: t("dashboard.latestRunNet"), value: money(data.payroll.net_total) });
   }
 
   return (
@@ -194,11 +195,12 @@ function MetricsGrid({ data }: { data: DashboardResponse }) {
 }
 
 function SalesPanel({ sales }: { sales: DashboardSales }) {
+  const t = useT();
   return (
     <section className="panel rounded border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="panel-title text-sm font-semibold text-ink">Sales</h2>
+          <h2 className="panel-title text-sm font-semibold text-ink">{t("dashboard.salesTitle")}</h2>
           <p className="panel-sub text-xs text-ink-secondary">
             {sales.transactions} transaction{sales.transactions === 1 ? "" : "s"} totalling{" "}
             {money(sales.total)}
@@ -208,11 +210,11 @@ function SalesPanel({ sales }: { sales: DashboardSales }) {
           href="/sales"
           className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
         >
-          Open sales
+          {t("dashboard.openSales")}
         </Link>
       </div>
       {sales.recent.length === 0 ? (
-        <EmptyNote>No sales in this period.</EmptyNote>
+        <EmptyNote>{t("dashboard.noSalesInPeriod")}</EmptyNote>
       ) : (
         <div className="mt-3 space-y-2">
           {sales.recent.map((sale) => (
@@ -239,34 +241,36 @@ function SalesPanel({ sales }: { sales: DashboardSales }) {
 }
 
 function InventoryPanel({ inventory }: { inventory: DashboardInventory }) {
+  const t = useT();
   return (
     <section className="panel rounded border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="panel-title text-sm font-semibold text-ink">Inventory</h2>
+          <h2 className="panel-title text-sm font-semibold text-ink">{t("dashboard.inventoryTitle")}</h2>
           <p className="panel-sub text-xs text-ink-secondary">As of {dateStamp(inventory.as_of)}</p>
         </div>
         <Link
           href="/inventory"
           className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
         >
-          Open inventory
+          {t("dashboard.openInventory")}
         </Link>
       </div>
       <dl className="panel-list-lg mt-3 space-y-3 text-sm">
-        <Line label="In stock" value={inventory.in_stock_total} />
-        <Line label="Products" value={String(inventory.products)} />
+        <Line label={t("dashboard.inStock")} value={inventory.in_stock_total} />
+        <Line label={t("dashboard.products")} value={String(inventory.products)} />
       </dl>
     </section>
   );
 }
 
 function FinancePanel({ finance }: { finance: FinanceBalance }) {
+  const t = useT();
   return (
     <section className="panel rounded border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="panel-title text-sm font-semibold text-ink">Finance</h2>
+          <h2 className="panel-title text-sm font-semibold text-ink">{t("dashboard.financeTitle")}</h2>
           <p className="panel-sub text-xs text-ink-secondary">
             {dateStamp(finance.period_start)} – {dateStamp(finance.period_end)}
           </p>
@@ -275,19 +279,19 @@ function FinancePanel({ finance }: { finance: FinanceBalance }) {
           href="/reports"
           className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
         >
-          Open reports
+          {t("dashboard.openReports")}
         </Link>
       </div>
       <dl className="mt-3 space-y-3 text-sm">
-        <Line label="Income" value={money(finance.income.total, finance.currency)} />
-        <Line label="Approved expenses" value={money(finance.expenses_total, finance.currency)} />
-        <Line label="Approved payroll" value={money(finance.payroll_total, finance.currency)} />
-        <Line label="Net result" value={money(finance.net, finance.currency)} />
+        <Line label={t("dashboard.income")} value={money(finance.income.total, finance.currency)} />
+        <Line label={t("dashboard.approvedExpenses")} value={money(finance.expenses_total, finance.currency)} />
+        <Line label={t("dashboard.approvedPayroll")} value={money(finance.payroll_total, finance.currency)} />
+        <Line label={t("dashboard.netResult")} value={money(finance.net, finance.currency)} />
       </dl>
       {Object.entries(finance.expense_breakdown).length > 0 && (
         <div className="mt-4">
           <p className="text-xs font-medium uppercase tracking-wider text-ink-secondary">
-            Expenses by category
+            {t("dashboard.expensesByCategory")}
           </p>
           <dl className="mt-2 space-y-2 text-sm">
             {Object.entries(finance.expense_breakdown).map(([category, total]) => (
@@ -301,27 +305,35 @@ function FinancePanel({ finance }: { finance: FinanceBalance }) {
 }
 
 function PayrollPanel({ payroll }: { payroll: DashboardPayroll }) {
+  const t = useT();
   return (
     <section className="panel rounded border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="panel-title text-sm font-semibold text-ink">Payroll</h2>
+          <h2 className="panel-title text-sm font-semibold text-ink">{t("dashboard.payrollTitle")}</h2>
           <p className="panel-sub text-xs text-ink-secondary">{monthLabel(payroll.period_month)}</p>
         </div>
         <Link
           href="/payroll/runs"
           className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
         >
-          Open payroll
+          {t("dashboard.openPayroll")}
         </Link>
       </div>
       <div className="mt-3 space-y-3 text-sm">
         <StatusChip status={payroll.status} display={payroll.status_display} />
         <dl className="space-y-3">
-          <Line label="Gross" value={money(payroll.gross_total)} />
-          <Line label="Deductions" value={money(payroll.deduction_total)} />
-          <Line label="Net pay" value={money(payroll.net_total)} />
+          <Line label={t("dashboard.gross")} value={money(payroll.gross_total)} />
+          <Line label={t("dashboard.deductions")} value={money(payroll.deduction_total)} />
+          <Line label={t("dashboard.netPay")} value={money(payroll.net_total)} />
         </dl>
+        <p className="text-xs text-ink-secondary">
+          {payroll.approved_by_username
+            ? `Approved by ${payroll.approved_by_username}${
+                payroll.approved_at ? ` on ${dateStamp(payroll.approved_at)}` : ""
+              }.`
+            : "Generated but not approved yet."}
+        </p>
         <p className="text-xs text-ink-secondary">
           {payroll.approved_by_username
             ? `Approved by ${payroll.approved_by_username}${

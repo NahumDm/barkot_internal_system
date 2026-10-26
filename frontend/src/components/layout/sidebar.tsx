@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { visibleNavGroups } from "./nav";
 
 const iconByHref: Record<string, LucideIcon> = {
@@ -70,6 +71,7 @@ export function Sidebar({
 }>) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const t = useT();
   const groups = visibleNavGroups(user?.permissions ?? []);
 
   return (
@@ -119,7 +121,7 @@ export function Sidebar({
             <div key={groupIndex} className="mb-4">
               {group.heading ? (
                 <p className="nav-group px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-white/40">
-                  {group.heading}
+                  {t(group.heading)}
                 </p>
               ) : null}
               <ul>
@@ -138,7 +140,7 @@ export function Sidebar({
                         ].join(" ")}
                       >
                         <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                        {item.label}
+                        {t(item.label)}
                       </Link>
                     </li>
                   );

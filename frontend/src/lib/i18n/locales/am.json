@@ -1,1 +1,26 @@
-{}
+{
+  "nav.dashboard": "ዳሽቦርድ",
+  "nav.sales": "ሽያጭ",
+  "nav.transactions": "ግብይቶች",
+  "nav.overview": "አጠቃላይ እይታ",
+  "nav.dailyReports": "ዕለታዊ ሪፖርቶች",
+  "nav.configuration": "ውቅር",
+  "nav.bono": "ቦኖ",
+  "nav.inventory": "ክምችት",
+  "nav.products": "ምርቶች",
+  "nav.categories": "ምድቦች",
+  "nav.receiveStock": "ክምችት መቀበል",
+  "nav.stockCount": "ክምችት ቆጠራ",
+  "nav.stockMovements": "የክምችት እንቅስቃሴዎች",
+  "nav.breakageWaste": "ተሰበረ/ባክና",
+  "nav.finance": "ፋይናንስ",
+  "nav.expenses": "ወጪዎች",
+  "nav.balance": "Sold",
+  "nav.payroll": "ደመወዝ",
+  "nav.employees": "ሰራተኞች",
+  "nav.deductions": "ተቀናሽ",
+  "nav.staff": "ሰራተኞች",
+  "nav.employeeRegister": "የሰራተኛ መዝገብ",
+  "nav.reports": "ሪፖርቶች",
+  "nav.settings": "ቅንብሮች"
+}

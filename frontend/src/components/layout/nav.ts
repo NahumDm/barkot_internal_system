@@ -27,90 +27,90 @@ export interface NavGroup {
  */
 export const navGroups: NavGroup[] = [
   {
-    items: [{ label: "Dashboard", href: "/dashboard" }],
+    items: [{ label: "nav.dashboard", href: "/dashboard" }],
   },
   {
-    heading: "Sales",
+    heading: "nav.sales",
     items: [
-      { label: "Sales", href: "/sales", permissions: ["sales.view_sales"] },
-      { label: "Transactions", href: "/sales/transactions", permissions: ["sales.view_sales"] },
+      { label: "nav.sales", href: "/sales", permissions: ["sales.view_sales"] },
+      { label: "nav.transactions", href: "/sales/transactions", permissions: ["sales.view_sales"] },
     ],
   },
   {
-    heading: "Bono",
+    heading: "nav.bono",
     items: [
-      { label: "Overview", href: "/bono", permissions: ["bono.view_bono"] },
-      { label: "Daily Reports", href: "/bono/reports", permissions: ["bono.view_bono"] },
+      { label: "nav.overview", href: "/bono", permissions: ["bono.view_bono"] },
+      { label: "nav.dailyReports", href: "/bono/reports", permissions: ["bono.view_bono"] },
       {
-        label: "Configuration",
+        label: "nav.configuration",
         href: "/bono/configuration",
         permissions: ["bono.manage_configuration"],
       },
     ],
   },
   {
-    heading: "Inventory",
+    heading: "nav.inventory",
     items: [
-      { label: "Overview", href: "/inventory", permissions: ["inventory.view_inventory"] },
-      { label: "Products", href: "/inventory/products", permissions: ["products.view_products"] },
+      { label: "nav.overview", href: "/inventory", permissions: ["inventory.view_inventory"] },
+      { label: "nav.products", href: "/inventory/products", permissions: ["products.view_products"] },
       {
-        label: "Categories",
+        label: "nav.categories",
         href: "/inventory/categories",
         permissions: ["products.manage_categories"],
       },
       {
-        label: "Receive Stock",
+        label: "nav.receiveStock",
         href: "/inventory/receive",
         permissions: ["inventory.receive_stock"],
       },
       {
-        label: "Stock Count",
+        label: "nav.stockCount",
         href: "/inventory/counts",
         permissions: ["inventory.complete_stock_count"],
       },
       {
-        label: "Stock Movements",
+        label: "nav.stockMovements",
         href: "/inventory/movements",
         permissions: ["inventory.view_inventory"],
       },
       {
-        label: "Breakage & Waste",
+        label: "nav.breakageWaste",
         href: "/inventory/breakage",
         permissions: ["inventory.record_breakage"],
       },
     ],
   },
   {
-    heading: "Finance",
+    heading: "nav.finance",
     items: [
-      { label: "Overview", href: "/finance", permissions: ["finance.view_reports"] },
-      { label: "Expenses", href: "/finance/expenses", permissions: ["finance.view_reports"] },
-      { label: "Balance", href: "/finance/balance", permissions: ["finance.view_reports"] },
+      { label: "nav.overview", href: "/finance", permissions: ["finance.view_reports"] },
+      { label: "nav.expenses", href: "/finance/expenses", permissions: ["finance.view_reports"] },
+      { label: "nav.balance", href: "/finance/balance", permissions: ["finance.view_reports"] },
     ],
   },
   {
-    heading: "Payroll",
+    heading: "nav.payroll",
     items: [
-      { label: "Employees", href: "/payroll/employees", permissions: ["payroll.view_payroll"] },
-      { label: "Payroll", href: "/payroll/runs", permissions: ["payroll.view_payroll"] },
-      { label: "Deductions", href: "/payroll/deductions", permissions: ["payroll.view_payroll"] },
+      { label: "nav.employees", href: "/payroll/employees", permissions: ["payroll.view_payroll"] },
+      { label: "nav.payroll", href: "/payroll/runs", permissions: ["payroll.view_payroll"] },
+      { label: "nav.deductions", href: "/payroll/deductions", permissions: ["payroll.view_payroll"] },
     ],
   },
   {
-    heading: "Staff",
+    heading: "nav.staff",
     items: [
       {
-        label: "Employee Register",
+        label: "nav.employeeRegister",
         href: "/employees",
         permissions: ["users.manage_employees"],
       },
     ],
   },
-  { items: [{ label: "Reports", href: "/reports", permissions: ["finance.view_reports"] }] },
+  { items: [{ label: "nav.reports", href: "/reports", permissions: ["finance.view_reports"] }] },
   {
     items: [
       {
-        label: "Settings",
+        label: "nav.settings",
         href: "/settings",
         permissions: ["accounts.manage_users", "accounts.manage_roles", "accounts.manage_settings"],
       },

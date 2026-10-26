@@ -32,5 +32,6 @@
   "dashboard.salesNotShown": "Sales are not shown for your role.",
   "sales.title": "Sales",
   "sales.subtitle": "View and manage sales transactions.",
-  "sales.newSale": "New Sale"
+  "sales.newSale": "New Sale",
+  "inventory.notSet": "Not set"
 }

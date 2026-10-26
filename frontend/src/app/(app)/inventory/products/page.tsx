@@ -14,12 +14,13 @@ import {
 } from "@/lib/api/products";
 import { type ApiError, ApiError as ApiErrorClass, isValidationError } from "@/lib/api/errors";
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { Field, FormError } from "@/features/auth/form-parts";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 function formatPrice(price: { unit_price: string; currency: string } | null): string {
-  if (!price) return "Not set";
+  if (!price) return t("inventory.notSet");
   return `${Number(price.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${price.currency}`;
 }
 
@@ -569,6 +570,7 @@ function EditProductDialog({
 export default function ProductsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const t = useT();
   const canManage = user?.permissions.includes("products.manage_products") ?? false;
   const canChangePrices = user?.permissions.includes("products.change_prices") ?? false;
 

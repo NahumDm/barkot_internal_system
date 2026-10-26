@@ -32,5 +32,6 @@
   "dashboard.salesNotShown": "ሽያጭ ለእርስዎ ሚና አይታይም።",
   "sales.title": "ሽያጭ",
   "sales.subtitle": "የሽያጭ ግብይቶችን ይመልከቱ እና ያስተዳድሩ።",
-  "sales.newSale": "አዲስ ሽያጭ"
+  "sales.newSale": "አዲስ ሽያጭ",
+  "inventory.notSet": "አልተቀናበረም"
 }

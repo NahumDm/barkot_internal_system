@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { getFinanceBalance, type FinanceBalance } from "@/lib/api/finance";
 import { type ApiError } from "@/lib/api/errors";
+import { useT } from "@/lib/i18n/context";
 
 function monthPeriod(): { start: string; end: string } {
   const now = new Date();
@@ -19,6 +20,7 @@ function money(value: string, currency = "ETB"): string {
 }
 
 export default function BalanceOverview() {
+  const t = useT();
   const initialPeriod = monthPeriod();
   const [start, setStart] = useState(initialPeriod.start);
   const [end, setEnd] = useState(initialPeriod.end);

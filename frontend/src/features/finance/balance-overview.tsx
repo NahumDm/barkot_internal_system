@@ -68,7 +68,7 @@ export default function BalanceOverview() {
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
             Finance
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Business balance</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("finance.balanceTitle")}</h1>
           <p className="mt-1 text-sm text-ink-secondary">
             Income less approved expenses and payroll.
           </p>

@@ -84,5 +84,7 @@
   "sales.colActions": "Actions",
   "sales.voidAction": "Void",
   "inventory.notSet": "Not set",
-  "inventory.productsTitle": "Products"
+  "inventory.productsTitle": "Products",
+  "bono.newTypeTitle": "New Bono type",
+  "finance.balanceTitle": "Business balance"
 }

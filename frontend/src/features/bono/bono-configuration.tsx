@@ -504,7 +504,7 @@ export default function BonoConfigurationPage() {
       ) : null}
 
       <form onSubmit={handleCreateType} className="rounded border border-border bg-surface p-5">
-        <h2 className="text-lg font-semibold text-ink">New Bono type</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("bono.newTypeTitle")}</h2>
         <p className="mt-1 text-sm text-ink-secondary">
           A type gets a permanent internal code. The selling price is set now; later changes happen
           through product-price review so no report is silently reinterpreted.

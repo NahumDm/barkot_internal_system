@@ -84,5 +84,7 @@
   "sales.colActions": "ተግባራት",
   "sales.voidAction": "አሰር",
   "inventory.notSet": "አልተቀናበረም",
-  "inventory.productsTitle": "ምርቶች"
+  "inventory.productsTitle": "ምርቶች",
+  "bono.newTypeTitle": "አዲስ የቦኖ ዓይነት",
+  "finance.balanceTitle": "የንግድ ቀሪ ብዛት"
 }

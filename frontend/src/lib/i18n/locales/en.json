@@ -29,5 +29,8 @@
   "dashboard.thisMonth": "This month",
   "dashboard.loading": "Loading dashboard...",
   "dashboard.noSales": "No sales recorded for this period.",
-  "dashboard.salesNotShown": "Sales are not shown for your role."
+  "dashboard.salesNotShown": "Sales are not shown for your role.",
+  "sales.title": "Sales",
+  "sales.subtitle": "View and manage sales transactions.",
+  "sales.newSale": "New Sale"
 }

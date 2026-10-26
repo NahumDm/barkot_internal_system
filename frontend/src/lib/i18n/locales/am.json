@@ -29,5 +29,8 @@
   "dashboard.thisMonth": "በዚህ ወር",
   "dashboard.loading": "ዳሽቦርድ በመጫን ላይ...",
   "dashboard.noSales": "በዚህ ወቅት ምንም ሽያጭ አልተመዘገበም።",
-  "dashboard.salesNotShown": "ሽያጭ ለእርስዎ ሚና አይታይም።"
+  "dashboard.salesNotShown": "ሽያጭ ለእርስዎ ሚና አይታይም።",
+  "sales.title": "ሽያጭ",
+  "sales.subtitle": "የሽያጭ ግብይቶችን ይመልከቱ እና ያስተዳድሩ።",
+  "sales.newSale": "አዲስ ሽያጭ"
 }

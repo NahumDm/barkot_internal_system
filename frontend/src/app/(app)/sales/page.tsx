@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { listSales, voidSale, type SaleListItem } from "@/lib/api/sales";
 import { type ApiError, isValidationError, isPermissionDenied, isNotFound } from "@/lib/api/errors";
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { Field, FormError } from "@/features/auth/form-parts";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
@@ -215,6 +216,7 @@ function PaginationControls({
 export default function SalesPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const t = useT();
   const canCreate = user?.permissions.includes("sales.create_sale") ?? false;
   const canVoid = user?.permissions.includes("sales.void_sale") ?? false;
 
@@ -301,8 +303,8 @@ export default function SalesPage() {
     <section className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Sales</h1>
-          <p className="text-sm text-ink-secondary">View and manage sales transactions.</p>
+          <h1 className="text-2xl font-semibold text-ink">{t("sales.title")}</h1>
+          <p className="text-sm text-ink-secondary">{t("sales.subtitle")}</p>
         </div>
         {canCreate && (
           <button
@@ -310,7 +312,7 @@ export default function SalesPage() {
             onClick={handleCreateClick}
             className="btn btn-primary self-start sm:self-auto"
           >
-            New Sale
+            {t("sales.newSale")}
           </button>
         )}
       </div>

@@ -658,6 +658,11 @@ barkot_internal_system/
 
 ---
 
+
+
+## Localization
+
+The frontend supports English (en) and Amharic (m) via rontend/src/lib/i18n. Use useT() from @/lib/i18n/context and add keys to locales/en.json and locales/am.json. The selected locale persists in localStorage under locale.
 ## Open decisions
 
 None block the running system, but several set the remaining scope
@@ -670,3 +675,4 @@ None block the running system, but several set the remaining scope
 | 6 | Deduction approval policy and statutory calculations | Payroll |
 | 8 | Fiscal / e-invoicing technical requirements | Phase E |
 | 9, 10 | Commercially permitted VPS provider and ETB payment method | **Deployment rehearsal and Phase E** |
+

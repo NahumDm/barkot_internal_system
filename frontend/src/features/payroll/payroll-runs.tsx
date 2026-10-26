@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useT } from "@/lib/i18n/context";
 
 import {
   approvePayrollRun,
@@ -54,6 +55,7 @@ import { EmptyNote, ErrorBanner, LoadingNote, NoAccessNote, PageHeader, StatusCh
  * to undo something the previous render had already made wrong.
  */
 export default function PayrollRuns() {
+  const t = useT();
   const {
     checking,
     view: canView,

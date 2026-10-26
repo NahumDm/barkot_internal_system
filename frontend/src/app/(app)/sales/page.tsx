@@ -59,6 +59,7 @@ function SaleRow({
   onVoid: (id: number) => void;
   canVoid: boolean;
 }) {
+  const t = useT();
   return (
     <tr className="border-b border-border hover:bg-surface/50">
       <td className="px-3 py-2 text-sm text-ink font-mono">{sale.reference}</td>
@@ -78,7 +79,7 @@ function SaleRow({
               onClick={() => onVoid(sale.id)}
               className="rounded border border-danger bg-surface px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
             >
-              Void
+              {t("sales.voidAction")}
             </button>
           )}
         </td>
@@ -96,8 +97,9 @@ function SalesTable({
   onVoid: (id: number) => void;
   canVoid: boolean;
 }) {
+  const t = useT();
   if (sales.length === 0) {
-    return <div className="text-center py-8 text-ink-secondary">No sales found.</div>;
+    return <div className="text-center py-8 text-ink-secondary">{t("sales.noSalesFound")}</div>;
   }
 
   return (
@@ -106,26 +108,26 @@ function SalesTable({
         <thead className="bg-surface border-b border-border">
           <tr>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Reference
+              {t("sales.colReference")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Date
+              {t("sales.colDate")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Total
+              {t("sales.colTotal")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Items
+              {t("sales.colItems")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Status
+              {t("sales.colStatus")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Payment
+              {t("sales.colPayment")}
             </th>
             {canVoid && (
               <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-                Actions
+                {t("sales.colActions")}
               </th>
             )}
           </tr>
@@ -155,6 +157,7 @@ function PaginationControls({
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
 }) {
+  const t = useT();
   const start = count === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, count);
 
@@ -171,7 +174,7 @@ function PaginationControls({
         >
           {PAGE_SIZE_OPTIONS.map((size) => (
             <option key={size} value={size}>
-              {size} per page
+              {size} {t("sales.perPage")}
             </option>
           ))}
         </select>
@@ -182,31 +185,31 @@ function PaginationControls({
           disabled={page === 1}
           className="rounded border border-border bg-surface px-2 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface/50"
         >
-          « First
+          « {t("sales.first")}
         </button>
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
           className="rounded border border-border bg-surface px-2 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface/50"
         >
-          ‹ Prev
+          ‹ {t("sales.prev")}
         </button>
         <span className="px-2 py-1 text-sm text-ink">
-          Page {page} of {pages}
+          {t("sales.pageOf").replace("{page}", String(page)).replace("{pages}", String(pages))}
         </span>
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page === pages}
           className="rounded border border-border bg-surface px-2 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface/50"
         >
-          Next ›
+          {t("sales.next")} ›
         </button>
         <button
           onClick={() => onPageChange(pages)}
           disabled={page === pages}
           className="rounded border border-border bg-surface px-2 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface/50"
         >
-          Last »
+          {t("sales.last")} »
         </button>
       </div>
     </div>
@@ -321,7 +324,7 @@ export default function SalesPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
             <Field
-              label="Search"
+              label={t("sales.search")}
               type="search"
               value={search}
               onChange={(value) => {
@@ -330,7 +333,7 @@ export default function SalesPage() {
               }}
               errors={[]}
               autoComplete="off"
-              hint="Search by reference"
+              hint={t("sales.searchByReference")}
             />
           </div>
           <div className="flex flex-wrap gap-2">
@@ -342,9 +345,9 @@ export default function SalesPage() {
               }}
               className="control control--inline"
             >
-              <option value="all">All statuses</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="VOIDED">Voided</option>
+              <option value="all">{t("sales.allStatuses")}</option>
+              <option value="COMPLETED">{t("sales.completed")}</option>
+              <option value="VOIDED">{t("sales.voided")}</option>
             </select>
           </div>
         </div>

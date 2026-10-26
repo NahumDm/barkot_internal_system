@@ -1,6 +1,7 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
+import { useT } from "@/lib/i18n/context";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import {
@@ -40,6 +41,7 @@ import {
  */
 
 export default function SettingsPage() {
+  const t = useT();
   const { status, user } = useAuth();
   const granted = user?.permissions ?? [];
   const canManageUsers = granted.includes("accounts.manage_users");

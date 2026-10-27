@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { listStockMovements, type StockMovement } from "@/lib/api/inventory";
+import { useT } from "@/lib/i18n/context";
 import type { ApiError } from "@/lib/api/errors";
 
 export default function MovementList() {
+  const t = useT();
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,7 +35,7 @@ export default function MovementList() {
         <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
           Inventory
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Stock movements</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("inventory.movementsTitle")}</h1>
         <p className="mt-1 text-sm text-ink-secondary">
           Append-only history of every stock change.
         </p>
@@ -44,11 +46,11 @@ export default function MovementList() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">When</th>
-              <th className="px-3 py-3">Product</th>
-              <th className="px-3 py-3">Kind</th>
-              <th className="px-3 py-3">Quantity</th>
-              <th className="px-3 py-3">Reason</th>
+              <th className="px-3 py-3">{t("inventory.mvColWhen")}</th>
+              <th className="px-3 py-3">{t("inventory.mvColProduct")}</th>
+              <th className="px-3 py-3">{t("inventory.mvColKind")}</th>
+              <th className="px-3 py-3">{t("inventory.mvColQuantity")}</th>
+              <th className="px-3 py-3">{t("inventory.mvColReason")}</th>
             </tr>
           </thead>
           <tbody>
@@ -71,7 +73,7 @@ export default function MovementList() {
           </tbody>
         </table>
         {!loading && movements.length === 0 && !error && (
-          <p className="p-6 text-center text-sm text-ink-secondary">No stock movements found.</p>
+          <p className="p-6 text-center text-sm text-ink-secondary">{t("inventory.noMovements")}</p>
         )}
       </div>
     </section>

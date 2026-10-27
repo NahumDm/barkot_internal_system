@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { useT } from "@/lib/i18n/context";
 
 /**
  * The From/To date pair, and the single-date field it is built from, shared by
@@ -56,10 +57,11 @@ export function DateRangeFilter({
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
 }>) {
+  const t = useT();
   return (
     <div className="date-range">
-      <DateField label="From" value={start} onChange={onStart} />
-      <DateField label="To" value={end} onChange={onEnd} />
+      <DateField label={t("common.from")} value={start} onChange={onStart} />
+      <DateField label={t("common.to")} value={end} onChange={onEnd} />
     </div>
   );
 }

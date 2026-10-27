@@ -27,7 +27,7 @@ export type ContractType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "TEMPORARY" 
 /** One person in the register. Everything here is stored or derived server-side. */
 export interface Employee {
   id: number;
-  employee_id: string;
+  employee_id: number;
   full_name: string;
   position: string;
   phone_number: string;

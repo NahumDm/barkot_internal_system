@@ -119,12 +119,11 @@ class EmployeeProfile(TimeStampedModel):
             "history; records are never deleted."
         ),
     )
-    employee_id = models.UUIDField(
+    employee_id = models.PositiveIntegerField(
         _("employee ID"),
-        default=uuid4,
         unique=True,
         editable=False,
-        help_text=_("System-generated unique employee identifier."),
+        help_text=_("Sequential integer assigned in order of registration."),
     )
     address = models.CharField(
         _("address"),

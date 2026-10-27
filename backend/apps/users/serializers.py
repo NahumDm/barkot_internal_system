@@ -55,7 +55,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     )
     has_document = serializers.SerializerMethodField()
     document_filename = serializers.CharField(read_only=True)
-    employee_id = serializers.UUIDField(read_only=True)
+    employee_id = serializers.IntegerField(read_only=True)
     address = serializers.CharField(read_only=True)
     emergency_contact = serializers.CharField(read_only=True)
 
@@ -100,9 +100,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
         user = profile.user
         return user.username if user is not None else ""
 
-    def get_employee_id(self, profile: EmployeeProfile) -> str:
-        """The system-generated employee ID."""
-        return str(profile.employee_id)
+    def get_employee_id(self, profile: EmployeeProfile) -> int:
+        """The sequential integer assigned in order of registration."""
+        return int(profile.employee_id)
 
     def get_address(self, profile: EmployeeProfile) -> str:
         return profile.address or ""

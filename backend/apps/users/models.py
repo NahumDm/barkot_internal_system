@@ -119,10 +119,11 @@ class EmployeeProfile(TimeStampedModel):
             "history; records are never deleted."
         ),
     )
-    employee_id = models.PositiveIntegerField(
+    employee_id = models.IntegerField(
         _("employee ID"),
         unique=True,
         editable=False,
+        default=0,
         help_text=_("Sequential integer assigned in order of registration."),
     )
     address = models.CharField(
@@ -157,6 +158,12 @@ class EmployeeProfile(TimeStampedModel):
         verbose_name_plural = _("employee profiles")
         ordering = ["full_name"]
         permissions = (("manage_employees", "Can manage employee profiles"),)
+
+    def save(self, *args, **kwargs):
+        if self.employee_id == 0 or self.employee_id is None:
+            max_id = EmployeeProfile.objects.aggregate(max_id=models.Max("employee_id"))["max_id"] or 0
+            self.employee_id = max_id + 1
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.full_name

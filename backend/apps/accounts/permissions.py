@@ -466,11 +466,17 @@ class CanApproveBonoReport(HasRolePermission):
 
 
 class CanManageEmployees(HasRolePermission):
-    """Maintain the employee register: the staff records themselves, their
-    contracts and their documents. Independent of ``accounts.manage_users``,
-    which governs login accounts and is Owner-only."""
-
+    """Maintain the employee register: Owner only (spec §5, role matrix D5)."""
     required_permission = "users.manage_employees"
+
+    def has_permission(self, request, view):
+        # Restrict to Owner only. Manager has manage_employees in matrix but
+        # register access is Owner-only per clarification.
+        return bool(
+            request.user and request.user.is_authenticated
+            and request.user.has_perm("users.manage_employees")
+            and getattr(getattr(request.user, "role", None), "code", None) == "OWNER"
+        )
 
 
 class CanViewAuditLog(HasRolePermission):

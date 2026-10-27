@@ -321,9 +321,19 @@ class CanViewSales(HasRolePermission):
 
 
 class CanCreateSale(HasRolePermission):
-    """Ring up a sale."""
+    """Ring up a sale (Cashier and Owner only — Manager is view-only)."""
 
     required_permission = "sales.create_sale"
+
+    def has_permission(self, request, view):
+        # Manager must not record new sales (clarified issue): block MANAGER
+        # explicitly even if matrix accidentally grants the permission.
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        if getattr(getattr(user, "role", None), "code", None) == "MANAGER":
+            return False
+        return user.has_perm("sales.create_sale")
 
 
 class CanVoidSale(HasRolePermission):
@@ -357,9 +367,18 @@ class CanChangePrices(HasRolePermission):
 
 
 class CanViewReports(HasRolePermission):
-    """Read the reporting summaries."""
+    """Read reporting summaries (Owner only — Manager view-only clarification)."""
 
     required_permission = "finance.view_reports"
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        # Manager must not download financial reports (issue clarification)
+        if getattr(getattr(user, "role", None), "code", None) == "MANAGER":
+            return False
+        return user.has_perm("finance.view_reports")
 
 
 class IsOwner(BasePermission):

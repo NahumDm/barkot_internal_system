@@ -331,12 +331,12 @@ export default function PayrollRuns() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
                 <tr>
-                  <th className="px-3 py-3">Employee</th>
-                  <th className="px-3 py-3">Position</th>
-                  <th className="px-3 py-3">Basic wage</th>
-                  <th className="px-3 py-3">Deductions</th>
-                  <th className="px-3 py-3">Net pay</th>
-                  <th className="px-3 py-3">Status</th>
+                  <th className="px-3 py-3">{t("payroll.colEmployee")}</th>
+                  <th className="px-3 py-3">{t("payroll.colPosition")}</th>
+                  <th className="px-3 py-3">{t("payroll.colBasicWage")}</th>
+                  <th className="px-3 py-3">{t("payroll.colDeductions")}</th>
+                  <th className="px-3 py-3">{t("payroll.colNetPay")}</th>
+                  <th className="px-3 py-3">{t("payroll.colStatus")}</th>
                 </tr>
               </thead>
               <tbody>

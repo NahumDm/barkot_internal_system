@@ -11,9 +11,14 @@ COMPANY_ADDRESS = "Koye Feche"
 COMPANY_PHONE = "+251 911483063"
 
 LOGO_CANDIDATES = [
-    Path(settings.BASE_DIR).parent / "frontend" / "public" / "images" / "barkot-mark.png",
-    Path(settings.BASE_DIR) / ".." / "frontend" / "public" / "images" / "barkot-mark.png",
-    Path(settings.BASE_DIR).parent / "images" / "barkot-mark.png",
+    # Backend-owned copy: resolves inside the API container (BASE_DIR=/app),
+    # where the frontend tree is not mounted. This is the copy the PDF builder
+    # actually finds at runtime.
+    Path(settings.BASE_DIR) / "static" / "images" / "barkot-logo.png",
+    # Host-side fallbacks (running the dev server outside Docker).
+    Path(settings.BASE_DIR).parent / "frontend" / "public" / "images" / "barkot-logo.png",
+    Path(settings.BASE_DIR) / ".." / "frontend" / "public" / "images" / "barkot-logo.png",
+    Path(settings.BASE_DIR).parent / "images" / "barkot-logo.png",
 ]
 
 

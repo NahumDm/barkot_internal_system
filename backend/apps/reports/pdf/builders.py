@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import struct
 from datetime import date
 from io import BytesIO
 
 from django.http import HttpResponse
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -88,27 +90,47 @@ def _build_pdf(
 
     story = []
 
-    # Header
+    # Header: logo, name, location, phone - centered, top to bottom.
     logo_path = get_logo_path()
-    header_right = [
-        Paragraph(f"<b>{COMPANY_NAME}</b>", subtitle_style),
-        Paragraph(COMPANY_ADDRESS, small_style),
-        Paragraph(COMPANY_PHONE, small_style),
-    ]
+    header_name_style = ParagraphStyle(
+        "HeaderName", parent=styles["Normal"], fontSize=13, alignment=TA_CENTER, spaceAfter=1,
+    )
+    header_line_style = ParagraphStyle(
+        "HeaderLine", parent=styles["Normal"], fontSize=9, alignment=TA_CENTER,
+    )
+    header_cell: list = []
     if logo_path and logo_path.exists():
         try:
-            logo = Image(str(logo_path), width=28 * mm, height=16 * mm)
-            header_table = Table([[logo, header_right]], colWidths=[36 * mm, pagesize[0] - 72 * mm])
+            # Preserve the logo's native aspect ratio (read from the PNG header)
+            # rather than stretching it to a fixed box.
+            aspect: float | None = None
+            with open(logo_path, "rb") as fh:
+                head = fh.read(24)
+                if head[:8] == b"\x89PNG\r\n\x1a\n":
+                    w, h = struct.unpack(">II", head[16:24])
+                    if w and h:
+                        aspect = h / w
+            logo_width = 30 * mm
+            logo_height = logo_width * aspect if aspect else 28 * mm
+            logo = Image(str(logo_path), width=logo_width, height=logo_height)
+            logo.hAlign = "CENTER"
+            header_cell.append(logo)
+            header_cell.append(Spacer(1, 2 * mm))
         except Exception:
-            header_table = Table([[header_right]], colWidths=[pagesize[0] - 36 * mm])
-    else:
-        header_table = Table([[header_right]], colWidths=[pagesize[0] - 36 * mm])
+            pass
+    header_cell.append(Paragraph(f"<b>{COMPANY_NAME}</b>", header_name_style))
+    header_cell.append(Paragraph(COMPANY_ADDRESS, header_line_style))
+    header_cell.append(Paragraph(COMPANY_PHONE, header_line_style))
+
+    header_table = Table([[header_cell]], colWidths=[pagesize[0] - 36 * mm])
     header_table.setStyle(
         TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ])
     )
     story.append(header_table)

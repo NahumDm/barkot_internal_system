@@ -147,6 +147,21 @@ export function restoreEmployee(
  * content header and a size limit before anything is written, and stores it
  * under a name of its own. Refuses with `validation_error` otherwise.
  */
+export function viewEmployeeDocument(
+  id: number,
+  options: Omit<RequestOptions, "method" | "body"> = {},
+): Promise<Response> {
+  return fetch(
+    new URL(`/employees/${id}/document/view/`, process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1").toString(),
+    {
+      method: "GET",
+      credentials: "include",
+      headers: new Headers({ Accept: "application/pdf" }),
+      signal: options.signal,
+    },
+  );
+}
+
 export function uploadEmployeeDocument(
   id: number,
   file: File,

@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.http import FileResponse, Http404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, MultiPartParser
@@ -186,6 +187,18 @@ class EmployeeViewSet(
             actor=request.user,  # type: ignore[arg-type]
         )
         return Response(EmployeeSerializer(profile).data)
+
+    @action(detail=True, methods=["get"], url_path="document/view")
+    def view_document(self, request: Request, pk: Any = None) -> FileResponse:
+        """Serve the stored contract PDF — owner/manager only (CanManageEmployees)."""
+        profile = self.get_object()
+        if not profile.document:
+            raise Http404("No document on file.")
+        return FileResponse(
+            profile.document.open(),
+            as_attachment=True,
+            filename=profile.document_filename or "contract.pdf",
+        )
 
     # Multipart only, and only here. The rest of the API is JSON by contract,
     # so the parsers are narrowed on the action rather than widened on the view:

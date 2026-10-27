@@ -374,7 +374,15 @@ export default function EmployeeRegister() {
                 </td>
                 <td className="px-3 py-3 text-ink-secondary">
                   {employee.has_document ? (
-                    <span title={employee.document_filename}>PDF on file</span>
+                    <a
+                      href={`/api/v1/employees/${employee.id}/document/view/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand underline text-xs font-semibold"
+                      title={employee.document_filename}
+                    >
+                      PDF on file
+                    </a>
                   ) : (
                     "None"
                   )}

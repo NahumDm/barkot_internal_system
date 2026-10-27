@@ -46,7 +46,7 @@ services:
       # request to http://api:8000 and Django validates that Host header too.
       # Overridable so a public tunnel origin can be trusted without editing
       # this file - see .env.example, DJANGO_CSRF_TRUSTED_ORIGINS.
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,api}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,api,testserver}
       DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-http://localhost:3000}
       DJANGO_DB_NAME: ${DJANGO_DB_NAME:-barkot}
       DJANGO_DB_USER: ${DJANGO_DB_USER:-barkot}

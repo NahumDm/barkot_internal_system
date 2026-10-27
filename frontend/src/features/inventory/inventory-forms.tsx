@@ -18,6 +18,7 @@ import type { ProductListItem } from "@/lib/api/products";
 import type { ApiError } from "@/lib/api/errors";
 import { crateLabel, crateSize } from "@/lib/crates";
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 
 type Mode = "receive" | "breakage" | "count";
 type ReceiveSubMode = "standard" | "grouped";
@@ -47,6 +48,7 @@ const REQUIRED_PERMISSION: Record<Mode, string> = {
 
 export default function InventoryForm({ mode }: { mode: Mode }) {
   const { status, user } = useAuth();
+  const t = useT();
   const granted = user?.permissions ?? [];
   const allowed = granted.includes(REQUIRED_PERMISSION[mode]);
   const canApprove = granted.includes("inventory.approve_adjustment");
@@ -704,7 +706,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
           {/* Product Rows */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-ink">Products in this Receipt</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("inventory.productsInReceipt")}</h2>
               <button type="button" onClick={addGroupedRow} className="btn btn-secondary text-xs">
                 + Add Product Line
               </button>
@@ -823,7 +825,7 @@ export default function InventoryForm({ mode }: { mode: Mode }) {
           {/* Grouped Receiving Summary Box */}
           <div className="rounded border border-ink/20 bg-canvas p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-              Grouped Delivery Summary
+              {t("inventory.groupedDeliverySummary")}
             </h3>
             <div className="mt-3 grid gap-4 sm:grid-cols-4">
               <div>

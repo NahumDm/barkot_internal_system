@@ -105,12 +105,12 @@ export function Sidebar({
             />
           </span>
           <p className="brand-name text-lg font-bold tracking-widest">BARKOT</p>
-          <p className="brand-sub text-sm text-white/60">Bar &amp; Restaurant</p>
+          <p className="brand-sub text-sm text-white/60">{t("app.brandSub")}</p>
           <button
             type="button"
             data-drawer-close
             className="sidebar-close"
-            aria-label="Close navigation"
+            aria-label={t("app.closeNavigation")}
             onClick={onClose}
           >
             <X className="h-5 w-5" aria-hidden="true" />

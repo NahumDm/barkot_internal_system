@@ -4,6 +4,7 @@ import type { Ref } from "react";
 import { Menu } from "lucide-react";
 
 import { AccountMenu } from "./account-menu";
+import { useT } from "@/lib/i18n/context";
 
 export function Header({
   onMenuToggle,
@@ -16,13 +17,14 @@ export function Header({
   drawerId?: string;
   triggerRef?: Ref<HTMLButtonElement>;
 }>) {
+  const t = useT();
   return (
     <header className="topbar flex h-14 shrink-0 items-center gap-3 border-b border-border bg-surface px-4 sm:px-6">
       <button
         ref={triggerRef}
         type="button"
         className="nav-toggle"
-        aria-label="Open navigation"
+        aria-label={t("app.openNavigation")}
         aria-expanded={menuOpen}
         aria-controls={drawerId}
         onClick={onMenuToggle}

@@ -29,6 +29,7 @@ import { ChevronDown, KeyRound, LogOut, User as UserIcon, X } from "lucide-react
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { ApiError, isSessionEnded } from "@/lib/api";
 
 function describeLogoutError(error: unknown): string {
@@ -45,6 +46,7 @@ function initials(name: string): string {
 
 export function AccountMenu() {
   const { user, signOut } = useAuth();
+  const t = useT();
   const router = useRouter();
 
   const [open, setOpen] = useState(false);
@@ -187,7 +189,7 @@ export function AccountMenu() {
         >
           <button type="button" role="menuitem" className="account-menu-item" onClick={openProfile}>
             <UserIcon aria-hidden="true" />
-            My Profile
+            {t("account.myProfile")}
           </button>
           <Link
             role="menuitem"
@@ -196,7 +198,7 @@ export function AccountMenu() {
             onClick={closeMenu}
           >
             <KeyRound aria-hidden="true" />
-            Change Password
+            {t("account.changePassword")}
           </Link>
           <button
             type="button"
@@ -206,7 +208,7 @@ export function AccountMenu() {
             onClick={() => void handleLogout()}
           >
             <LogOut aria-hidden="true" />
-            {busy ? "Signing out…" : "Log Out"}
+            {busy ? t("account.signingOut") : t("account.logOut")}
           </button>
           {logoutError ? (
             <p role="alert" className="account-menu-error">
@@ -226,7 +228,7 @@ export function AccountMenu() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className="account-dialog-head">
-              <h2 id={profileTitleId}>My Profile</h2>
+              <h2 id={profileTitleId}>{t("account.myProfile")}</h2>
               <button
                 ref={profileCloseRef}
                 type="button"

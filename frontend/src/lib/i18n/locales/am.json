@@ -23,6 +23,13 @@
   "nav.employeeRegister": "የሰራተኛ መዝገብ",
   "nav.reports": "ሪፖርቶች",
   "nav.settings": "ቅንብሮች",
+  "app.openNavigation": "ነቃስ ክፈት",
+  "app.closeNavigation": "ናቃስ ዝጋ",
+  "app.brandSub": "ባር እና ሬስቶራንት",
+  "account.myProfile": "የእኔ መገለጫ",
+  "account.changePassword": "የይለፍ ቃል ቀይር",
+  "account.logOut": "ውጣ",
+  "account.signingOut": "በመውጣት ላይ…",
   "dashboard.eyebrow": "አጠቃላይ እይታ",
   "dashboard.title": "ዳሽቦርድ",
   "dashboard.blurb": "የንግዱ ሁኔታ ለወቅቱ፣ በቀጥታ ከእያንዳንዱ ዘርፍ የተነበበ።",
@@ -95,6 +102,8 @@
   "inventory.colPrice": "ዋጋ",
   "inventory.colStatus": "ሁኔታ",
   "inventory.colActions": "ተግባራት",
+  "inventory.productsInReceipt": "በዚህ ደረሰኝ ውስጥ ያሉ ምርቶች",
+  "inventory.groupedDeliverySummary": "የቡድን አቅርቦት ማጠቃለያ",
   "bono.newTypeTitle": "አዲስ የቦኖ ዓይነት",
   "bono.loadingConfig": "የቦኖ ቅንብሮች በመጫን ላይ...",
   "bono.configHistory": "የቅንብር ታሪክ",
@@ -160,5 +169,8 @@
   "finance.colAmount": "መጠን",
   "finance.colStatus": "ሁኔታ",
   "finance.colAction": "ተግባር",
-  "finance.noExpenses": "ምንም ወጪ አልተመዘገበም።"
+  "finance.noExpenses": "ምንም ወጪ አልተመዘገበም።",
+  "finance.expenseCategories": "የወጪ ምድቦች",
+  "finance.noCategoriesAdd": "እስካሁን ምድቦች የሉም። በላዩ ውስጥ መጀመሪያውን ጨምር።",
+  "finance.noCategories": "እስካሁን ምድቦች የሉም።"
 }

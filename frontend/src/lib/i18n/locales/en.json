@@ -23,6 +23,13 @@
   "nav.employeeRegister": "Employee Register",
   "nav.reports": "Reports",
   "nav.settings": "Settings",
+  "app.openNavigation": "Open navigation",
+  "app.closeNavigation": "Close navigation",
+  "app.brandSub": "Bar & Restaurant",
+  "account.myProfile": "My Profile",
+  "account.changePassword": "Change Password",
+  "account.logOut": "Log Out",
+  "account.signingOut": "Signing out…",
   "dashboard.eyebrow": "Overview",
   "dashboard.title": "Dashboard",
   "dashboard.blurb": "The position of the business for the period, read straight from each domain.",
@@ -95,6 +102,8 @@
   "inventory.colPrice": "Price",
   "inventory.colStatus": "Status",
   "inventory.colActions": "Actions",
+  "inventory.productsInReceipt": "Products in this Receipt",
+  "inventory.groupedDeliverySummary": "Grouped Delivery Summary",
   "bono.newTypeTitle": "New Bono type",
   "bono.loadingConfig": "Loading Bono configuration...",
   "bono.configHistory": "Configuration history",
@@ -160,5 +169,8 @@
   "finance.colAmount": "Amount",
   "finance.colStatus": "Status",
   "finance.colAction": "Action",
-  "finance.noExpenses": "No expenses recorded."
+  "finance.noExpenses": "No expenses recorded.",
+  "finance.expenseCategories": "Expense categories",
+  "finance.noCategoriesAdd": "No categories yet. Add the first one above.",
+  "finance.noCategories": "No categories yet."
 }

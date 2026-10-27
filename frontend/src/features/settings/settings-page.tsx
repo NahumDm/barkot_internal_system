@@ -340,6 +340,7 @@ function UserRow({
   isSelf: boolean;
   onChanged: (updated: StaffUser) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draftRole, setDraftRole] = useState(user.role);
   const [draftEmail, setDraftEmail] = useState(user.email);
@@ -612,6 +613,7 @@ function SystemForm({
   settings: SiteSettings;
   onSaved: (value: SiteSettings) => void;
 }) {
+  const t = useT();
   const [sessionTimeout, setSessionTimeout] = useState(String(settings.session_timeout_minutes));
   const [maxAge, setMaxAge] = useState(String(settings.password_max_age_days));
   const [forceChange, setForceChange] = useState(settings.require_password_change_for_new_users);

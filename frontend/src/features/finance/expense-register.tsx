@@ -32,6 +32,7 @@ function CategoryManager({
   onError: (error: ApiError | null) => void;
   canManage?: boolean;
 }) {
+  const t = useT();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -119,7 +120,7 @@ function CategoryManager({
   return (
     <section className="rounded border border-border bg-surface p-4">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-        <h2 className="text-lg font-semibold text-ink">Expense categories</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("finance.expenseCategories")}</h2>
         {canManage && (
           <div className="flex items-center gap-3">
             <p className="text-sm text-ink-secondary">
@@ -253,11 +254,11 @@ function CategoryManager({
       </ul>
       {canManage && categories.length === 0 && !creating && (
         <p className="mt-3 text-sm text-ink-secondary">
-          No categories yet. Add the first one above.
+          {t("finance.noCategoriesAdd")}
         </p>
       )}
       {!canManage && categories.length === 0 && (
-        <p className="mt-3 text-sm text-ink-secondary">No categories yet.</p>
+        <p className="mt-3 text-sm text-ink-secondary">{t("finance.noCategories")}</p>
       )}
     </section>
   );

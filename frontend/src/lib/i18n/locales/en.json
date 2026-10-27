@@ -89,8 +89,13 @@
   "finance.balanceTitle": "Business balance",
   "payroll.generateFor": "Generate payroll for {month}",
   "reports.title": "Reports",
+  "reports.eyebrow": "Reports",
+  "reports.blurb": "Financial, inventory and payroll views with date filters and PDF export.",
   "settings.eyebrow": "Settings",
   "settings.title": "Settings",
   "settings.blurb": "Staff accounts, business roles and system configuration.",
-  "settings.checkingAccess": "Checking access..."
+  "settings.checkingAccess": "Checking access...",
+  "finance.eyebrow": "Finance",
+  "finance.balanceBlurb": "Income less approved expenses and payroll.",
+  "finance.loadingBalance": "Loading balance..."
 }

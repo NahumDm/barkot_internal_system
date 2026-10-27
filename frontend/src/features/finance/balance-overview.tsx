@@ -66,18 +66,18 @@ export default function BalanceOverview() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            Finance
+            {t("finance.eyebrow")}
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("finance.balanceTitle")}</h1>
           <p className="mt-1 text-sm text-ink-secondary">
-            Income less approved expenses and payroll.
+            {t("finance.balanceBlurb")}
           </p>
         </div>
         <DateRangeFilter start={start} end={end} onStart={changeStart} onEnd={changeEnd} />
       </div>
 
       {error && <p className="form-error">{error.message}</p>}
-      {loading && <p className="text-sm text-ink-secondary">Loading balance...</p>}
+      {loading && <p className="text-sm text-ink-secondary">{t("finance.loadingBalance")}</p>}
       {balance && !loading && (
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

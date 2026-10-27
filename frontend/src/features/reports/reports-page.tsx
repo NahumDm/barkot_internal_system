@@ -62,11 +62,11 @@ export default function ReportsPage() {
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            Reports
+            {t("reports.eyebrow")}
           </p>
           <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("reports.title")}</h1>
           <p className="mt-1 text-sm text-ink-secondary">
-            Financial, inventory and payroll views with date filters and PDF export.
+            {t("reports.blurb")}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">

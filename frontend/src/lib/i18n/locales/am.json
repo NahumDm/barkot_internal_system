@@ -89,8 +89,13 @@
   "finance.balanceTitle": "የንግድ ቀሪ ብዛት",
   "payroll.generateFor": "የደመወዝ ማስላት ላይክ {month}",
   "reports.title": "ሪፖርቶች",
+  "reports.eyebrow": "ሪፖርቶች",
+  "reports.blurb": "የፋይናንስ፣ የክምችት እና የደመወዝ እይታዎች ከቀን ማጣሪያዎች እና PDF ላውጣ ጋር።",
   "settings.eyebrow": "ቅንብሮች",
   "settings.title": "ቅንብሮች",
   "settings.blurb": "የሰራተኞች መለያዎች፣ የንግድ ሚናዎች እና የስርዓት ቅንብሮች።",
-  "settings.checkingAccess": "መዳረሻ በመጠቆም ላይ..."
+  "settings.checkingAccess": "መዳረሻ በመጠቆም ላይ...",
+  "finance.eyebrow": "ፋይናንስ",
+  "finance.balanceBlurb": "ገቢ ካልፈቀዱ ወጪዎች እና ደመወዝ በፊት።",
+  "finance.loadingBalance": "ቀሪ ብዛት በመጫን ላይ..."
 }

@@ -27,6 +27,7 @@ export type ContractType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "TEMPORARY" 
 /** One person in the register. Everything here is stored or derived server-side. */
 export interface Employee {
   id: number;
+  employee_id: string;
   full_name: string;
   position: string;
   phone_number: string;
@@ -46,6 +47,8 @@ export interface Employee {
   has_document: boolean;
   /** The server-generated stored name — not the uploader's filename. */
   document_filename: string;
+  address: string;
+  emergency_contact: string;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +64,9 @@ export interface EmployeeCreateInput {
   /** ISO date, or `null`/omitted for an open-ended contract. */
   contract_end_date?: string | null;
   notes?: string;
+  address?: string;
+  /** Optional on create: the register only requires name, position and start date. */
+  emergency_contact?: string;
 }
 
 /** Every field optional so a one-field edit does not restate the rest. */
@@ -73,6 +79,8 @@ export interface EmployeeUpdateInput {
   /** An explicit `null` clears a fixed-term end date; absent leaves it alone. */
   contract_end_date?: string | null;
   notes?: string;
+  address?: string;
+  emergency_contact?: string;
 }
 
 export interface EmployeeFilters {

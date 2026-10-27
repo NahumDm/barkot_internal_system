@@ -58,6 +58,8 @@ const EMPTY_FORM = {
   contract_type: "FULL_TIME" as ContractType,
   contract_end_date: "",
   notes: "",
+  address: "",
+  emergency_contact: "",
 };
 
 export default function EmployeeRegister() {
@@ -104,6 +106,8 @@ export default function EmployeeRegister() {
       contract_type: form.contract_type,
       contract_end_date: form.contract_end_date || null,
       notes: form.notes.trim(),
+      address: form.address.trim(),
+      emergency_contact: form.emergency_contact.trim(),
     };
     try {
       if (editing) {
@@ -133,6 +137,8 @@ export default function EmployeeRegister() {
       contract_type: employee.contract_type,
       contract_end_date: employee.contract_end_date ?? "",
       notes: employee.notes,
+      address: employee.address,
+      emergency_contact: employee.emergency_contact,
     });
     setError(null);
     setSaved(null);
@@ -235,6 +241,24 @@ export default function EmployeeRegister() {
           />
         </label>
         <label className="field-label">
+          Address
+          <input
+            value={form.address}
+            onChange={(event) => setForm({ ...form, address: event.target.value })}
+            className="control mt-1.5"
+            placeholder="e.g. Addis Ababa"
+          />
+        </label>
+        <label className="field-label">
+          Emergency contact
+          <input
+            value={form.emergency_contact}
+            onChange={(event) => setForm({ ...form, emergency_contact: event.target.value })}
+            className="control mt-1.5"
+            placeholder="e.g. +251911123456 - Mother"
+          />
+        </label>
+        <label className="field-label">
           Started
           <input
             required
@@ -311,9 +335,11 @@ export default function EmployeeRegister() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
+              <th className="px-3 py-3">Employee ID</th>
               <th className="px-3 py-3">Full name</th>
               <th className="px-3 py-3">Position</th>
               <th className="px-3 py-3">Phone</th>
+              <th className="px-3 py-3">Address</th>
               <th className="px-3 py-3">Started</th>
               <th className="px-3 py-3">Contract</th>
               <th className="px-3 py-3">Status</th>
@@ -324,10 +350,15 @@ export default function EmployeeRegister() {
           <tbody>
             {employees.map((employee) => (
               <tr key={employee.id} className="border-b border-border last:border-0">
+                <td className="px-3 py-3 text-ink-secondary font-mono text-xs">
+                  {employee.employee_id}
+                </td>
                 <td className="px-3 py-3 font-medium text-ink">{employee.full_name}</td>
                 <td className="px-3 py-3 text-ink-secondary">{employee.position}</td>
                 <td className="px-3 py-3 text-ink-secondary">{employee.phone_number || "—"}</td>
+                <td className="px-3 py-3 text-ink-secondary">{employee.address || "—"}</td>
                 <td className="px-3 py-3 text-ink-secondary">{employee.start_date ?? "—"}</td>
+
                 <td className="px-3 py-3 text-ink-secondary">
                   {employee.contract_type_display}
                   {employee.contract_end_date ? ` · until ${employee.contract_end_date}` : ""}

@@ -55,11 +55,15 @@ class EmployeeSerializer(serializers.ModelSerializer):
     )
     has_document = serializers.SerializerMethodField()
     document_filename = serializers.CharField(read_only=True)
+    employee_id = serializers.UUIDField(read_only=True)
+    address = serializers.CharField(read_only=True)
+    emergency_contact = serializers.CharField(read_only=True)
 
     class Meta:
         model = EmployeeProfile
         fields = [
             "id",
+            "employee_id",
             "full_name",
             "position",
             "phone_number",
@@ -76,6 +80,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "document_filename",
             "created_at",
             "updated_at",
+            "address",
+            "emergency_contact",
         ]
         read_only_fields = fields
 
@@ -93,6 +99,16 @@ class EmployeeSerializer(serializers.ModelSerializer):
         """
         user = profile.user
         return user.username if user is not None else ""
+
+    def get_employee_id(self, profile: EmployeeProfile) -> str:
+        """The system-generated employee ID."""
+        return str(profile.employee_id)
+
+    def get_address(self, profile: EmployeeProfile) -> str:
+        return profile.address or ""
+
+    def get_emergency_contact(self, profile: EmployeeProfile) -> str:
+        return profile.emergency_contact or ""
 
 
 def _validate_contract_dates(start: date | None, end: date | None) -> None:
@@ -125,6 +141,10 @@ class EmployeeCreateSerializer(serializers.Serializer):
     contract_type = serializers.ChoiceField(choices=ContractType.choices, default="FULL_TIME")
     contract_end_date = serializers.DateField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    address = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    emergency_contact = serializers.CharField(
+        max_length=150, required=False, allow_blank=True,
+    )
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         _validate_contract_dates(attrs.get("start_date"), attrs.get("contract_end_date"))
@@ -148,6 +168,10 @@ class EmployeeUpdateSerializer(serializers.Serializer):
     contract_type = serializers.ChoiceField(choices=ContractType.choices, required=False)
     contract_end_date = serializers.DateField(required=False, allow_null=True)
     notes = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+    address = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    emergency_contact = serializers.CharField(
+        max_length=150, required=False, allow_blank=True,
+    )
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         if self.instance is None:  # pragma: no cover - the view always sets one

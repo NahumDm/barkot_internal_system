@@ -138,6 +138,8 @@ class EmployeeViewSet(
             contract_type=serializer.validated_data["contract_type"],
             contract_end_date=serializer.validated_data.get("contract_end_date"),
             notes=serializer.validated_data.get("notes", ""),
+            address=serializer.validated_data.get("address", ""),
+            emergency_contact=serializer.validated_data.get("emergency_contact", ""),
             actor=request.user,  # type: ignore[arg-type]
         )
         return Response(

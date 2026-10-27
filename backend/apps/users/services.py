@@ -51,12 +51,14 @@ def create_employee(
     contract_type: str = ContractType.FULL_TIME,
     contract_end_date: date | None = None,
     notes: str = "",
+    address: str = "",
+    emergency_contact: str = "",
     actor: User | None = None,
 ) -> EmployeeProfile:
     """Register a staff member (spec §5).
 
     Deliberately creates a profile and nothing else: a register entry is not a
-    login, and minting an account here would make "who can sign in" a side
+    login, and minting an account here would make \"who can sign in\" a side
     effect of adding a name to a list.
 
     Args:
@@ -67,6 +69,8 @@ def create_employee(
         contract_type: A :class:`apps.core.enums.ContractType` value.
         contract_end_date: Last day of a fixed-term contract, if any.
         notes: Free text.
+        address: Address of the employee.
+        emergency_contact: Name and phone of emergency contact (required).
         actor: The staff member registering them.
 
     Returns:
@@ -80,6 +84,8 @@ def create_employee(
         contract_type=contract_type,
         contract_end_date=contract_end_date,
         notes=notes,
+        address=address,
+        emergency_contact=emergency_contact,
     )
     AuditLog.record(
         action=AuditLog.Action.CREATE,

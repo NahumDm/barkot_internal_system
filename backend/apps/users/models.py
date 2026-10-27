@@ -119,6 +119,24 @@ class EmployeeProfile(TimeStampedModel):
             "history; records are never deleted."
         ),
     )
+    employee_id = models.UUIDField(
+        _("employee ID"),
+        default=uuid4,
+        unique=True,
+        editable=False,
+        help_text=_("System-generated unique employee identifier."),
+    )
+    address = models.CharField(
+        _("address"),
+        max_length=200,
+        blank=True,
+        help_text=_("Home or work address of the employee."),
+    )
+    emergency_contact = models.CharField(
+        _("emergency contact"),
+        max_length=150,
+        help_text=_("Name and phone number of emergency contact (required)."),
+    )
     archived_at = models.DateTimeField(_("archived at"), null=True, blank=True, editable=False)
     notes = models.TextField(_("notes"), blank=True)
 

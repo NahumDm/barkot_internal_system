@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/finance";
 import { type ApiError } from "@/lib/api/errors";
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 
 function money(value: string, currency: string): string {
   return `${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
@@ -264,6 +265,7 @@ function CategoryManager({
 
 export default function ExpenseRegister() {
   const { user } = useAuth();
+  const t = useT();
   const canManageCategories =
     user?.permissions?.includes("finance.manage_expense_categories") ?? false;
 
@@ -327,7 +329,7 @@ export default function ExpenseRegister() {
     <section className="space-y-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">Finance</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Expenses</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("finance.expensesTitle")}</h1>
         <p className="mt-1 text-sm text-ink-secondary">
           Record expenses, then approve them before they affect the balance.
         </p>
@@ -400,12 +402,12 @@ export default function ExpenseRegister() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">Date</th>
-              <th className="px-3 py-3">Description</th>
-              <th className="px-3 py-3">Category</th>
-              <th className="px-3 py-3">Amount</th>
-              <th className="px-3 py-3">Status</th>
-              <th className="px-3 py-3">Action</th>
+              <th className="px-3 py-3">{t("finance.colDate")}</th>
+              <th className="px-3 py-3">{t("finance.colDescription")}</th>
+              <th className="px-3 py-3">{t("finance.colCategory")}</th>
+              <th className="px-3 py-3">{t("finance.colAmount")}</th>
+              <th className="px-3 py-3">{t("finance.colStatus")}</th>
+              <th className="px-3 py-3">{t("finance.colAction")}</th>
             </tr>
           </thead>
           <tbody>
@@ -439,7 +441,7 @@ export default function ExpenseRegister() {
           </tbody>
         </table>
         {expenses.length === 0 && (
-          <p className="p-6 text-center text-sm text-ink-secondary">No expenses recorded.</p>
+          <p className="p-6 text-center text-sm text-ink-secondary">{t("finance.noExpenses")}</p>
         )}
       </div>
       <CategoryManager

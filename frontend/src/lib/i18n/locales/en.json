@@ -152,5 +152,13 @@
   "settings.system": "System",
   "finance.eyebrow": "Finance",
   "finance.balanceBlurb": "Income less approved expenses and payroll.",
-  "finance.loadingBalance": "Loading balance..."
+  "finance.loadingBalance": "Loading balance...",
+  "finance.expensesTitle": "Expenses",
+  "finance.colDate": "Date",
+  "finance.colDescription": "Description",
+  "finance.colCategory": "Category",
+  "finance.colAmount": "Amount",
+  "finance.colStatus": "Status",
+  "finance.colAction": "Action",
+  "finance.noExpenses": "No expenses recorded."
 }

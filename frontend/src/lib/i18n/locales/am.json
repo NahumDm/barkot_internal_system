@@ -152,5 +152,13 @@
   "settings.system": "ስርዓት",
   "finance.eyebrow": "ፋይናንስ",
   "finance.balanceBlurb": "ገቢ ካልፈቀዱ ወጪዎች እና ደመወዝ በፊት።",
-  "finance.loadingBalance": "ቀሪ ብዛት በመጫን ላይ..."
+  "finance.loadingBalance": "ቀሪ ብዛት በመጫን ላይ...",
+  "finance.expensesTitle": "ወጪዎች",
+  "finance.colDate": "ቀን",
+  "finance.colDescription": "መግለጫ",
+  "finance.colCategory": "ምድብ",
+  "finance.colAmount": "መጠን",
+  "finance.colStatus": "ሁኔታ",
+  "finance.colAction": "ተግባር",
+  "finance.noExpenses": "ምንም ወጪ አልተመዘገበም።"
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useT } from "@/lib/i18n/context";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -100,6 +101,7 @@ function Kpi({ label, value, note }: Readonly<{ label: string; value: string; no
 
 export default function BonoOverviewPage() {
   const permissions = useBonoPermissions();
+  const t = useT();
   const [date, setDate] = useState(localDay());
   const [summary, setSummary] = useState<BonoDaySummary | null>(null);
   const [types, setTypes] = useState<BonoType[]>([]);
@@ -207,7 +209,7 @@ export default function BonoOverviewPage() {
           {error.message}
         </p>
       ) : null}
-      {loading && !summary ? <LoadingNote label="Loading the Bono ledger..." /> : null}
+      {loading && !summary ? <LoadingNote label={t("bono.loadingLedger")} /> : null}
 
       {summary ? (
         <>
@@ -247,11 +249,11 @@ export default function BonoOverviewPage() {
           <div className="rounded border border-border bg-surface p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-ink">Daily report</h2>
+                <h2 className="text-lg font-semibold text-ink">{t("bono.dailyReportHeading")}</h2>
                 <p className="mt-1 text-sm text-ink-secondary">
                   {latest
                     ? `Revision ${latest.revision} is ${latest.status.toLowerCase()}.`
-                    : "No report has been prepared for this date yet."}
+                    : t("bono.noReportPrepared")}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -274,17 +276,17 @@ export default function BonoOverviewPage() {
           <div className="grid gap-6 xl:grid-cols-2">
             <div className="overflow-x-auto rounded border border-border bg-surface">
               <div className="border-b border-border p-4">
-                <h2 className="text-lg font-semibold text-ink">By Bono type</h2>
+                <h2 className="text-lg font-semibold text-ink">{t("bono.byTypeHeading")}</h2>
               </div>
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
                   <tr>
-                    <th className="px-3 py-3">Bono</th>
-                    <th className="px-3 py-3 text-right">Initial</th>
-                    <th className="px-3 py-3 text-right">Additional</th>
-                    <th className="px-3 py-3 text-right">In</th>
-                    <th className="px-3 py-3 text-right">Out</th>
-                    <th className="px-3 py-3 text-right">Lost</th>
+                    <th className="px-3 py-3">{t("bono.colBono")}</th>
+                    <th className="px-3 py-3 text-right">{t("bono.colInitial")}</th>
+                    <th className="px-3 py-3 text-right">{t("bono.colAdditional")}</th>
+                    <th className="px-3 py-3 text-right">{t("bono.colIn")}</th>
+                    <th className="px-3 py-3 text-right">{t("bono.colOut")}</th>
+                    <th className="px-3 py-3 text-right">{t("bono.colLost")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,7 +305,7 @@ export default function BonoOverviewPage() {
                 </tbody>
               </table>
               {summary.bono_totals.length === 0 ? (
-                <EmptyNote>No Bono activity recorded for this date.</EmptyNote>
+                <EmptyNote>{t("bono.noActivity")}</EmptyNote>
               ) : null}
             </div>
 

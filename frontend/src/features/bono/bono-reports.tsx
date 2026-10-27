@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useT } from "@/lib/i18n/context";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import {
@@ -33,6 +34,7 @@ const STATUS_OPTIONS: Array<{ value: "" | BonoReportStatus; label: string }> = [
 export default function BonoReportsPage() {
   const permissions = useBonoPermissions();
   const router = useRouter();
+  const t = useT();
   const [reports, setReports] = useState<BonoReport[]>([]);
   const [status, setStatus] = useState<"" | BonoReportStatus>("");
   const [date, setDate] = useState("");
@@ -200,11 +202,11 @@ export default function BonoReportsPage() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">Operational date</th>
-              <th className="px-3 py-3">Revision</th>
-              <th className="px-3 py-3">Status</th>
-              <th className="px-3 py-3">Submitted</th>
-              <th className="px-3 py-3">Approved</th>
+              <th className="px-3 py-3">{t("bono.colOperationalDate")}</th>
+              <th className="px-3 py-3">{t("bono.colRevision")}</th>
+              <th className="px-3 py-3">{t("bono.colStatus")}</th>
+              <th className="px-3 py-3">{t("bono.colSubmitted")}</th>
+              <th className="px-3 py-3">{t("bono.colApproved")}</th>
               <th className="px-3 py-3" />
             </tr>
           </thead>
@@ -242,9 +244,9 @@ export default function BonoReportsPage() {
             ))}
           </tbody>
         </table>
-        {loading ? <LoadingNote label="Loading daily reports..." /> : null}
+        {loading ? <LoadingNote label={t("bono.loadingDailyReports")} /> : null}
         {!loading && reports.length === 0 ? (
-          <EmptyNote>No Bono reports match these filters.</EmptyNote>
+          <EmptyNote>{t("bono.noReportsMatch")}</EmptyNote>
         ) : null}
       </div>
     </section>

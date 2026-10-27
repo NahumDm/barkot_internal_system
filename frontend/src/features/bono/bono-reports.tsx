@@ -24,11 +24,11 @@ import {
 } from "./parts";
 
 const STATUS_OPTIONS: Array<{ value: "" | BonoReportStatus; label: string }> = [
-  { value: "", label: "All statuses" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "SUBMITTED", label: "Submitted" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "REJECTED", label: "Rejected" },
+  { value: "", label: "common.allStatuses" },
+  { value: "DRAFT", label: "bono.status.DRAFT" },
+  { value: "SUBMITTED", label: "bono.status.SUBMITTED" },
+  { value: "APPROVED", label: "bono.status.APPROVED" },
+  { value: "REJECTED", label: "bono.status.REJECTED" },
 ];
 
 export default function BonoReportsPage() {
@@ -95,9 +95,9 @@ export default function BonoReportsPage() {
   return (
     <section className="space-y-6">
       <BonoPageHeader
-        eyebrow="Bono"
-        title="Daily reports"
-        description="The Cashier prepares and submits one report per operational day. The Owner approves or rejects it; an approved report is never edited in place."
+        eyebrow={t("common.bono")}
+        title={t("bono.reportsTitle")}
+        description={t("bono.reportsBlurb")}
         actions={
           <button
             type="button"
@@ -107,7 +107,7 @@ export default function BonoReportsPage() {
               void load();
             }}
           >
-            Refresh
+            {t("common.refresh")}
           </button>
         }
       />
@@ -119,15 +119,12 @@ export default function BonoReportsPage() {
           aria-labelledby="prepare-bono-report"
         >
           <h2 id="prepare-bono-report" className="text-lg font-semibold text-ink">
-            Prepare a report
+            {t("bono.prepareReportHeading")}
           </h2>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Opening stock, receipts, sales and breakage are read from the existing ledgers when the
-            report opens. Only the physical counts and explanations are entered here.
-          </p>
+          <p className="mt-1 text-sm text-ink-secondary">{t("bono.prepareReportBlurb")}</p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="text-sm font-medium text-ink">
-              Operational date
+              {t("bono.operationalDate")}
               <input
                 type="date"
                 className="control mt-1.5"
@@ -137,7 +134,7 @@ export default function BonoReportsPage() {
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={creating || !createDate}>
-              {creating ? "Opening..." : "Open daily report"}
+              {creating ? t("bono.opening") : t("bono.openDailyReport")}
             </button>
           </div>
           {createError ? (
@@ -150,7 +147,7 @@ export default function BonoReportsPage() {
 
       <div className="flex flex-wrap items-end gap-3 rounded border border-border bg-surface p-4">
         <label className="text-sm font-medium text-ink">
-          Status
+          {t("bono.filterStatus")}
           <select
             className="control mt-1.5"
             value={status}
@@ -161,13 +158,13 @@ export default function BonoReportsPage() {
           >
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(option.label)}
               </option>
             ))}
           </select>
         </label>
         <label className="text-sm font-medium text-ink">
-          Operational date
+          {t("bono.operationalDate")}
           <input
             type="date"
             className="control mt-1.5"
@@ -187,7 +184,7 @@ export default function BonoReportsPage() {
               setDate("");
             }}
           >
-            Clear date
+            {t("bono.clearDate")}
           </button>
         ) : null}
       </div>
@@ -219,11 +216,13 @@ export default function BonoReportsPage() {
                 <td className="px-3 py-3 text-ink-secondary">
                   {report.revision}
                   {report.corrects ? (
-                    <span className="ml-1 text-xs">(corrects #{report.corrects})</span>
+                    <span className="ml-1 text-xs">
+                      {t("bono.corrects").replace("{n}", String(report.corrects))}
+                    </span>
                   ) : null}
                 </td>
                 <td className="px-3 py-3">
-                  <BonoStatusBadge status={report.status} label={report.status_display} />
+                  <BonoStatusBadge status={report.status} label={t(`bono.status.${report.status}`)} />
                 </td>
                 <td className="px-3 py-3 text-ink-secondary">
                   {report.submitted_at
@@ -237,7 +236,7 @@ export default function BonoReportsPage() {
                 </td>
                 <td className="px-3 py-3 text-right">
                   <Link href={`/bono/reports/${report.id}`} className="btn btn-secondary">
-                    Open
+                    {t("bono.open")}
                   </Link>
                 </td>
               </tr>

@@ -44,6 +44,7 @@ interface MovementRow {
 }
 
 function movementRows(
+  t: (key: string) => string,
   issues: BonoIssue[],
   transfers: BonoTransfer[],
   incidents: BonoIncident[],
@@ -52,7 +53,10 @@ function movementRows(
     ...issues.map((issue) => ({
       key: `issue-${issue.id}`,
       at: issue.occurred_at,
-      action: issue.kind === "INITIAL" ? "Initial issue" : "Additional issue",
+      action:
+        issue.kind === "INITIAL"
+          ? t("bono.movement.initialIssue")
+          : t("bono.movement.additionalIssue"),
       bono: issue.bono_name_snapshot,
       color: issue.bono_color_snapshot,
       people: issue.employee_name,
@@ -63,7 +67,7 @@ function movementRows(
     ...transfers.map((transfer) => ({
       key: `transfer-${transfer.id}`,
       at: transfer.occurred_at,
-      action: "Transfer",
+      action: t("bono.movement.transfer"),
       bono: transfer.bono_name_snapshot,
       color: transfer.bono_color_snapshot,
       people: `${transfer.from_employee_name} to ${transfer.to_employee_name}`,
@@ -74,11 +78,14 @@ function movementRows(
     ...incidents.map((incident) => ({
       key: `incident-${incident.id}`,
       at: incident.occurred_at,
-      action: incident.kind === "LOST_BONO" ? "Lost Bono" : "Broken bottle",
+      action:
+        incident.kind === "LOST_BONO"
+          ? t("bono.movement.lostBono")
+          : t("bono.movement.brokenBottle"),
       bono:
         incident.kind === "LOST_BONO"
           ? incident.bono_name_snapshot
-          : (incident.product_name ?? "Product"),
+          : (incident.product_name ?? t("bono.movement.productFallback")),
       color: incident.bono_color_snapshot || "#6b5a5e",
       people: incident.responsible_employee_name ?? "—",
       quantity: incident.quantity,
@@ -167,19 +174,19 @@ export default function BonoOverviewPage() {
   const issued = summary?.bono_totals.reduce((total, row) => total + row.total_issued, 0) ?? 0;
   const custody = summary?.staff_balances.reduce((total, row) => total + row.balance, 0) ?? 0;
   const lost = summary?.bono_totals.reduce((total, row) => total + row.lost, 0) ?? 0;
-  const rows = movementRows(issues, transfers, incidents);
+  const rows = movementRows(t, issues, transfers, incidents);
   const latest = summary?.latest_report ?? null;
 
   return (
     <section className="space-y-6">
       <BonoPageHeader
-        eyebrow="Bono"
-        title="Custody and daily reconciliation"
-        description="Bonos are custody tokens, not sales. This ledger shows who holds them, what moved today, and whether the day's report is ready for the Owner."
+        eyebrow={t("common.bono")}
+        title={t("bono.overviewTitle")}
+        description={t("bono.overviewDescription")}
         actions={
           <>
             <label className="text-sm font-medium text-ink">
-              <span className="sr-only">Operational date</span>
+              <span className="sr-only">{t("bono.operationalDate")}</span>
               <input
                 type="date"
                 className="control"
@@ -198,7 +205,7 @@ export default function BonoOverviewPage() {
                 void load();
               }}
             >
-              Refresh
+              {t("common.refresh")}
             </button>
           </>
         }
@@ -222,27 +229,42 @@ export default function BonoOverviewPage() {
                   : "bg-emerald-100 text-emerald-900"
               }`}
             >
-              {summary.operations_locked ? "Custody locked" : "Open for custody"}
+              {summary.operations_locked ? t("bono.custodyLocked") : t("bono.openForCustody")}
             </span>
             {summary.in_progress_dates.length > 0 ? (
               <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-950">
-                Unreported activity on {summary.in_progress_dates.map(formatDay).join(", ")}
+                {t("bono.unreportedActivity").replace(
+                  "{dates}",
+                  summary.in_progress_dates.map(formatDay).join(", "),
+                )}
               </span>
             ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Kpi
-              label="Issued today"
+              label={t("bono.kpi.issuedToday")}
               value={String(issued)}
-              note="Initial plus additional issues"
+              note={t("bono.kpi.issuedTodayNote")}
             />
-            <Kpi label="In staff custody" value={String(custody)} note="Hands responsible now" />
-            <Kpi label="Lost today" value={String(lost)} note="Recorded separately from use" />
             <Kpi
-              label="Daily report"
-              value={latest ? latest.status : "Not started"}
-              note={latest ? `Revision ${latest.revision}` : "Required before sign-off"}
+              label={t("bono.kpi.inCustody")}
+              value={String(custody)}
+              note={t("bono.kpi.inCustodyNote")}
+            />
+            <Kpi
+              label={t("bono.kpi.lostToday")}
+              value={String(lost)}
+              note={t("bono.kpi.lostTodayNote")}
+            />
+            <Kpi
+              label={t("bono.kpi.dailyReport")}
+              value={latest ? t(`bono.status.${latest.status}`) : t("bono.kpi.notStarted")}
+              note={
+                latest
+                  ? t("bono.kpi.revision").replace("{n}", String(latest.revision))
+                  : t("bono.kpi.requiredBeforeSignoff")
+              }
             />
           </div>
 
@@ -252,21 +274,25 @@ export default function BonoOverviewPage() {
                 <h2 className="text-lg font-semibold text-ink">{t("bono.dailyReportHeading")}</h2>
                 <p className="mt-1 text-sm text-ink-secondary">
                   {latest
-                    ? `Revision ${latest.revision} is ${latest.status.toLowerCase()}.`
+                    ? t("bono.revisionIs")
+                        .replace("{n}", String(latest.revision))
+                        .replace("{status}", t(`bono.status.${latest.status}`))
                     : t("bono.noReportPrepared")}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {latest ? <BonoStatusBadge status={latest.status} label={latest.status} /> : null}
+                {latest ? (
+                  <BonoStatusBadge status={latest.status} label={t(`bono.status.${latest.status}`)} />
+                ) : null}
                 {latest ? (
                   <Link href={`/bono/reports/${latest.id}`} className="btn btn-secondary">
-                    View report
+                    {t("bono.viewReport")}
                   </Link>
                 ) : null}
                 {permissions.submit &&
                 (!latest || latest.status === "DRAFT" || latest.status === "REJECTED") ? (
                   <Link href="/bono/reports" className="btn btn-primary">
-                    {latest ? "Continue report" : "Prepare report"}
+                    {latest ? t("bono.continueReport") : t("bono.prepareReport")}
                   </Link>
                 ) : null}
               </div>
@@ -311,15 +337,15 @@ export default function BonoOverviewPage() {
 
             <div className="overflow-x-auto rounded border border-border bg-surface">
               <div className="border-b border-border p-4">
-                <h2 className="text-lg font-semibold text-ink">Staff custody</h2>
+                <h2 className="text-lg font-semibold text-ink">{t("bono.staffCustody")}</h2>
               </div>
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
                   <tr>
-                    <th className="px-3 py-3">Staff member</th>
-                    <th className="px-3 py-3">Bono</th>
-                    <th className="px-3 py-3 text-right">Issued</th>
-                    <th className="px-3 py-3 text-right">Balance</th>
+                    <th className="px-3 py-3">{t("bono.colStaff")}</th>
+                    <th className="px-3 py-3">{t("bono.colBono")}</th>
+                    <th className="px-3 py-3 text-right">{t("bono.colIssued")}</th>
+                    <th className="px-3 py-3 text-right">{t("bono.colBalance")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -342,7 +368,7 @@ export default function BonoOverviewPage() {
                 </tbody>
               </table>
               {summary.staff_balances.length === 0 ? (
-                <EmptyNote>No staff member currently holds a Bono.</EmptyNote>
+                <EmptyNote>{t("bono.noStaffHolder")}</EmptyNote>
               ) : null}
             </div>
           </div>
@@ -361,22 +387,19 @@ export default function BonoOverviewPage() {
 
           <div className="overflow-x-auto rounded border border-border bg-surface">
             <div className="border-b border-border p-4">
-              <h2 className="text-lg font-semibold text-ink">Movements on this date</h2>
-              <p className="mt-1 text-sm text-ink-secondary">
-                Issues, transfers and incidents are append-only. Lost Bonos are never treated as
-                sales or breakage.
-              </p>
+              <h2 className="text-lg font-semibold text-ink">{t("bono.movementsTitle")}</h2>
+              <p className="mt-1 text-sm text-ink-secondary">{t("bono.movementsBlurb")}</p>
             </div>
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
                 <tr>
-                  <th className="px-3 py-3">Time</th>
-                  <th className="px-3 py-3">Action</th>
-                  <th className="px-3 py-3">Bono or product</th>
-                  <th className="px-3 py-3">Staff</th>
-                  <th className="px-3 py-3 text-right">Qty</th>
-                  <th className="px-3 py-3">Detail</th>
-                  <th className="px-3 py-3">Status</th>
+                  <th className="px-3 py-3">{t("bono.mvColTime")}</th>
+                  <th className="px-3 py-3">{t("bono.mvColAction")}</th>
+                  <th className="px-3 py-3">{t("bono.mvColBonoProduct")}</th>
+                  <th className="px-3 py-3">{t("bono.mvColStaff")}</th>
+                  <th className="px-3 py-3 text-right">{t("bono.mvColQty")}</th>
+                  <th className="px-3 py-3">{t("bono.mvColDetail")}</th>
+                  <th className="px-3 py-3">{t("bono.mvColStatus")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -395,7 +418,7 @@ export default function BonoOverviewPage() {
                     <td className="px-3 py-3">
                       {row.status ? (
                         <span className="inline-flex rounded bg-canvas px-2 py-0.5 text-xs font-semibold text-ink-secondary">
-                          {row.status}
+                          {t(`bono.incidentStatus.${row.status}`)}
                         </span>
                       ) : (
                         "—"
@@ -405,7 +428,7 @@ export default function BonoOverviewPage() {
                 ))}
               </tbody>
             </table>
-            {rows.length === 0 ? <EmptyNote>No movements recorded for this date.</EmptyNote> : null}
+            {rows.length === 0 ? <EmptyNote>{t("bono.noMovements")}</EmptyNote> : null}
           </div>
 
           {permissions.operate ? (

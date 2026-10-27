@@ -221,7 +221,7 @@ export default function SalesPage() {
   const { user } = useAuth();
   const t = useT();
   const canCreate = (user?.permissions?.includes("sales.create_sale") ?? false)
-    && user?.role?.code !== "MANAGER";
+    && user?.role !== "MANAGER";
   const canVoid = user?.permissions.includes("sales.void_sale") ?? false;
 
   const [sales, setSales] = useState<SaleListItem[]>([]);

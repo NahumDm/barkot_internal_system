@@ -148,7 +148,7 @@ export default function NewSalePage() {
   const router = useRouter();
   const { status, user } = useAuth();
   const canCreate = (user?.permissions?.includes("sales.create_sale") ?? false)
-    && user?.role?.code !== "MANAGER";
+    && user?.role !== "MANAGER";
   const formRef = useRef<HTMLFormElement>(null);
 
   const [groupedProducts, setGroupedProducts] = useState<GroupedProduct[]>([]);

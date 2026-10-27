@@ -220,7 +220,8 @@ export default function SalesPage() {
   const router = useRouter();
   const { user } = useAuth();
   const t = useT();
-  const canCreate = user?.permissions.includes("sales.create_sale") ?? false;
+  const canCreate = (user?.permissions?.includes("sales.create_sale") ?? false)
+    && user?.role?.code !== "MANAGER";
   const canVoid = user?.permissions.includes("sales.void_sale") ?? false;
 
   const [sales, setSales] = useState<SaleListItem[]>([]);

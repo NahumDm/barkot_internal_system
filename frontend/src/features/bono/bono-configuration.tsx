@@ -24,11 +24,9 @@ import { BonoColorDot, BonoPageHeader, LoadingNote, formatDay, formatTimestamp }
 
 const BOTTLE_UNITS = new Set(["bottle", "bottles", "btl"]);
 
-function messageOf(value: unknown): string {
+function messageOf(value: unknown, fallback: string): string {
   const message = (value as { message?: unknown }).message;
-  return typeof message === "string" && message
-    ? message
-    : "That configuration change could not be saved.";
+  return typeof message === "string" && message ? message : fallback;
 }
 
 function isBottleProduct(product: ProductListItem): boolean {
@@ -59,6 +57,7 @@ function PairingReviewForm({
     target_bono_type?: number | null;
   }) => void;
 }>) {
+  const t = useT();
   const [resolution, setResolution] = useState<BonoReviewResolution>("RETAIN");
   const [target, setTarget] = useState("");
   const [reason, setReason] = useState("");
@@ -67,11 +66,11 @@ function PairingReviewForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!reason.trim()) {
-      setError("A reason is required to resolve a price review.");
+      setError(t("bono.cfg.reviewReasonRequired"));
       return;
     }
     if (resolution === "REASSIGN" && !target) {
-      setError("Choose a different Bono type to receive the product.");
+      setError(t("bono.cfg.chooseDifferentType"));
       return;
     }
     setError("");
@@ -84,30 +83,30 @@ function PairingReviewForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-2 rounded border border-amber-200 bg-amber-50 p-3">
-      <p className="text-sm font-semibold text-amber-950">Resolve price review</p>
+      <p className="text-sm font-semibold text-amber-950">{t("bono.cfg.resolvePriceReview")}</p>
       <p className="mt-1 text-xs text-amber-950">{pairing.review_reason}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-medium text-ink">
-          Resolution
+          {t("bono.cfg.resolution")}
           <select
             className="control mt-1.5"
             value={resolution}
             onChange={(event) => setResolution(event.target.value as BonoReviewResolution)}
           >
-            <option value="RETAIN">Retain - update the Bono price</option>
-            <option value="REASSIGN">Reassign - move to another Bono type</option>
-            <option value="UNPAIR">Unpair - retire this product pairing</option>
+            <option value="RETAIN">{t("bono.cfg.retain")}</option>
+            <option value="REASSIGN">{t("bono.cfg.reassign")}</option>
+            <option value="UNPAIR">{t("bono.cfg.unpair")}</option>
           </select>
         </label>
         {resolution === "REASSIGN" ? (
           <label className="text-sm font-medium text-ink">
-            Target Bono type
+            {t("bono.cfg.targetType")}
             <select
               className="control mt-1.5"
               value={target}
               onChange={(event) => setTarget(event.target.value)}
             >
-              <option value="">Choose a type</option>
+              <option value="">{t("bono.cfg.chooseTypePlaceholder")}</option>
               {types
                 .filter((type) => type.id !== pairing.bono_type.id && type.is_active)
                 .map((type) => (
@@ -119,20 +118,19 @@ function PairingReviewForm({
           </label>
         ) : null}
         <label className="text-sm font-medium text-ink sm:col-span-2">
-          Reason
+          {t("bono.cfg.reason")}
           <input
             type="text"
             className="control mt-1.5"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            placeholder="Why this is the correct interpretation of the price change"
+            placeholder={t("bono.cfg.resolveReason")}
           />
         </label>
       </div>
       {resolution === "RETAIN" ? (
         <p className="mt-2 text-xs text-amber-950">
-          Retain is accepted only when every product still paired to this Bono sells at one common
-          price of {currency}. Otherwise unpair or reassign the product that differs.
+          {t("bono.cfg.retainHint").replace("{currency}", currency)}
         </p>
       ) : null}
       {error ? (
@@ -142,10 +140,10 @@ function PairingReviewForm({
       ) : null}
       <div className="mt-3 flex gap-2">
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? "Resolving..." : "Resolve review"}
+          {busy ? t("bono.cfg.resolving") : t("bono.cfg.resolveReview")}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </form>
@@ -197,7 +195,7 @@ export default function BonoConfigurationPage() {
       setSummary(day);
       setError("");
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.cfg.saveFailed")));
     } finally {
       setLoading(false);
     }
@@ -219,7 +217,7 @@ export default function BonoConfigurationPage() {
         setError("");
       })
       .catch((value: unknown) => {
-        if (active) setError(messageOf(value));
+        if (active) setError(messageOf(value, t("bono.cfg.saveFailed")));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -238,13 +236,11 @@ export default function BonoConfigurationPage() {
   function guardOpenDays(): boolean {
     if (!needsConfirmation) return true;
     if (!confirmInProgress) {
-      setError(
-        "Bono activity on an open day would be affected. Tick the confirmation below before changing configuration.",
-      );
+      setError(t("bono.cfg.confirmFirst"));
       return false;
     }
     if (!changeReason.trim()) {
-      setError("A written reason is required when changing configuration during an open day.");
+      setError(t("bono.cfg.writtenReasonRequired"));
       return false;
     }
     return true;
@@ -273,10 +269,10 @@ export default function BonoConfigurationPage() {
       setNewColor("#8e192f");
       setNewPrice("0.00");
       setNewNotes("");
-      setSuccess("Bono type created. Pair equally priced bottle products next.");
+      setSuccess(t("bono.cfg.typeCreated"));
       await load();
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.cfg.saveFailed")));
     } finally {
       setBusy("");
     }
@@ -307,14 +303,10 @@ export default function BonoConfigurationPage() {
         ...confirmationFields(),
       });
       setEditingId(null);
-      setSuccess(
-        editActive
-          ? "Bono type updated."
-          : "Bono type retired. Existing history and pairings are preserved as inactive.",
-      );
+      setSuccess(editActive ? t("bono.cfg.typeUpdated") : t("bono.cfg.typeRetired"));
       await load();
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.cfg.saveFailed")));
     } finally {
       setBusy("");
     }
@@ -323,7 +315,7 @@ export default function BonoConfigurationPage() {
   async function handleAddPairing(type: BonoType) {
     const raw = selectedProduct[type.id];
     if (!raw) {
-      setError("Choose a product to pair.");
+      setError(t("bono.cfg.chooseProductToPair"));
       return;
     }
     if (!guardOpenDays()) return;
@@ -336,10 +328,10 @@ export default function BonoConfigurationPage() {
         ...confirmationFields(),
       });
       setSelectedProduct((current) => ({ ...current, [type.id]: "" }));
-      setSuccess(`Product paired with ${type.name}.`);
+      setSuccess(t("bono.cfg.productPaired").replace("{name}", type.name));
       await load();
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.cfg.saveFailed")));
     } finally {
       setBusy("");
     }
@@ -347,7 +339,7 @@ export default function BonoConfigurationPage() {
 
   async function handleRemovePairing(pairing: BonoPairing) {
     if (!removeReason.trim()) {
-      setError("A reason is required to retire a product pairing.");
+      setError(t("bono.cfg.retirePairingReason"));
       return;
     }
     if (!guardOpenDays()) return;
@@ -361,10 +353,10 @@ export default function BonoConfigurationPage() {
       });
       setRemovingId(null);
       setRemoveReason("");
-      setSuccess("Product pairing retired without deleting its history.");
+      setSuccess(t("bono.cfg.pairingRetired"));
       await load();
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.cfg.saveFailed")));
     } finally {
       setBusy("");
     }
@@ -388,10 +380,10 @@ export default function BonoConfigurationPage() {
         ...confirmationFields(),
       });
       setReviewId(null);
-      setSuccess("Price review resolved and recorded in configuration history.");
+      setSuccess(t("bono.cfg.reviewResolved"));
       await load();
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.cfg.saveFailed")));
     } finally {
       setBusy("");
     }
@@ -409,7 +401,7 @@ export default function BonoConfigurationPage() {
       setHistory(page.results);
       setError("");
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.cfg.saveFailed")));
     } finally {
       setHistoryLoading(false);
     }
@@ -418,9 +410,11 @@ export default function BonoConfigurationPage() {
   if (!permissions.configure) {
     return (
       <section className="space-y-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">Bono</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
+          {t("common.bono")}
+        </p>
         <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
-          Your role does not include Bono configuration. Ask an owner if you need access.
+          {t("bono.cfg.noConfigPermission")}
         </div>
       </section>
     );
@@ -429,9 +423,9 @@ export default function BonoConfigurationPage() {
   return (
     <section className="space-y-6">
       <BonoPageHeader
-        eyebrow="Bono"
-        title="Configuration"
-        description="Each Bono type is a stable identity with its own selling price and product pairings. Retiring keeps history; nothing here deletes an issued Bono or an approved report."
+        eyebrow={t("common.bono")}
+        title={t("bono.cfg.configuration")}
+        description={t("bono.cfg.configDescription")}
         actions={
           <button
             type="button"
@@ -441,7 +435,7 @@ export default function BonoConfigurationPage() {
               void load();
             }}
           >
-            Refresh
+            {t("common.refresh")}
           </button>
         }
       />
@@ -449,13 +443,12 @@ export default function BonoConfigurationPage() {
       {needsConfirmation ? (
         <div className="rounded border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
           <p className="font-semibold">
-            Open Bono activity exists on {openDates.map(formatDay).join(", ")}.
+            {t("bono.cfg.openActivityExists").replace(
+              "{dates}",
+              openDates.map(formatDay).join(", "),
+            )}
           </p>
-          <p className="mt-1">
-            Configuration changes are allowed, but every transactional row keeps the label, colour
-            and price it was recorded under. Confirm the affected open days and give a written
-            reason so the change is auditable.
-          </p>
+          <p className="mt-1">{t("bono.cfg.openDaysBlurb")}</p>
           <label className="mt-3 flex items-start gap-2">
             <input
               type="checkbox"
@@ -463,28 +456,29 @@ export default function BonoConfigurationPage() {
               checked={confirmInProgress}
               onChange={(event) => setConfirmInProgress(event.target.checked)}
             />
-            <span>I understand this configuration change affects open operational days.</span>
+            <span>{t("bono.cfg.understandOpenDays")}</span>
           </label>
           <label className="mt-3 block font-medium">
-            Reason for changing configuration now
+            {t("bono.cfg.reasonNow")}
             <input
               type="text"
               className="control mt-1.5"
               value={changeReason}
               onChange={(event) => setChangeReason(event.target.value)}
-              placeholder="Required while a day is open"
+              placeholder={t("bono.cfg.requiredWhileOpen")}
             />
           </label>
         </div>
       ) : (
         <label className="block rounded border border-border bg-surface p-4 text-sm font-medium text-ink">
-          Configuration note <span className="font-normal text-ink-secondary">(optional)</span>
+          {t("bono.cfg.configNote")}{" "}
+          <span className="font-normal text-ink-secondary">{t("bono.op.optional")}</span>
           <input
             type="text"
             className="control mt-1.5"
             value={changeReason}
             onChange={(event) => setChangeReason(event.target.value)}
-            placeholder="Recorded with the change in the audit history"
+            placeholder={t("bono.cfg.auditPlaceholder")}
           />
         </label>
       )}
@@ -505,13 +499,10 @@ export default function BonoConfigurationPage() {
 
       <form onSubmit={handleCreateType} className="rounded border border-border bg-surface p-5">
         <h2 className="text-lg font-semibold text-ink">{t("bono.newTypeTitle")}</h2>
-        <p className="mt-1 text-sm text-ink-secondary">
-          A type gets a permanent internal code. The selling price is set now; later changes happen
-          through product-price review so no report is silently reinterpreted.
-        </p>
+        <p className="mt-1 text-sm text-ink-secondary">{t("bono.cfg.newTypeBlurb")}</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-medium text-ink">
-            Name
+            {t("bono.cfg.name")}
             <input
               type="text"
               className="control mt-1.5"
@@ -522,14 +513,14 @@ export default function BonoConfigurationPage() {
             />
           </label>
           <label className="text-sm font-medium text-ink">
-            Colour
+            {t("bono.cfg.colour")}
             <span className="mt-1.5 flex items-center gap-2">
               <input
                 type="color"
                 className="h-9 w-12 cursor-pointer rounded border border-border"
                 value={newColor}
                 onChange={(event) => setNewColor(event.target.value)}
-                aria-label="New Bono colour"
+                aria-label={t("bono.cfg.newBonoColour")}
               />
               <input
                 type="text"
@@ -538,12 +529,12 @@ export default function BonoConfigurationPage() {
                 onChange={(event) => setNewColor(event.target.value)}
                 maxLength={7}
                 pattern="^#[0-9A-Fa-f]{6}$"
-                aria-label="New Bono colour hex"
+                aria-label={t("bono.cfg.newBonoColourHex")}
               />
             </span>
           </label>
           <label className="text-sm font-medium text-ink">
-            Selling price
+            {t("bono.cfg.sellingPrice")}
             <input
               type="number"
               min="0"
@@ -555,7 +546,7 @@ export default function BonoConfigurationPage() {
             />
           </label>
           <label className="text-sm font-medium text-ink">
-            Notes
+            {t("bono.rd.notes")}
             <input
               type="text"
               className="control mt-1.5"
@@ -566,7 +557,7 @@ export default function BonoConfigurationPage() {
           </label>
         </div>
         <button type="submit" className="btn btn-primary mt-4" disabled={busy !== ""}>
-          {busy === "create" ? "Creating..." : "Create Bono type"}
+          {busy === "create" ? t("bono.cfg.creating") : t("bono.cfg.createBonoType")}
         </button>
       </form>
 
@@ -594,19 +585,24 @@ export default function BonoConfigurationPage() {
                           : "bg-canvas text-ink-secondary"
                       }`}
                     >
-                      {type.is_active ? "Active" : "Retired"}
+                      {type.is_active ? t("bono.cfg.active") : t("bono.cfg.retired")}
                     </span>
                     {type.pending_review_count > 0 ? (
                       <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
-                        {type.pending_review_count} price review
-                        {type.pending_review_count === 1 ? "" : "s"}
+                        {t("bono.cfg.priceReviewCount").replace(
+                          "{n}",
+                          String(type.pending_review_count),
+                        )}
                       </span>
                     ) : null}
                   </div>
                   <p className="mt-1 font-mono text-xs text-ink-secondary">{type.code}</p>
                   <p className="mt-1 text-sm text-ink-secondary">
-                    {type.selling_price} {type.currency} · {type.active_pairings.length} active
-                    pairing{type.active_pairings.length === 1 ? "" : "s"}
+                    {type.selling_price} {type.currency} ·{" "}
+                    {t("bono.cfg.activePairings").replace(
+                      "{n}",
+                      String(type.active_pairings.length),
+                    )}
                   </p>
                   {type.notes ? (
                     <p className="mt-1 text-sm text-ink-secondary">{type.notes}</p>
@@ -618,14 +614,14 @@ export default function BonoConfigurationPage() {
                     className="btn btn-secondary"
                     onClick={() => void toggleHistory(type)}
                   >
-                    {historyFor === type.id ? "Hide history" : "History"}
+                    {historyFor === type.id ? t("bono.cfg.hideHistory") : t("bono.cfg.history")}
                   </button>
                   <button
                     type="button"
                     className="btn btn-secondary"
                     onClick={() => startEdit(type)}
                   >
-                    Edit
+                    {t("bono.cfg.edit")}
                   </button>
                 </div>
               </div>
@@ -637,7 +633,7 @@ export default function BonoConfigurationPage() {
                 >
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <label className="text-sm font-medium text-ink">
-                      Name
+                      {t("bono.cfg.name")}
                       <input
                         type="text"
                         className="control mt-1.5"
@@ -648,14 +644,14 @@ export default function BonoConfigurationPage() {
                       />
                     </label>
                     <label className="text-sm font-medium text-ink">
-                      Colour
+                      {t("bono.cfg.colour")}
                       <span className="mt-1.5 flex items-center gap-2">
                         <input
                           type="color"
                           className="h-9 w-12 cursor-pointer rounded border border-border"
                           value={editColor}
                           onChange={(event) => setEditColor(event.target.value)}
-                          aria-label={`${type.name} colour`}
+                          aria-label={t("bono.cfg.colourAria").replace("{name}", type.name)}
                         />
                         <input
                           type="text"
@@ -664,12 +660,12 @@ export default function BonoConfigurationPage() {
                           onChange={(event) => setEditColor(event.target.value)}
                           maxLength={7}
                           pattern="^#[0-9A-Fa-f]{6}$"
-                          aria-label={`${type.name} colour hex`}
+                          aria-label={t("bono.cfg.colourHexAria").replace("{name}", type.name)}
                         />
                       </span>
                     </label>
                     <label className="text-sm font-medium text-ink sm:col-span-2">
-                      Notes
+                      {t("bono.rd.notes")}
                       <input
                         type="text"
                         className="control mt-1.5"
@@ -687,16 +683,15 @@ export default function BonoConfigurationPage() {
                       onChange={(event) => setEditActive(event.target.checked)}
                     />
                     <span>
-                      Active
-                      <span className="block text-xs text-ink-secondary">
-                        Clearing this retires the type and its active pairings without deleting
-                        history.
-                      </span>
+                      {t("bono.cfg.active")}
+                      <span className="block text-xs text-ink-secondary">{t("bono.cfg.activeHint")}</span>
                     </span>
                   </label>
                   <div className="mt-4 flex gap-2">
                     <button type="submit" className="btn btn-primary" disabled={busy !== ""}>
-                      {busy === `type-${type.id}` ? "Saving..." : "Save changes"}
+                      {busy === `type-${type.id}`
+                        ? t("bono.rd.saving")
+                        : t("bono.cfg.saveChanges")}
                     </button>
                     <button
                       type="button"
@@ -704,7 +699,7 @@ export default function BonoConfigurationPage() {
                       onClick={() => setEditingId(null)}
                       disabled={busy !== ""}
                     >
-                      Cancel
+                      {t("common.cancel")}
                     </button>
                   </div>
                 </form>
@@ -724,10 +719,15 @@ export default function BonoConfigurationPage() {
                             {pairing.product_sku}
                           </p>
                           <p className="mt-1 text-xs text-ink-secondary">
-                            Paired at {pairing.price_at_pairing} {pairing.currency}
+                            {t("bono.cfg.pairedAt")
+                              .replace("{price}", pairing.price_at_pairing)
+                              .replace("{currency}", pairing.currency)}
                             {pairing.current_price !== null
-                              ? ` · current price ${pairing.current_price}`
-                              : " · no current price"}
+                              ? t("bono.cfg.currentPrice").replace(
+                                  "{price}",
+                                  pairing.current_price,
+                                )
+                              : t("bono.cfg.noCurrentPrice")}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -739,7 +739,9 @@ export default function BonoConfigurationPage() {
                                 setReviewId(reviewId === pairing.id ? null : pairing.id)
                               }
                             >
-                              {reviewId === pairing.id ? "Close review" : "Review price"}
+                              {reviewId === pairing.id
+                                ? t("bono.cfg.closeReview")
+                                : t("bono.cfg.reviewPrice")}
                             </button>
                           ) : null}
                           <button
@@ -750,7 +752,9 @@ export default function BonoConfigurationPage() {
                               setRemoveReason("");
                             }}
                           >
-                            {removingId === pairing.id ? "Keep pairing" : "Retire pairing"}
+                            {removingId === pairing.id
+                              ? t("bono.cfg.keepPairing")
+                              : t("bono.cfg.retirePairing")}
                           </button>
                         </div>
                       </div>
@@ -772,13 +776,13 @@ export default function BonoConfigurationPage() {
                       {removingId === pairing.id ? (
                         <div className="mt-3 flex flex-wrap items-end gap-2 rounded border border-red-200 bg-red-50 p-3">
                           <label className="min-w-64 flex-1 text-sm font-medium text-ink">
-                            Retirement reason
+                            {t("bono.cfg.retirementReason")}
                             <input
                               type="text"
                               className="control mt-1.5"
                               value={removeReason}
                               onChange={(event) => setRemoveReason(event.target.value)}
-                              placeholder="Why this product no longer belongs to the Bono"
+                              placeholder={t("bono.cfg.whyNoLongerBelongs")}
                             />
                           </label>
                           <button
@@ -787,7 +791,9 @@ export default function BonoConfigurationPage() {
                             onClick={() => void handleRemovePairing(pairing)}
                             disabled={busy !== ""}
                           >
-                            {busy === `remove-${pairing.id}` ? "Retiring..." : "Confirm retirement"}
+                            {busy === `remove-${pairing.id}`
+                              ? t("bono.cfg.retiring")
+                              : t("bono.cfg.confirmRetirement")}
                           </button>
                         </div>
                       ) : null}
@@ -795,8 +801,7 @@ export default function BonoConfigurationPage() {
                   ))}
                   {type.active_pairings.length === 0 ? (
                     <p className="text-sm text-ink-secondary">
-                      No active products. A Bono type needs at least one equally priced bottle
-                      product before it can be issued.
+                      {t("bono.cfg.noActiveProducts")}
                     </p>
                   ) : null}
                 </div>
@@ -804,7 +809,7 @@ export default function BonoConfigurationPage() {
                 {type.is_active ? (
                   <div className="mt-4 flex flex-wrap items-end gap-2">
                     <label className="min-w-64 flex-1 text-sm font-medium text-ink">
-                      Pair an equally priced bottle product
+                      {t("bono.cfg.pairProduct")}
                       <select
                         className="control mt-1.5"
                         value={selectedProduct[type.id] ?? ""}
@@ -818,8 +823,8 @@ export default function BonoConfigurationPage() {
                       >
                         <option value="">
                           {eligible.length === 0
-                            ? "No eligible product at this price"
-                            : "Choose a product"}
+                            ? t("bono.cfg.noEligibleProduct")
+                            : t("bono.op.chooseProduct")}
                         </option>
                         {eligible.map((product) => (
                           <option key={product.id} value={product.id}>
@@ -835,20 +840,21 @@ export default function BonoConfigurationPage() {
                       onClick={() => void handleAddPairing(type)}
                       disabled={busy !== "" || eligible.length === 0 || !selectedProduct[type.id]}
                     >
-                      {busy === `pair-${type.id}` ? "Pairing..." : "Add pairing"}
+                      {busy === `pair-${type.id}`
+                        ? t("bono.cfg.pairing")
+                        : t("bono.cfg.addPairing")}
                     </button>
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-ink-secondary">
-                    A retired type cannot receive new products. Re-activate it above first; old
-                    pairings remain retired.
+                    {t("bono.cfg.retiredHint")}
                   </p>
                 )}
                 {pairedIds.size > 0 && eligible.length === 0 ? (
                   <p className="mt-2 text-xs text-ink-secondary">
-                    Products are eligible only when they are active, whole-bottle, stock tracked and
-                    currently sold at exactly {type.selling_price} {type.currency}, and not already
-                    paired to another active Bono type.
+                    {t("bono.cfg.eligibilityHint")
+                      .replace("{price}", type.selling_price)
+                      .replace("{currency}", type.currency)}
                   </p>
                 ) : null}
 
@@ -861,7 +867,7 @@ export default function BonoConfigurationPage() {
                       <LoadingNote label={t("bono.loadingHistory")} />
                     ) : history.length === 0 ? (
                       <p className="p-4 text-sm text-ink-secondary">
-                        No configuration changes recorded.
+                        {t("bono.cfg.noConfigHistory")}
                       </p>
                     ) : (
                       <ul className="divide-y divide-border">
@@ -869,11 +875,11 @@ export default function BonoConfigurationPage() {
                           <li key={entry.id} className="p-3 text-sm">
                             <p className="font-medium text-ink">{entry.summary}</p>
                             <p className="mt-1 text-xs text-ink-secondary">
-                              {entry.actor_name || "Unknown actor"} ·{" "}
+                              {entry.actor_name || t("bono.cfg.unknownActor")} ·{" "}
                               {formatTimestamp(entry.created_at)}
                             </p>
                             <details className="mt-1 text-xs text-ink-secondary">
-                              <summary className="cursor-pointer">Before and after</summary>
+                              <summary className="cursor-pointer">{t("bono.cfg.beforeAfter")}</summary>
                               <pre className="mt-2 overflow-x-auto rounded bg-canvas p-2">
                                 {JSON.stringify(
                                   { before: entry.before, after: entry.after },
@@ -896,8 +902,7 @@ export default function BonoConfigurationPage() {
 
       {!loading && types.length === 0 ? (
         <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
-          No Bono types exist yet. Create one above, then pair one or more bottle products that sell
-          at exactly the same price.
+          {t("bono.cfg.noTypesYet")}
         </div>
       ) : null}
     </section>

@@ -4,6 +4,7 @@ import type { Ref } from "react";
 import { Menu } from "lucide-react";
 
 import { AccountMenu } from "./account-menu";
+import { LanguageSwitcher } from "./language-switcher";
 import { useT } from "@/lib/i18n/context";
 
 export function Header({
@@ -34,6 +35,7 @@ export function Header({
       <p className="topbar-text min-w-0 flex-1 truncate text-sm text-ink-secondary">
         Barkot Bar &amp; Restaurant
       </p>
+      <LanguageSwitcher />
       <AccountMenu />
     </header>
   );

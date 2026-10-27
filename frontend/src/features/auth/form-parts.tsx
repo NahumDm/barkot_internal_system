@@ -14,6 +14,7 @@ import { Copyright, Eye, EyeOff } from "lucide-react";
 import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { ErrorCode, type ApiError } from "@/lib/api";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 
 /**
  * The one message shown above a form.
@@ -187,6 +188,9 @@ export function FormShell({
 
   return (
     <main className="auth-page">
+      <div className="auth-lang" aria-label="Language">
+        <LanguageSwitcher className="lang-switch lang-switch--auth" />
+      </div>
       <div className="auth-decoration" aria-hidden="true">
         <span className="auth-blob auth-blob-top" />
         <span className="auth-blob auth-blob-bottom" />

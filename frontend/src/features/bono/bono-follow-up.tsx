@@ -18,9 +18,10 @@ import {
   type PayrollRun,
 } from "@/lib/api/payroll";
 import { BonoColorDot, formatMoney } from "./parts";
+import { useT } from "@/lib/i18n/context";
 
-function messageOf(value: unknown): string {
-  return (value as ApiError).message || "That follow-up could not be recorded.";
+function messageOf(value: unknown, fallback: string): string {
+  return (value as ApiError).message || fallback;
 }
 
 /**
@@ -40,6 +41,7 @@ function DeductionForm({
   onDone: (message: string) => void;
   onCancel: () => void;
 }>) {
+  const t = useT();
   const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [items, setItems] = useState<PayrollItem[]>([]);
@@ -64,7 +66,7 @@ function DeductionForm({
         setError("");
       })
       .catch((value: unknown) => {
-        if (active) setError(messageOf(value));
+        if (active) setError(messageOf(value, t("bono.fu.actionFailed")));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -85,7 +87,7 @@ function DeductionForm({
         setError("");
       })
       .catch((value: unknown) => {
-        if (active) setError(messageOf(value));
+        if (active) setError(messageOf(value, t("bono.fu.actionFailed")));
       })
       .finally(() => {
         if (active) setLoadingItems(false);
@@ -105,15 +107,15 @@ function DeductionForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!itemId) {
-      setError("Choose the payroll line to deduct from.");
+      setError(t("bono.fu.choosePayrollLine"));
       return;
     }
     if (!reason.trim()) {
-      setError("A reason is required for a payroll deduction.");
+      setError(t("bono.fu.reasonForDeduction"));
       return;
     }
     if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) {
-      setError("Enter a deduction amount greater than zero.");
+      setError(t("bono.fu.amountGreaterThanZero"));
       return;
     }
     setSaving(true);
@@ -124,35 +126,37 @@ function DeductionForm({
         amount: Number(amount).toFixed(2),
         reason: reason.trim(),
       });
-      onDone("Deduction recorded on the payroll line. The incident is marked deducted.");
+      onDone(t("bono.fu.deductionRecorded"));
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.fu.actionFailed")));
     } finally {
       setSaving(false);
     }
   }
 
   if (loading) {
-    return <p className="mt-3 text-sm text-ink-secondary">Loading payroll...</p>;
+    return <p className="mt-3 text-sm text-ink-secondary">{t("bono.fu.loadingPayroll")}</p>;
   }
 
   return (
     <form onSubmit={handleSubmit} className="mt-3 rounded border border-border bg-canvas/40 p-3">
-      <p className="text-sm font-semibold text-ink">Deduct through payroll</p>
+      <p className="text-sm font-semibold text-ink">{t("bono.fu.deductThroughPayroll")}</p>
       {!payrollEmployee ? (
         <p className="mt-2 text-sm text-ink-secondary">
-          {incident.responsible_employee_name || "This staff member"} is not on payroll. Add them to
-          payroll before recording a deduction.
+          {t("bono.fu.notOnPayroll").replace(
+            "{name}",
+            incident.responsible_employee_name || t("bono.fu.thisStaff"),
+          )}
         </p>
       ) : runs.length === 0 ? (
         <p className="mt-2 text-sm text-ink-secondary">
-          No generated payroll run is open. Generate and leave a run unapproved before deducting.
+          {t("bono.fu.noGeneratedRun")}
         </p>
       ) : (
         <>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-medium text-ink">
-              Payroll run
+              {t("bono.fu.payrollRun")}
               <select
                 className="control mt-1.5"
                 value={runId}
@@ -163,7 +167,7 @@ function DeductionForm({
                   setLoadingItems(event.target.value !== "");
                 }}
               >
-                <option value="">Choose a generated run</option>
+                <option value="">{t("bono.fu.chooseGeneratedRun")}</option>
                 {runs.map((run) => (
                   <option key={run.id} value={run.id}>
                     {run.period_month.slice(0, 7)} · {run.status_display}
@@ -172,7 +176,7 @@ function DeductionForm({
               </select>
             </label>
             <label className="text-sm font-medium text-ink">
-              Payslip line
+              {t("bono.fu.payslipLine")}
               <select
                 className="control mt-1.5"
                 value={itemId}
@@ -181,22 +185,23 @@ function DeductionForm({
               >
                 <option value="">
                   {!runId
-                    ? "Choose a run first"
+                    ? t("bono.fu.chooseRunFirst")
                     : loadingItems
-                      ? "Loading lines..."
+                      ? t("bono.fu.loadingLines")
                       : eligibleItems.length === 0
-                        ? "No line for this employee"
-                        : "Choose a payslip line"}
+                        ? t("bono.fu.noLineForEmployee")
+                        : t("bono.fu.choosePayslipLine")}
                 </option>
                 {eligibleItems.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.full_name} · gross {formatMoney(item.gross_amount, item.currency)}
+                    {item.full_name} · {t("bono.fu.gross")}{" "}
+                    {formatMoney(item.gross_amount, item.currency)}
                   </option>
                 ))}
               </select>
             </label>
             <label className="text-sm font-medium text-ink">
-              Amount
+              {t("bono.fu.amount")}
               <input
                 type="number"
                 min="0.01"
@@ -207,19 +212,18 @@ function DeductionForm({
               />
             </label>
             <label className="text-sm font-medium text-ink">
-              Reason
+              {t("bono.fu.reason")}
               <input
                 type="text"
                 className="control mt-1.5"
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
-                placeholder="Required on the payroll deduction"
+                placeholder={t("bono.fu.reasonRequiredDeduction")}
               />
             </label>
           </div>
           <p className="mt-2 text-xs text-ink-secondary">
-            The amount defaults to the Bono price times the lost quantity; change it if the Owner
-            agreed a different recovery.
+            {t("bono.fu.amountHint")}
           </p>
         </>
       )}
@@ -234,10 +238,10 @@ function DeductionForm({
           className="btn btn-primary"
           disabled={saving || !payrollEmployee || runs.length === 0}
         >
-          {saving ? "Recording..." : "Record deduction"}
+          {saving ? t("bono.fu.recording") : t("bono.fu.recordDeduction")}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={saving}>
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </form>
@@ -253,6 +257,7 @@ function ReviewForm({
   onDone: (message: string) => void;
   onCancel: () => void;
 }>) {
+  const t = useT();
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -260,7 +265,7 @@ function ReviewForm({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!notes.trim()) {
-      setError("Describe how the loss was resolved or why no deduction is being made.");
+      setError(t("bono.fu.describeResolution"));
       return;
     }
     setSaving(true);
@@ -270,9 +275,9 @@ function ReviewForm({
         resolution_status: "RESOLVED" as Exclude<BonoIncidentResolution, "PENDING">,
         resolution_notes: notes.trim(),
       });
-      onDone("Lost Bono marked reviewed with no payroll deduction.");
+      onDone(t("bono.fu.markedReviewed"));
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.fu.actionFailed")));
     } finally {
       setSaving(false);
     }
@@ -280,19 +285,18 @@ function ReviewForm({
 
   return (
     <form onSubmit={handleSubmit} className="mt-3 rounded border border-border bg-canvas/40 p-3">
-      <p className="text-sm font-semibold text-ink">Close without a deduction</p>
+      <p className="text-sm font-semibold text-ink">{t("bono.fu.closeWithoutDeduction")}</p>
       <p className="mt-1 text-xs text-ink-secondary">
-        The Bono stays recorded as lost. It does not become a sale, breakage or payroll deduction
-        unless you explicitly record one.
+        {t("bono.fu.closeBlurb")}
       </p>
       <label className="mt-2 block text-sm font-medium text-ink">
-        Resolution note
+        {t("bono.fu.resolutionNote")}
         <input
           type="text"
           className="control mt-1.5"
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
-          placeholder="What the Owner decided"
+          placeholder={t("bono.fu.ownerDecided")}
         />
       </label>
       {error ? (
@@ -302,10 +306,10 @@ function ReviewForm({
       ) : null}
       <div className="mt-3 flex gap-2">
         <button type="submit" className="btn btn-secondary" disabled={saving}>
-          {saving ? "Saving..." : "Mark reviewed"}
+          {saving ? t("bono.fu.saving") : t("bono.fu.markReviewed")}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel} disabled={saving}>
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </form>
@@ -323,6 +327,7 @@ export function BonoLostFollowUp({
   canDeduct: boolean;
   onChanged: () => void;
 }>) {
+  const t = useT();
   const [windowId, setWindowId] = useState<number | null>(null);
   const [mode, setMode] = useState<"review" | "deduct">("review");
   const [message, setMessage] = useState("");
@@ -347,11 +352,8 @@ export function BonoLostFollowUp({
   return (
     <section className="rounded border border-border bg-surface">
       <div className="border-b border-border p-4">
-        <h2 className="text-lg font-semibold text-ink">Lost Bono follow-up</h2>
-        <p className="mt-1 text-sm text-ink-secondary">
-          Recording a lost Bono never creates a sale, breakage or deduction by itself. The Owner and
-          Manager decide each outcome explicitly.
-        </p>
+        <h2 className="text-lg font-semibold text-ink">{t("bono.fu.followUpTitle")}</h2>
+        <p className="mt-1 text-sm text-ink-secondary">{t("bono.fu.followUpBlurb")}</p>
       </div>
       {message ? (
         <p
@@ -373,12 +375,15 @@ export function BonoLostFollowUp({
               <div>
                 <BonoColorDot
                   color={incident.bono_color_snapshot || "#6b5a5e"}
-                  label={incident.bono_name_snapshot || "Lost Bono"}
+                  label={incident.bono_name_snapshot || t("bono.movement.lostBono")}
                 />
                 <p className="mt-1 text-sm text-ink">
-                  {incident.quantity} lost ·{" "}
-                  {incident.responsible_employee_name || "No staff member"} ·{" "}
-                  {formatMoney(incident.bono_price_snapshot, "ETB")} each
+                  {t("bono.fu.quantityLost").replace("{n}", String(incident.quantity))}{" "}
+                  {incident.responsible_employee_name || t("bono.fu.noStaffMember")}{" "}
+                  {t("bono.fu.eachPrice").replace(
+                    "{price}",
+                    formatMoney(incident.bono_price_snapshot, "ETB"),
+                  )}
                 </p>
                 <p className="text-xs text-ink-secondary">
                   {incident.reason}
@@ -386,13 +391,16 @@ export function BonoLostFollowUp({
                 </p>
                 {incident.payroll_deduction_amount ? (
                   <p className="mt-1 text-xs font-medium text-ink">
-                    Payroll deduction: {formatMoney(incident.payroll_deduction_amount, "ETB")}
+                    {t("bono.fu.payrollDeduction").replace(
+                      "{amount}",
+                      formatMoney(incident.payroll_deduction_amount, "ETB"),
+                    )}
                   </p>
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex rounded bg-canvas px-2 py-0.5 text-xs font-semibold text-ink-secondary">
-                  {incident.resolution_status}
+                  {t(`bono.incidentStatus.${incident.resolution_status}`)}
                 </span>
                 {!locked &&
                 incident.resolution_status === "PENDING" &&
@@ -403,7 +411,7 @@ export function BonoLostFollowUp({
                       className="btn btn-secondary"
                       onClick={() => open(incident, "review")}
                     >
-                      Review
+                      {t("bono.fu.review")}
                     </button>
                     {canDeduct ? (
                       <button
@@ -411,7 +419,7 @@ export function BonoLostFollowUp({
                         className="btn btn-primary"
                         onClick={() => open(incident, "deduct")}
                       >
-                        Deduct via payroll
+                        {t("bono.fu.deductViaPayroll")}
                       </button>
                     ) : null}
                   </>
@@ -434,7 +442,7 @@ export function BonoLostFollowUp({
       </ul>
       {locked ? (
         <p className="border-t border-border p-4 text-sm text-ink-secondary">
-          Follow-up is closed while this day&apos;s report is submitted.
+          {t("bono.fu.followUpClosed")}
         </p>
       ) : null}
     </section>

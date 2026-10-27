@@ -13,14 +13,15 @@ import {
 import { listEmployees, type Employee } from "@/lib/api/employees";
 import { listProducts, type ProductListItem } from "@/lib/api/products";
 import { BonoColorDot } from "./parts";
+import { useT } from "@/lib/i18n/context";
 
 type Action = "issue" | "transfer" | "lost" | "broken";
 
 const ACTION_LABELS: Record<Action, string> = {
-  issue: "Issue Bono to staff",
-  transfer: "Transfer Bono between staff",
-  lost: "Record lost Bono",
-  broken: "Record broken bottle",
+  issue: "bono.op.issue",
+  transfer: "bono.op.transfer",
+  lost: "bono.op.lost",
+  broken: "bono.op.broken",
 };
 
 const BOTTLE_UNITS = new Set(["bottle", "bottles", "btl"]);
@@ -34,10 +35,10 @@ function isBottleProduct(product: ProductListItem): boolean {
   );
 }
 
-function messageOf(error: unknown): string {
+function messageOf(error: unknown, fallback: string): string {
   if (typeof error === "string") return error;
   const message = (error as { message?: unknown }).message;
-  return typeof message === "string" && message ? message : "That action could not be recorded.";
+  return typeof message === "string" && message ? message : fallback;
 }
 
 /**
@@ -59,6 +60,7 @@ export function BonoOperationsPanel({
   locked: boolean;
   onChanged: () => void;
 }>) {
+  const t = useT();
   const [action, setAction] = useState<Action>("issue");
   const [issueKind, setIssueKind] = useState<BonoIssueKind>("INITIAL");
   const [bonoTypeId, setBonoTypeId] = useState("");
@@ -88,7 +90,7 @@ export function BonoOperationsPanel({
         setError(null);
       })
       .catch((value: unknown) => {
-        if (active) setError(messageOf(value));
+        if (active) setError(messageOf(value, t("bono.op.actionFailed")));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -114,27 +116,27 @@ export function BonoOperationsPanel({
     resetMessage();
     const parsedQuantity = Number(quantity);
     if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
-      setError("Enter a whole number of Bonos.");
+      setError(t("bono.op.enterWholeNumber"));
       return;
     }
     if (needsType && !bonoTypeId) {
-      setError("Choose a Bono type.");
+      setError(t("bono.op.chooseType"));
       return;
     }
     if (needsStaff && !employeeId) {
-      setError("Choose a staff member.");
+      setError(t("bono.op.chooseStaff"));
       return;
     }
     if (action === "transfer" && (!toEmployeeId || toEmployeeId === employeeId)) {
-      setError("Choose a different staff member to receive the Bonos.");
+      setError(t("bono.op.chooseDifferentStaff"));
       return;
     }
     if (needsProduct && !productId) {
-      setError("Choose the broken product.");
+      setError(t("bono.op.chooseBrokenProduct"));
       return;
     }
     if (needsReason && !reason.trim()) {
-      setError("A reason is required.");
+      setError(t("bono.op.reasonRequired"));
       return;
     }
 
@@ -172,13 +174,13 @@ export function BonoOperationsPanel({
           notes: note.trim(),
         });
       }
-      setSuccess("Recorded. The day ledger is up to date.");
+      setSuccess(t("bono.op.recorded"));
       setQuantity("1");
       setReason("");
       setNote("");
       onChanged();
     } catch (value) {
-      setError(messageOf(value));
+      setError(messageOf(value, t("bono.op.actionFailed")));
     } finally {
       setSaving(false);
     }
@@ -187,10 +189,9 @@ export function BonoOperationsPanel({
   if (locked) {
     return (
       <section className="rounded border border-border bg-surface p-5">
-        <h2 className="text-lg font-semibold text-ink">Custody actions</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("bono.op.custodyActions")}</h2>
         <div className="mt-3 rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          This day&apos;s report has been submitted, so Bono custody is locked. A report rejected by
-          the Owner reopens the day for correction.
+          {t("bono.op.lockedNote")}
         </div>
       </section>
     );
@@ -198,18 +199,15 @@ export function BonoOperationsPanel({
 
   return (
     <section className="rounded border border-border bg-surface p-5">
-      <h2 className="text-lg font-semibold text-ink">Custody actions</h2>
-      <p className="mt-1 text-sm text-ink-secondary">
-        Record a hand-out, a hand-over between staff, or a loss. Each action is append-only and
-        attributed to the signed-in manager.
-      </p>
+      <h2 className="text-lg font-semibold text-ink">{t("bono.op.custodyActions")}</h2>
+      <p className="mt-1 text-sm text-ink-secondary">{t("bono.op.blurb")}</p>
 
       {loading ? (
-        <p className="mt-4 text-sm text-ink-secondary">Loading staff and products...</p>
+        <p className="mt-4 text-sm text-ink-secondary">{t("bono.op.loadingStaffProducts")}</p>
       ) : null}
       {error ? (
         <p role="alert" className="form-error mt-4">
-          {messageOf(error)}
+          {messageOf(error, "")}
         </p>
       ) : null}
       {success ? (
@@ -224,7 +222,7 @@ export function BonoOperationsPanel({
       {!loading ? (
         <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
           <label className="text-sm font-medium text-ink sm:col-span-2">
-            Action
+            {t("bono.op.action")}
             <select
               className="control mt-1.5"
               value={action}
@@ -235,7 +233,7 @@ export function BonoOperationsPanel({
             >
               {(Object.keys(ACTION_LABELS) as Action[]).map((value) => (
                 <option key={value} value={value}>
-                  {ACTION_LABELS[value]}
+                  {t(ACTION_LABELS[value])}
                 </option>
               ))}
             </select>
@@ -243,28 +241,30 @@ export function BonoOperationsPanel({
 
           {action === "issue" ? (
             <label className="text-sm font-medium text-ink">
-              Issue kind
+              {t("bono.op.issueKind")}
               <select
                 className="control mt-1.5"
                 value={issueKind}
                 onChange={(event) => setIssueKind(event.target.value as BonoIssueKind)}
               >
-                <option value="INITIAL">Initial issue</option>
-                <option value="ADDITIONAL">Additional issue</option>
+                <option value="INITIAL">{t("bono.movement.initialIssue")}</option>
+                <option value="ADDITIONAL">{t("bono.movement.additionalIssue")}</option>
               </select>
             </label>
           ) : null}
 
           {needsType ? (
             <label className="text-sm font-medium text-ink">
-              Bono type
+              {t("bono.op.bonoType")}
               <select
                 className="control mt-1.5"
                 value={bonoTypeId}
                 onChange={(event) => setBonoTypeId(event.target.value)}
                 disabled={!hasTypes}
               >
-                <option value="">{hasTypes ? "Choose a Bono type" : "No active Bono types"}</option>
+                <option value="">
+                  {hasTypes ? t("bono.op.chooseTypePlaceholder") : t("bono.op.noActiveTypes")}
+                </option>
                 {types
                   .filter((type) => type.is_active)
                   .map((type) => (
@@ -278,14 +278,14 @@ export function BonoOperationsPanel({
 
           {needsProduct ? (
             <label className="text-sm font-medium text-ink">
-              Broken product
+              {t("bono.op.brokenProduct")}
               <select
                 className="control mt-1.5"
                 value={productId}
                 onChange={(event) => setProductId(event.target.value)}
               >
                 <option value="">
-                  {products.length ? "Choose a product" : "No bottle products"}
+                  {products.length ? t("bono.op.chooseProduct") : t("bono.op.noBottleProducts")}
                 </option>
                 {products.map((product) => (
                   <option key={product.id} value={product.id}>
@@ -298,14 +298,18 @@ export function BonoOperationsPanel({
 
           {needsStaff ? (
             <label className="text-sm font-medium text-ink">
-              {action === "transfer" ? "From staff member" : "Responsible staff member"}
+              {action === "transfer"
+                ? t("bono.op.fromStaff")
+                : t("bono.op.responsibleStaff")}
               <select
                 className="control mt-1.5"
                 value={employeeId}
                 onChange={(event) => setEmployeeId(event.target.value)}
               >
                 <option value="">
-                  {employees.length ? "Choose a staff member" : "No active staff found"}
+                  {employees.length
+                    ? t("bono.op.chooseStaffPlaceholder")
+                    : t("bono.op.noStaffFound")}
                 </option>
                 {employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
@@ -318,13 +322,13 @@ export function BonoOperationsPanel({
 
           {action === "transfer" ? (
             <label className="text-sm font-medium text-ink">
-              To staff member
+              {t("bono.op.toStaff")}
               <select
                 className="control mt-1.5"
                 value={toEmployeeId}
                 onChange={(event) => setToEmployeeId(event.target.value)}
               >
-                <option value="">Choose a staff member</option>
+                <option value="">{t("bono.op.chooseStaffPlaceholder")}</option>
                 {employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.full_name} - {employee.position}
@@ -335,7 +339,7 @@ export function BonoOperationsPanel({
           ) : null}
 
           <label className="text-sm font-medium text-ink">
-            Quantity
+            {t("bono.op.quantity")}
             <input
               type="number"
               min="1"
@@ -348,7 +352,7 @@ export function BonoOperationsPanel({
 
           {needsReason ? (
             <label className="text-sm font-medium text-ink sm:col-span-2">
-              Reason
+              {t("bono.op.reason")}
               <input
                 type="text"
                 className="control mt-1.5"
@@ -357,15 +361,16 @@ export function BonoOperationsPanel({
                 maxLength={500}
                 placeholder={
                   action === "transfer"
-                    ? "Why the Bonos moved"
-                    : "What happened to the Bonos or stock"
+                    ? t("bono.op.whyMoved")
+                    : t("bono.op.whatHappened")
                 }
               />
             </label>
           ) : null}
 
           <label className="text-sm font-medium text-ink sm:col-span-2">
-            Note <span className="font-normal text-ink-secondary">(optional)</span>
+            {t("bono.op.note")}{" "}
+            <span className="font-normal text-ink-secondary">{t("bono.op.optional")}</span>
             <textarea
               className="control mt-1.5"
               rows={2}
@@ -377,17 +382,14 @@ export function BonoOperationsPanel({
 
           <div className="sm:col-span-2">
             {types.length === 0 ? (
-              <p className="mb-3 text-sm text-ink-secondary">
-                No Bono types exist yet. An owner must configure at least one type before custody
-                can be recorded.
-              </p>
+              <p className="mb-3 text-sm text-ink-secondary">{t("bono.op.noTypesYet")}</p>
             ) : null}
             <button
               type="submit"
               className="btn btn-primary"
               disabled={saving || (needsType && !hasTypes)}
             >
-              {saving ? "Recording..." : ACTION_LABELS[action]}
+              {saving ? t("bono.op.recording") : t(ACTION_LABELS[action])}
             </button>
           </div>
         </form>
@@ -395,8 +397,11 @@ export function BonoOperationsPanel({
 
       {!loading && action !== "broken" && types.length > 0 ? (
         <p className="mt-4 text-xs text-ink-secondary">
-          A transfer never creates a new Bono: it moves one already in staff custody. Example:{" "}
-          <BonoColorDot color={types[0]?.color ?? "#111827"} label={types[0]?.name ?? "Bono"} />
+          {t("bono.op.transferHint")}{" "}
+          <BonoColorDot
+            color={types[0]?.color ?? "#111827"}
+            label={types[0]?.name ?? t("bono.op.bonoFallback")}
+          />
         </p>
       ) : null}
     </section>

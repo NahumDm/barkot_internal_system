@@ -25,6 +25,7 @@ import {
   formatQuantity,
   formatTimestamp,
 } from "./parts";
+import { useT } from "@/lib/i18n/context";
 
 interface BonoCount {
   used: string;
@@ -37,8 +38,8 @@ interface ProductCount {
   explanation: string;
 }
 
-function messageOf(value: unknown): string {
-  return (value as ApiError).message || "That action could not be completed.";
+function messageOf(value: unknown, fallback: string): string {
+  return (value as ApiError).message || fallback;
 }
 
 function isEditable(report: BonoReportDetail, canSubmit: boolean): boolean {
@@ -46,6 +47,7 @@ function isEditable(report: BonoReportDetail, canSubmit: boolean): boolean {
 }
 
 export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: number }>) {
+  const t = useT();
   const permissions = useBonoPermissions();
   const router = useRouter();
   const [report, setReport] = useState<BonoReportDetail | null>(null);
@@ -110,7 +112,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
   const editable = report ? isEditable(report, permissions.submit) : false;
 
   function collectUpdate() {
-    if (!report) throw new Error("Report has not loaded.");
+    if (!report) throw new Error(t("bono.rd.notLoaded"));
     const bonoLines = report.bono_lines.map((line) => {
       const entry = bonoCounts[line.id] ?? {
         used: String(line.used_quantity),
@@ -120,7 +122,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
       const used = Number(entry.used || 0);
       const returned = Number(entry.returned || 0);
       if (!Number.isInteger(used) || used < 0 || !Number.isInteger(returned) || returned < 0) {
-        throw new Error("Used and returned Bonos must be whole, non-negative numbers.");
+        throw new Error(t("bono.rd.usedInvalid"));
       }
       return {
         id: line.id,
@@ -135,7 +137,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
         explanation: line.explanation,
       };
       if (entry.physical !== "" && Number.isNaN(Number(entry.physical))) {
-        throw new Error("Physical closing quantities must be numbers.");
+        throw new Error(t("bono.rd.physicalNotNumber"));
       }
       return {
         id: line.id,
@@ -155,10 +157,10 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
       setBusy("save");
       const updated = await updateBonoReport(report.id, input);
       hydrate(updated);
-      setSuccess("Draft saved.");
+      setSuccess(t("bono.rd.draftSaved"));
       return updated;
     } catch (value) {
-      setActionError(messageOf(value));
+      setActionError(messageOf(value, t("bono.rd.actionFailed")));
       return null;
     } finally {
       setBusy("");
@@ -178,7 +180,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
       hydrate(updated);
       setSuccess(successMessage);
     } catch (value) {
-      setActionError(messageOf(value));
+      setActionError(messageOf(value, t("bono.rd.actionFailed")));
     } finally {
       setBusy("");
     }
@@ -191,7 +193,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
     await runAction(
       "submit",
       () => submitBonoReport(saved.id),
-      "Report submitted for Owner review.",
+      t("bono.rd.submittedForReview"),
     );
   }
 
@@ -199,13 +201,13 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
     event.preventDefault();
     if (!report) return;
     if (!rejectReason.trim()) {
-      setActionError("A rejection reason is required.");
+      setActionError(t("bono.rd.rejectionReasonRequired"));
       return;
     }
     await runAction(
       "reject",
       () => rejectBonoReport(report.id, { reason: rejectReason.trim() }),
-      "Report rejected and returned to the Cashier.",
+      t("bono.rd.rejectedReturned"),
     );
     setRejectReason("");
   }
@@ -214,7 +216,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
     event.preventDefault();
     if (!report) return;
     if (!correctionReason.trim()) {
-      setActionError("A correction reason is required.");
+      setActionError(t("bono.rd.correctionReasonRequired"));
       return;
     }
     setBusy("correct");
@@ -223,24 +225,24 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
       const revision = await correctBonoReport(report.id, { reason: correctionReason.trim() });
       router.push(`/bono/reports/${revision.id}`);
     } catch (value) {
-      setActionError(messageOf(value));
+      setActionError(messageOf(value, t("bono.rd.actionFailed")));
     } finally {
       setBusy("");
     }
   }
 
   if (loading && !report) {
-    return <LoadingNote label="Loading the daily report..." />;
+    return <LoadingNote label={t("bono.rd.loadingReport")} />;
   }
 
   if (error || !report) {
     return (
       <section className="space-y-4">
         <p role="alert" className="form-error">
-          {error?.message ?? "That report could not be found."}
+          {error?.message ?? t("bono.rd.notFound")}
         </p>
         <Link href="/bono/reports" className="btn btn-secondary">
-          Back to daily reports
+          {t("bono.rd.backToReports")}
         </Link>
       </section>
     );
@@ -259,18 +261,22 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
   return (
     <section className="space-y-6">
       <BonoPageHeader
-        eyebrow={`Bono report${report.revision > 1 ? ` · revision ${report.revision}` : ""}`}
+        eyebrow={
+          report.revision > 1
+            ? t("bono.rd.eyebrowRevision").replace("{n}", String(report.revision))
+            : t("bono.rd.eyebrow")
+        }
         title={formatDay(report.operational_date)}
         description={
           report.corrects
-            ? `This revision corrects report #${report.corrects}. The earlier revision stays unchanged in history.`
-            : "Product stock lines remain independent; a shared Bono total never decides an individual product's sales."
+            ? t("bono.rd.correctsDescription").replace("{n}", String(report.corrects))
+            : t("bono.rd.description")
         }
         actions={
           <>
-            <BonoStatusBadge status={report.status} label={report.status_display} />
+            <BonoStatusBadge status={report.status} label={t(`bono.status.${report.status}`)} />
             <Link href="/bono/reports" className="btn btn-secondary">
-              All reports
+              {t("bono.rd.allReports")}
             </Link>
           </>
         }
@@ -293,21 +299,21 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded border border-border bg-surface p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            Issued
+            {t("bono.colIssued")}
           </p>
           <p className="mt-1 text-2xl font-semibold text-ink">{totalIssued}</p>
         </div>
         <div className="rounded border border-border bg-surface p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">Used</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">{t("bono.rd.used")}</p>
           <p className="mt-1 text-2xl font-semibold text-ink">{totalUsed}</p>
         </div>
         <div className="rounded border border-border bg-surface p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">Lost</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">{t("bono.colLost")}</p>
           <p className="mt-1 text-2xl font-semibold text-ink">{totalLost}</p>
         </div>
         <div className="rounded border border-border bg-surface p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            Unexplained
+            {t("bono.rd.unexplained")}
           </p>
           <p
             className={`mt-1 text-2xl font-semibold ${
@@ -322,39 +328,39 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
       <div className="grid gap-4 rounded border border-border bg-surface p-5 md:grid-cols-2 xl:grid-cols-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            Prepared by
+            {t("bono.rd.preparedBy")}
           </p>
           <p className="mt-1 text-sm text-ink">{report.submitted_by_name || "—"}</p>
           <p className="text-xs text-ink-secondary">{formatTimestamp(report.submitted_at)}</p>
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            Approved by
+            {t("bono.rd.approvedBy")}
           </p>
           <p className="mt-1 text-sm text-ink">{report.approved_by_name || "—"}</p>
           <p className="text-xs text-ink-secondary">{formatTimestamp(report.approved_at)}</p>
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            Rejected by
+            {t("bono.rd.rejectedBy")}
           </p>
           <p className="mt-1 text-sm text-ink">{report.rejected_by_name || "—"}</p>
           <p className="text-xs text-ink-secondary">{formatTimestamp(report.rejected_at)}</p>
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-            Activity read at
+            {t("bono.rd.activityReadAt")}
           </p>
           <p className="mt-1 text-sm text-ink">{formatTimestamp(report.activity_generated_at)}</p>
         </div>
         {report.rejection_reason ? (
           <div className="md:col-span-2 xl:col-span-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-950">
-            <span className="font-semibold">Rejection reason:</span> {report.rejection_reason}
+            <span className="font-semibold">{t("bono.rd.rejectionReasonLabel")}</span> {report.rejection_reason}
           </div>
         ) : null}
         {report.correction_reason ? (
           <div className="md:col-span-2 xl:col-span-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-            <span className="font-semibold">Correction reason:</span> {report.correction_reason}
+            <span className="font-semibold">{t("bono.rd.correctionReasonLabel")}</span> {report.correction_reason}
           </div>
         ) : null}
       </div>
@@ -363,7 +369,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
         <div className="grid gap-4 rounded border border-border bg-surface p-5 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-              Sales
+              {t("bono.rd.sales")}
             </p>
             <p className="mt-1 text-lg font-semibold text-ink">
               {formatMoney(report.sales_total, currency)}
@@ -371,7 +377,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-              Cash paid
+              {t("bono.rd.cashPaid")}
             </p>
             <p className="mt-1 text-lg font-semibold text-ink">
               {formatMoney(report.cash_paid_total, currency)}
@@ -379,7 +385,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-              Mobile paid
+              {t("bono.rd.mobilePaid")}
             </p>
             <p className="mt-1 text-lg font-semibold text-ink">
               {formatMoney(report.mobile_paid_total, currency)}
@@ -387,39 +393,35 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-              Payments total
+              {t("bono.rd.paymentsTotal")}
             </p>
             <p className="mt-1 text-lg font-semibold text-ink">
               {formatMoney(report.payments_total, currency)}
             </p>
           </div>
           <p className="text-xs text-ink-secondary sm:col-span-2 xl:col-span-4">
-            These are the existing sales and payment totals for the day. They are not inferred from
-            Bono usage.
+            {t("bono.rd.moneyNote")}
           </p>
         </div>
       ) : null}
 
       <div className="overflow-x-auto rounded border border-border bg-surface">
         <div className="border-b border-border p-4">
-          <h2 className="text-lg font-semibold text-ink">Bono accountability</h2>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Issued = initial plus additional. Unexplained = issued - used - returned - lost. A
-            transfer moves custody but does not create a new Bono.
-          </p>
+          <h2 className="text-lg font-semibold text-ink">{t("bono.rd.accountability")}</h2>
+          <p className="mt-1 text-sm text-ink-secondary">{t("bono.rd.accountabilityBlurb")}</p>
         </div>
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">Bono type</th>
-              <th className="px-3 py-3 text-right">Issued</th>
-              <th className="px-3 py-3 text-right">Transferred in</th>
-              <th className="px-3 py-3 text-right">Transferred out</th>
-              <th className="px-3 py-3 text-right">Lost</th>
-              <th className="px-3 py-3 text-right">Used</th>
-              <th className="px-3 py-3 text-right">Returned</th>
-              <th className="px-3 py-3 text-right">Unexplained</th>
-              <th className="px-3 py-3">Explanation</th>
+              <th className="px-3 py-3">{t("bono.op.bonoType")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.colIssued")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.transferredIn")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.transferredOut")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.colLost")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.used")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.returned")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.unexplained")}</th>
+              <th className="px-3 py-3">{t("bono.rd.explanation")}</th>
             </tr>
           </thead>
           <tbody>
@@ -444,7 +446,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
                       {line.bono_name_snapshot}
                     </span>
                   </td>
-                  <td className="px-3 py-3 text-right" title="Initial plus additional issues">
+                  <td className="px-3 py-3 text-right" title={t("bono.kpi.issuedTodayNote")}>
                     {line.total_issued_quantity}
                     <span className="block text-xs text-ink-secondary">
                       {line.initial_issued_quantity} + {line.additional_issued_quantity}
@@ -459,7 +461,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
                         type="number"
                         min="0"
                         step="1"
-                        aria-label={`Used ${line.bono_name_snapshot}`}
+                        aria-label={t("bono.rd.usedAria").replace("{name}", line.bono_name_snapshot)}
                         className="control h-9 w-24 text-right"
                         value={entry.used}
                         onChange={(event) =>
@@ -479,7 +481,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
                         type="number"
                         min="0"
                         step="1"
-                        aria-label={`Returned ${line.bono_name_snapshot}`}
+                        aria-label={t("bono.rd.returnedAria").replace("{name}", line.bono_name_snapshot)}
                         className="control h-9 w-24 text-right"
                         value={entry.returned}
                         onChange={(event) =>
@@ -504,7 +506,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
                     {editable ? (
                       <input
                         type="text"
-                        aria-label={`Explanation ${line.bono_name_snapshot}`}
+                        aria-label={t("bono.rd.explanationAria").replace("{name}", line.bono_name_snapshot)}
                         className="control h-9 min-w-52"
                         value={entry.explanation}
                         onChange={(event) =>
@@ -525,31 +527,28 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
         </table>
         {report.bono_lines.length === 0 ? (
           <p className="p-6 text-center text-sm text-ink-secondary">
-            No Bono activity was recorded for this date.
+            {t("bono.rd.noBonoActivity")}
           </p>
         ) : null}
       </div>
 
       <div className="overflow-x-auto rounded border border-border bg-surface">
         <div className="border-b border-border p-4">
-          <h2 className="text-lg font-semibold text-ink">Product stock reconciliation</h2>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Each product is counted on its own. Opening, receipts, sales and breakage come from the
-            existing stock ledger.
-          </p>
+          <h2 className="text-lg font-semibold text-ink">{t("bono.rd.productReconciliation")}</h2>
+          <p className="mt-1 text-sm text-ink-secondary">{t("bono.rd.productReconciliationBlurb")}</p>
         </div>
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">Product</th>
-              <th className="px-3 py-3 text-right">Opening</th>
-              <th className="px-3 py-3 text-right">Received</th>
-              <th className="px-3 py-3 text-right">Sold</th>
-              <th className="px-3 py-3 text-right">Breakage</th>
-              <th className="px-3 py-3 text-right">Expected</th>
-              <th className="px-3 py-3 text-right">Physical</th>
-              <th className="px-3 py-3 text-right">Variance</th>
-              <th className="px-3 py-3">Explanation</th>
+              <th className="px-3 py-3">{t("bono.rd.product")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.opening")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.received")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.sold")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.breakage")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.expected")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.physical")}</th>
+              <th className="px-3 py-3 text-right">{t("bono.rd.variance")}</th>
+              <th className="px-3 py-3">{t("bono.rd.explanation")}</th>
             </tr>
           </thead>
           <tbody>
@@ -593,7 +592,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
                         type="number"
                         min="0"
                         step="0.001"
-                        aria-label={`Physical closing ${line.product_name_snapshot}`}
+                        aria-label={t("bono.rd.physicalClosingAria").replace("{name}", line.product_name_snapshot)}
                         className="control h-9 w-28 text-right"
                         value={entry.physical}
                         onChange={(event) =>
@@ -618,7 +617,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
                     {editable ? (
                       <input
                         type="text"
-                        aria-label={`Product explanation ${line.product_name_snapshot}`}
+                        aria-label={t("bono.rd.productExplanationAria").replace("{name}", line.product_name_snapshot)}
                         className="control h-9 min-w-52"
                         value={entry.explanation}
                         onChange={(event) =>
@@ -639,24 +638,24 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
         </table>
         {report.product_lines.length === 0 ? (
           <p className="p-6 text-center text-sm text-ink-secondary">
-            No product was paired to a Bono type during this day.
+            {t("bono.rd.noProductPaired")}
           </p>
         ) : null}
       </div>
 
       <div className="rounded border border-border bg-surface p-5">
-        <h2 className="text-lg font-semibold text-ink">Notes</h2>
+        <h2 className="text-lg font-semibold text-ink">{t("bono.rd.notes")}</h2>
         {editable ? (
           <textarea
             className="control mt-3"
             rows={3}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            aria-label="Report notes"
+            aria-label={t("bono.rd.reportNotesAria")}
           />
         ) : (
           <p className="mt-2 whitespace-pre-wrap text-sm text-ink-secondary">
-            {report.notes || "No notes."}
+            {report.notes || t("bono.rd.noNotes")}
           </p>
         )}
       </div>
@@ -669,7 +668,7 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
             onClick={() => void saveDraft()}
             disabled={busy !== ""}
           >
-            {busy === "save" ? "Saving..." : "Save draft"}
+            {busy === "save" ? t("bono.rd.saving") : t("bono.rd.saveDraft")}
           </button>
           <button
             type="button"
@@ -678,20 +677,22 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
               void runAction(
                 "refresh",
                 () => refreshBonoReport(report.id),
-                "Activity refreshed from the Bono and stock ledgers.",
+                t("bono.rd.activityRefreshed"),
               )
             }
             disabled={busy !== ""}
           >
-            {busy === "refresh" ? "Refreshing..." : "Refresh activity"}
+            {busy === "refresh" ? t("bono.rd.refreshing") : t("bono.rd.refreshActivity")}
           </button>
           <form onSubmit={handleSubmit} className="inline">
             <button type="submit" className="btn btn-primary" disabled={busy !== ""}>
-              {busy === "submit" ? "Submitting..." : "Submit for Owner review"}
+              {busy === "submit"
+                ? t("bono.rd.submitting")
+                : t("bono.rd.submitForReview")}
             </button>
           </form>
           <p className="text-xs text-ink-secondary">
-            Submitting locks Bono custody for this date. Every product line needs a physical count.
+            {t("bono.rd.submitLocksNote")}
           </p>
         </div>
       ) : null}
@@ -701,33 +702,32 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              void runAction("approve", () => approveBonoReport(report.id), "Report approved.");
+              void runAction(
+                "approve",
+                () => approveBonoReport(report.id),
+                t("bono.rd.reportApproved"),
+              );
             }}
           >
-            <h2 className="text-lg font-semibold text-ink">Approve</h2>
-            <p className="mt-1 text-sm text-ink-secondary">
-              Approval freezes this revision. If it turns out to be wrong, start an explicit
-              correction instead of editing it.
-            </p>
+            <h2 className="text-lg font-semibold text-ink">{t("bono.rd.approve")}</h2>
+            <p className="mt-1 text-sm text-ink-secondary">{t("bono.rd.approveBlurb")}</p>
             <button type="submit" className="btn btn-primary mt-3" disabled={busy !== ""}>
-              {busy === "approve" ? "Approving..." : "Approve report"}
+              {busy === "approve" ? t("bono.rd.approving") : t("bono.rd.approveReport")}
             </button>
           </form>
           <form onSubmit={handleReject}>
-            <h2 className="text-lg font-semibold text-ink">Reject</h2>
-            <p className="mt-1 text-sm text-ink-secondary">
-              A rejection reopens the day for the Cashier. The reason is shown to them.
-            </p>
+            <h2 className="text-lg font-semibold text-ink">{t("bono.rd.reject")}</h2>
+            <p className="mt-1 text-sm text-ink-secondary">{t("bono.rd.rejectBlurb")}</p>
             <input
               type="text"
               className="control mt-3"
               value={rejectReason}
               onChange={(event) => setRejectReason(event.target.value)}
-              placeholder="What must be corrected?"
-              aria-label="Rejection reason"
+              placeholder={t("bono.rd.whatMustBeCorrected")}
+              aria-label={t("bono.rd.rejectAria")}
             />
             <button type="submit" className="btn btn-secondary mt-3" disabled={busy !== ""}>
-              {busy === "reject" ? "Rejecting..." : "Reject report"}
+              {busy === "reject" ? t("bono.rd.rejecting") : t("bono.rd.rejectReport")}
             </button>
           </form>
         </div>
@@ -735,24 +735,23 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
 
       {report.status === "APPROVED" && permissions.approve ? (
         <form onSubmit={handleCorrection} className="rounded border border-border bg-surface p-5">
-          <h2 className="text-lg font-semibold text-ink">Start a correction</h2>
-          <p className="mt-1 text-sm text-ink-secondary">
-            The approved report stays immutable. A new draft revision is opened, linked back to this
-            one, and must go through submission and approval again.
-          </p>
+          <h2 className="text-lg font-semibold text-ink">{t("bono.rd.startCorrection")}</h2>
+          <p className="mt-1 text-sm text-ink-secondary">{t("bono.rd.startCorrectionBlurb")}</p>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <label className="min-w-64 flex-1 text-sm font-medium text-ink">
-              Correction reason
+              {t("bono.rd.correctionReason")}
               <input
                 type="text"
                 className="control mt-1.5"
                 value={correctionReason}
                 onChange={(event) => setCorrectionReason(event.target.value)}
-                placeholder="Why this approved report must be revised"
+                placeholder={t("bono.rd.reviseApprovedWhy")}
               />
             </label>
             <button type="submit" className="btn btn-secondary" disabled={busy !== ""}>
-              {busy === "correct" ? "Opening..." : "Open correction"}
+              {busy === "correct"
+                ? t("bono.rd.openingCorrection")
+                : t("bono.rd.openCorrection")}
             </button>
           </div>
         </form>
@@ -760,14 +759,12 @@ export default function BonoReportDetailPage({ reportId }: Readonly<{ reportId: 
 
       {report.status === "SUBMITTED" && !permissions.approve ? (
         <p className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          This report is waiting for the Owner. The day stays locked until it is approved or
-          rejected.
+          {t("bono.rd.waitingForOwner")}
         </p>
       ) : null}
       {report.status === "APPROVED" && !permissions.approve ? (
         <p className="rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
-          This report is approved and immutable. Ask the Owner to start a correction if something is
-          wrong.
+          {t("bono.rd.approvedImmutable")}
         </p>
       ) : null}
     </section>

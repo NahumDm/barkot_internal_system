@@ -75,6 +75,7 @@ function ProductsTable({
   onEdit: (id: number) => void;
   emptyMessage?: string;
 }) {
+  const t = useT();
   if (products.length === 0) {
     return <div className="text-center py-8 text-ink-secondary">{emptyMessage}</div>;
   }
@@ -85,25 +86,25 @@ function ProductsTable({
         <thead className="bg-surface border-b border-border">
           <tr>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              SKU
+              {t("inventory.colSku")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Name
+              {t("inventory.colName")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Category
+              {t("inventory.colCategory")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Unit
+              {t("inventory.colUnit")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Price
+              {t("inventory.colPrice")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Status
+              {t("inventory.colStatus")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Actions
+              {t("inventory.colActions")}
             </th>
           </tr>
         </thead>

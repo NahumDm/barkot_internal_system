@@ -163,9 +163,9 @@ export default function PayrollRuns() {
 
   const header = (
     <PageHeader
-      eyebrow="Payroll"
-      title="Payroll runs"
-      blurb="Generate a month, approve it, then record that it was paid."
+      eyebrow={t("payroll.eyebrow")}
+      title={t("payroll.runsTitle")}
+      blurb={t("payroll.runsBlurb")}
     />
   );
 
@@ -258,7 +258,7 @@ export default function PayrollRuns() {
           <EmptyNote>Payroll could not be loaded. The message above says why.</EmptyNote>
         ) : (
           <div className="overflow-x-auto rounded border border-border bg-surface">
-            <LoadingNote label="Loading payroll..." />
+            <LoadingNote label={t("payroll.loadingRuns")} />
           </div>
         )
       ) : run ? (

@@ -6,6 +6,7 @@ import { listInventoryProducts } from "@/lib/api/inventory";
 import type { ProductListItem } from "@/lib/api/products";
 import type { ApiError } from "@/lib/api/errors";
 import { crateLabel, crateSize, parseBottles } from "@/lib/crates";
+import { useT } from "@/lib/i18n/context";
 
 /** The "On hand" wording: crates for a crated product, raw quantity otherwise. */
 function onHandLabel(product: ProductListItem): string {
@@ -17,6 +18,7 @@ function onHandLabel(product: ProductListItem): string {
 }
 
 export default function InventoryOverview() {
+  const t = useT();
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,11 +47,11 @@ export default function InventoryOverview() {
     <section className="space-y-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
-          Inventory
+          {t("inventory.eyebrow")}
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Stock overview</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{t("inventory.stockOverviewTitle")}</h1>
         <p className="mt-1 text-sm text-ink-secondary">
-          Current quantities are calculated from the movement ledger.
+          {t("inventory.stockOverviewBlurb")}
         </p>
       </div>
       {error && <p className="form-error">{error.message}</p>}

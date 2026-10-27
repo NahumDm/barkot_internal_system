@@ -570,7 +570,7 @@ export default function BonoConfigurationPage() {
         </button>
       </form>
 
-      {loading && types.length === 0 ? <LoadingNote label="Loading Bono configuration..." /> : null}
+      {loading && types.length === 0 ? <LoadingNote label={t("bono.loadingConfig")} /> : null}
 
       <div className="space-y-5">
         {types.map((type) => {
@@ -712,7 +712,7 @@ export default function BonoConfigurationPage() {
 
               <div className="p-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-secondary">
-                  Product pairings
+                  {t("bono.productPairings")}
                 </h3>
                 <div className="mt-3 space-y-3">
                   {type.active_pairings.map((pairing) => (
@@ -855,10 +855,10 @@ export default function BonoConfigurationPage() {
                 {historyFor === type.id ? (
                   <div className="mt-4 rounded border border-border">
                     <div className="border-b border-border bg-canvas p-3">
-                      <h3 className="text-sm font-semibold text-ink">Configuration history</h3>
+                      <h3 className="text-sm font-semibold text-ink">{t("bono.configHistory")}</h3>
                     </div>
                     {historyLoading ? (
-                      <LoadingNote label="Loading history..." />
+                      <LoadingNote label={t("bono.loadingHistory")} />
                     ) : history.length === 0 ? (
                       <p className="p-4 text-sm text-ink-secondary">
                         No configuration changes recorded.

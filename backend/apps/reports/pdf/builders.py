@@ -8,6 +8,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from apps.reports.pdf.utils import (
@@ -19,6 +20,45 @@ from apps.reports.pdf.utils import (
     format_period,
     get_logo_path,
 )
+
+
+class NumberedCanvas(canvas.Canvas):
+    """A canvas that stamps a "Page X of Y" footer once the total is known.
+
+    ReportLab flowables are stateful and cannot be laid out twice: building the
+    same ``story`` a second time re-consumes the already-rendered flowables and
+    emits an empty, zero-page document. The previous implementation rendered the
+    story once into a throwaway buffer just to count pages and then rendered the
+    same ``story`` again for the served output, so every downloaded PDF came out
+    corrupt (~900 bytes with no page tree).
+
+    This canvas defers footer drawing until ``save()``, when the true page count
+    is known, so the story is only ever built a single time.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states: list[dict] = []
+
+    def showPage(self):  # noqa: D102 - reportlab override
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self) -> None:  # noqa: D102 - reportlab override
+        total_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self._draw_footer(total_pages)
+            super().showPage()
+        super().save()
+
+    def _draw_footer(self, total_pages: int) -> None:
+        self.saveState()
+        footer_text = f"{COMPANY_NAME} | Page {self.getPageNumber()} of {total_pages}"
+        self.setFont("Helvetica", 8)
+        self.setFillColor(colors.grey)
+        self.drawString(18 * mm, 10 * mm, footer_text)
+        self.restoreState()
 
 
 def _build_pdf(
@@ -148,30 +188,10 @@ def _build_pdf(
             Paragraph(empty_message or "No records found for the selected period", subtitle_style)
         )
 
-    # Count pages
-    def _noop(canvas, doc):
-        pass
-
-    temp_buffer = BytesIO()
-    doc_temp = SimpleDocTemplate(
-        temp_buffer,
-        pagesize=pagesize,
-        leftMargin=18 * mm,
-        rightMargin=18 * mm,
-        topMargin=18 * mm,
-        bottomMargin=22 * mm,
-    )
-    doc_temp.build(story, onFirstPage=_noop, onLaterPages=_noop)
-    total_pages = doc_temp.page
-
-    def _on_page(canvas, doc):
-        canvas.saveState()
-        footer_text = f"{COMPANY_NAME} | Page {canvas.getPageNumber()} of {total_pages}"
-        canvas.setFont("Helvetica", 8)
-        canvas.setFillColor(colors.grey)
-        canvas.drawString(doc.leftMargin, 10 * mm, footer_text)
-        canvas.restoreState()
-
+    # A single build pass. `NumberedCanvas` buffers each finished page and
+    # stamps the "Page X of Y" footer once the total is known, so the story is
+    # built exactly once. Rendering it twice (the old page-count + emit
+    # approach) re-consumes the flowables and produces an empty, corrupt PDF.
     doc = SimpleDocTemplate(
         buffer,
         pagesize=pagesize,
@@ -181,7 +201,7 @@ def _build_pdf(
         bottomMargin=22 * mm,
         title=title,
     )
-    doc.build(story, onFirstPage=_on_page, onLaterPages=_on_page)
+    doc.build(story, canvasmaker=NumberedCanvas)
     pdf = buffer.getvalue()
     response = HttpResponse(pdf, content_type="application/pdf")
     safe_name = filename.replace('"', "").replace(";", "")

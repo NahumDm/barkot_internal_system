@@ -153,6 +153,7 @@ function FinancialTab({
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
 }) {
+  const t = useT();
   const [balance, setBalance] = useState<FinanceBalance | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -217,7 +218,7 @@ function FinancialTab({
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded border border-border bg-surface p-4">
-              <h2 className="text-sm font-semibold text-ink">Income</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("reports.incomeHeading")}</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <Line label="Cash" value={money(balance.income.cash, balance.currency)} />
                 <Line
@@ -228,7 +229,7 @@ function FinancialTab({
               </dl>
             </section>
             <section className="rounded border border-border bg-surface p-4">
-              <h2 className="text-sm font-semibold text-ink">Net result</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("reports.netResultHeading")}</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <Line label="Income" value={money(balance.income.total, balance.currency)} />
                 <Line label="Expenses" value={money(balance.expenses_total, balance.currency)} />
@@ -257,6 +258,7 @@ function InventoryTab({
   asOf: string;
   onAsOf: (value: string) => void;
 }) {
+  const t = useT();
   const [balance, setBalance] = useState<StockBalanceReport | null>(null);
   const [balanceError, setBalanceError] = useState<ApiError | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
@@ -328,7 +330,7 @@ function InventoryTab({
       <section className="space-y-4 rounded border border-border bg-surface p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-ink">Stock balance</h2>
+            <h2 className="text-sm font-semibold text-ink">{t("reports.stockBalanceHeading")}</h2>
             <p className="text-xs text-ink-secondary">Ledger stock vs the latest approved count.</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
@@ -337,7 +339,7 @@ function InventoryTab({
           </div>
         </div>
         <ErrorBanner error={balanceError} />
-        {balanceLoading && <LoadingNote label="Loading stock balance..." />}
+        {balanceLoading && <LoadingNote label={t("reports.loadingStockBalance")} />}
         {balance && !balanceLoading && (
           <>
             <p className="text-sm text-ink-secondary">
@@ -387,7 +389,7 @@ function InventoryTab({
       <section className="space-y-4 rounded border border-border bg-surface p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-ink">Inventory variance</h2>
+            <h2 className="text-sm font-semibold text-ink">{t("reports.stockVarianceHeading")}</h2>
             <p className="text-xs text-ink-secondary">
               Approved counts where counted differed from expected.
             </p>
@@ -466,6 +468,7 @@ function PayrollTab({
   onStart: (value: string) => void;
   onEnd: (value: string) => void;
 }) {
+  const t = useT();
   const [report, setReport] = useState<PayrollReport | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -510,7 +513,7 @@ function PayrollTab({
         <DownloadPdf href={payrollPdfUrl(start, end)} />
       </div>
       <ErrorBanner error={error} />
-      {loading && <LoadingNote label="Loading payroll report..." />}
+      {loading && <LoadingNote label={t("reports.loadingPayroll")} />}
       {report && !loading && (
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-4">
@@ -529,7 +532,7 @@ function PayrollTab({
             <EmptyNote>No payroll runs in this period.</EmptyNote>
           ) : (
             <section className="rounded border border-border bg-surface p-4">
-              <h2 className="text-sm font-semibold text-ink">Runs</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("reports.runsHeading")}</h2>
               <div className="overflow-x-auto">
                 <table className="mt-3 w-full text-left text-sm">
                   <thead>
@@ -568,7 +571,7 @@ function PayrollTab({
           )}
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded border border-border bg-surface p-4">
-              <h2 className="text-sm font-semibold text-ink">By status</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("reports.byStatusHeading")}</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 {report.summary.by_status.length === 0 ? (
                   <EmptyNote>No runs in this period.</EmptyNote>
@@ -584,7 +587,7 @@ function PayrollTab({
               </dl>
             </section>
             <section className="rounded border border-border bg-surface p-4">
-              <h2 className="text-sm font-semibold text-ink">Deductions by type</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("reports.deductionsByTypeHeading")}</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 {Object.entries(report.deductions).length === 0 ? (
                   <EmptyNote>No deductions in this period.</EmptyNote>

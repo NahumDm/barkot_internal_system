@@ -75,6 +75,7 @@ export default function SettingsPage() {
 }
 
 function UsersSection({ selfId }: { selfId: number }) {
+  const t = useT();
   const [users, setUsers] = useState<StaffUser[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -205,7 +206,7 @@ function UsersSection({ selfId }: { selfId: number }) {
   return (
     <section className="space-y-4">
       <div className="rounded border border-border bg-surface p-4">
-        <h2 className="text-sm font-semibold text-ink">Staff accounts</h2>
+        <h2 className="text-sm font-semibold text-ink">{t("settings.staffAccounts")}</h2>
         <p className="text-xs text-ink-secondary">
           Accounts who can sign in. Deactivate instead of deleting, so the audit trail keeps its
           referent.
@@ -272,7 +273,7 @@ function UsersSection({ selfId }: { selfId: number }) {
       </div>
 
       <div className="rounded border border-border bg-surface p-4">
-        <h2 className="text-sm font-semibold text-ink">Add a staff member</h2>
+        <h2 className="text-sm font-semibold text-ink">{t("settings.addStaff")}</h2>
         <p className="text-xs text-ink-secondary">
           Pick a role from the catalogue. A phone number is required for every new account. Leave
           the password blank to create a locked account.
@@ -483,6 +484,7 @@ function UserRow({
 }
 
 function RolesSection() {
+  const t = useT();
   const [roles, setRoles] = useState<RoleSummary[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -510,7 +512,7 @@ function RolesSection() {
   return (
     <section className="space-y-4 rounded border border-border bg-surface p-4">
       <div>
-        <h2 className="text-sm font-semibold text-ink">Roles</h2>
+        <h2 className="text-sm font-semibold text-ink">{t("settings.roles")}</h2>
         <p className="text-xs text-ink-secondary">
           The fixed business-role catalogue (spec §9.2) and what each role may do.
         </p>
@@ -554,6 +556,7 @@ function RolesSection() {
 }
 
 function SystemSection() {
+  const t = useT();
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(true);
@@ -587,7 +590,7 @@ function SystemSection() {
   return (
     <section className="space-y-4 rounded border border-border bg-surface p-4">
       <div>
-        <h2 className="text-sm font-semibold text-ink">System</h2>
+        <h2 className="text-sm font-semibold text-ink">{t("settings.system")}</h2>
         <p className="text-xs text-ink-secondary">
           Session and password policy applied across every staff account.
         </p>

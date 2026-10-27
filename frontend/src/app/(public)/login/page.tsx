@@ -18,12 +18,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { Field, FormError, FormShell } from "@/features/auth/form-parts";
 import { safeNextPath } from "@/features/auth/next-path";
 import { type ApiError } from "@/lib/api";
 
 function SignInForm() {
   const { signIn } = useAuth();
+  const t = useT();
   const router = useRouter();
   const requested = useSearchParams().get("next");
 
@@ -51,35 +53,35 @@ function SignInForm() {
   const fieldErrors = error?.details ?? {};
 
   return (
-    <FormShell title="Sign in" subtitle="Barkot Bar & Restaurant">
+    <FormShell title={t("auth.signIn")} subtitle={t("app.brand")}>
       <form onSubmit={onSubmit} className="auth-form">
         <FormError error={error} variant="auth" />
         <Field
-          label="Username"
+          label={t("auth.username")}
           type="text"
           value={username}
           onChange={setUsername}
           errors={fieldErrors["username"] ?? []}
           autoComplete="username"
-          placeholder="Enter your username"
+          placeholder={t("auth.usernamePlaceholder")}
           autoFocus
           disabled={busy}
           variant="auth"
         />
         <Field
-          label="Password"
+          label={t("auth.password")}
           type="password"
           value={password}
           onChange={setPassword}
           errors={fieldErrors["password"] ?? []}
           autoComplete="current-password"
-          placeholder="Enter your password"
+          placeholder={t("auth.passwordPlaceholder")}
           revealable
           disabled={busy}
           variant="auth"
         />
         <button type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
+          {busy ? t("auth.signingIn") : t("auth.signIn")}
         </button>
       </form>
     </FormShell>
@@ -87,8 +89,9 @@ function SignInForm() {
 }
 
 export default function LoginPage() {
+  const t = useT();
   return (
-    <Suspense fallback={<FormShell title="Sign in" subtitle="Barkot Bar & Restaurant" />}>
+    <Suspense fallback={<FormShell title={t("auth.signIn")} subtitle={t("app.brand")} />}>
       <SignInForm />
     </Suspense>
   );

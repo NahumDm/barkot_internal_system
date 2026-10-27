@@ -20,11 +20,13 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { Field, FormError, FormShell } from "@/features/auth/form-parts";
 import { type ApiError, changePassword } from "@/lib/api";
 
 export default function ChangePasswordPage() {
   const { adoptUser, user } = useAuth();
+  const t = useT();
   const router = useRouter();
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -59,17 +61,17 @@ export default function ChangePasswordPage() {
 
   return (
     <FormShell
-      title="Set a new password"
+      title={t("auth.setTitle")}
       subtitle={
         forced
-          ? "Your password was set by somebody else. Choose your own to continue."
-          : "Choose a new password for your account."
+          ? t("auth.forcedSubtitle")
+          : t("auth.chooseSubtitle")
       }
     >
       <form onSubmit={onSubmit} className="auth-form">
         <FormError error={error} variant="auth" />
         <Field
-          label="Current password"
+          label={t("auth.currentPassword")}
           type="password"
           value={currentPassword}
           onChange={setCurrentPassword}
@@ -81,7 +83,7 @@ export default function ChangePasswordPage() {
           variant="auth"
         />
         <Field
-          label="New password"
+          label={t("auth.newPassword")}
           type="password"
           value={newPassword}
           onChange={setNewPassword}
@@ -92,7 +94,7 @@ export default function ChangePasswordPage() {
           variant="auth"
         />
         <Field
-          label="Confirm new password"
+          label={t("auth.confirmPassword")}
           type="password"
           value={confirmation}
           onChange={setConfirmation}
@@ -103,7 +105,7 @@ export default function ChangePasswordPage() {
           variant="auth"
         />
         <button type="submit" disabled={busy}>
-          {busy ? "Saving…" : "Set password"}
+          {busy ? t("auth.saving") : t("auth.setPassword")}
         </button>
       </form>
     </FormShell>

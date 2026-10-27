@@ -14,6 +14,7 @@ import type { ApiError } from "@/lib/api/errors";
 import { money } from "./format";
 import { usePayrollPermissions } from "./permissions";
 import { EmptyNote, ErrorBanner, LoadingNote, NoAccessNote, PageHeader, StatusChip } from "./parts";
+import { useT } from "@/lib/i18n/context";
 
 /**
  * Who is on monthly payroll, and the form that puts someone there (spec §14.2).
@@ -40,6 +41,7 @@ import { EmptyNote, ErrorBanner, LoadingNote, NoAccessNote, PageHeader, StatusCh
  */
 export default function EmployeeRoster() {
   const { checking, view: canView, manageEmployees } = usePayrollPermissions();
+  const t = useT();
 
   const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
   const [profiles, setProfiles] = useState<PayrollProfile[]>([]);
@@ -179,12 +181,12 @@ export default function EmployeeRoster() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">Full name</th>
-              <th className="px-3 py-3">Position</th>
-              <th className="px-3 py-3">Phone</th>
-              <th className="px-3 py-3">Started</th>
-              <th className="px-3 py-3">Monthly wage</th>
-              <th className="px-3 py-3">Status</th>
+              <th className="px-3 py-3">{t("payroll.empColName")}</th>
+              <th className="px-3 py-3">{t("payroll.empColPosition")}</th>
+              <th className="px-3 py-3">{t("payroll.empColPhone")}</th>
+              <th className="px-3 py-3">{t("payroll.empColStarted")}</th>
+              <th className="px-3 py-3">{t("payroll.empColMonthlyWage")}</th>
+              <th className="px-3 py-3">{t("payroll.empColStatus")}</th>
             </tr>
           </thead>
           <tbody>
@@ -206,10 +208,10 @@ export default function EmployeeRoster() {
           error ? (
             <EmptyNote>Payroll employees could not be loaded. See the message above.</EmptyNote>
           ) : (
-            <LoadingNote label="Loading payroll employees..." />
+            <LoadingNote label={t("payroll.loadingEmployees")} />
           )
         ) : (
-          employees.length === 0 && <EmptyNote>No one is on payroll yet.</EmptyNote>
+          employees.length === 0 && <EmptyNote>{t("payroll.noEmployees")}</EmptyNote>
         )}
       </div>
     </section>

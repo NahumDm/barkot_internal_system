@@ -18,6 +18,7 @@ import { isInvalidStateTransition, type ApiError } from "@/lib/api/errors";
 import { dateStamp, money, monthLabel } from "./format";
 import { usePayrollPermissions } from "./permissions";
 import { EmptyNote, ErrorBanner, LoadingNote, NoAccessNote, PageHeader } from "./parts";
+import { useT } from "@/lib/i18n/context";
 
 /**
  * Every deduction taken off a payslip, and the form that records one (spec §14.2).
@@ -59,6 +60,7 @@ const DEDUCTION_TYPES: { value: PayrollDeductionType; label: string }[] = [
 
 export default function DeductionRegister() {
   const { checking, view: canView, deduct } = usePayrollPermissions();
+  const t = useT();
 
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [deductions, setDeductions] = useState<PayrollDeduction[]>([]);
@@ -399,13 +401,13 @@ export default function DeductionRegister() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">Date</th>
-              <th className="px-3 py-3">Employee</th>
-              <th className="px-3 py-3">Type</th>
-              <th className="px-3 py-3">Amount</th>
-              <th className="px-3 py-3">Reason</th>
-              <th className="px-3 py-3">Run</th>
-              {deduct && <th className="px-3 py-3">Actions</th>}
+              <th className="px-3 py-3">{t("payroll.dedColDate")}</th>
+              <th className="px-3 py-3">{t("payroll.dedColEmployee")}</th>
+              <th className="px-3 py-3">{t("payroll.dedColType")}</th>
+              <th className="px-3 py-3">{t("payroll.dedColAmount")}</th>
+              <th className="px-3 py-3">{t("payroll.dedColReason")}</th>
+              <th className="px-3 py-3">{t("payroll.dedColRun")}</th>
+              {deduct && <th className="px-3 py-3">{t("inventory.colActions")}</th>}
             </tr>
           </thead>
           <tbody>
@@ -446,10 +448,10 @@ export default function DeductionRegister() {
           error ? (
             <EmptyNote>Deductions could not be loaded. See the message above.</EmptyNote>
           ) : (
-            <LoadingNote label="Loading deductions..." />
+            <LoadingNote label={t("payroll.loadingDeductions")} />
           )
         ) : (
-          deductions.length === 0 && <EmptyNote>No deductions have been recorded yet.</EmptyNote>
+          deductions.length === 0 && <EmptyNote>{t("payroll.noDeductions")}</EmptyNote>
         )}
       </div>
     </section>

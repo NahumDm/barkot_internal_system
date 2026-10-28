@@ -64,6 +64,10 @@ class DashboardSalesSectionSerializer(serializers.Serializer):
     recent = SaleListSerializer(many=True)
 
 
+class DashboardAdditionalIncomeSectionSerializer(serializers.Serializer):
+    total = serializers.CharField()
+
+
 class DashboardInventorySectionSerializer(serializers.Serializer):
     """What the ledger says should be on the shelf as of the end of the period."""
 
@@ -101,6 +105,7 @@ class DashboardSerializer(serializers.Serializer):
 
     period = DashboardPeriodSerializer()
     sales = DashboardSalesSectionSerializer(required=False, allow_null=True)
+    additional_income = DashboardAdditionalIncomeSectionSerializer(required=False, allow_null=True)
     inventory = DashboardInventorySectionSerializer(required=False, allow_null=True)
     finance = BalanceSerializer(required=False, allow_null=True)
     payroll = DashboardPayrollSerializer(required=False, allow_null=True)

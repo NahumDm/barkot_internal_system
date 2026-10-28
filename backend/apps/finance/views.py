@@ -15,10 +15,14 @@ from apps.accounts.permissions import (
     CanCreateExpense,
     CanManageExpenseCategories,
     CanViewReports,
+    IsOwner,
 )
 from apps.core.pagination import BarkotPagination
-from apps.finance.models import Expense, ExpenseCategory
+from apps.finance.models import AdditionalIncome, Expense, ExpenseCategory
 from apps.finance.serializers import (
+    AdditionalIncomeCreateSerializer,
+    AdditionalIncomeSerializer,
+    AdditionalIncomeUpdateSerializer,
     BalanceQuerySerializer,
     BalanceSerializer,
     ExpenseCategoryCreateSerializer,
@@ -191,3 +195,74 @@ class ExpenseViewSet(
         expense = self.get_object()
         approved = approve_expense(expense=expense, actor=request.user)  # type: ignore[arg-type]
         return Response(ExpenseSerializer(approved).data)
+
+
+@extend_schema_view(
+    list=extend_schema(summary="List additional income", tags=["finance"]),
+    retrieve=extend_schema(summary="Get additional income", tags=["finance"]),
+    create=extend_schema(summary="Create additional income", tags=["finance"]),
+    update=extend_schema(summary="Edit additional income", tags=["finance"]),
+    partial_update=extend_schema(summary="Edit additional income", tags=["finance"]),
+)
+class AdditionalIncomeViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    queryset = AdditionalIncome.objects.filter(voided_at__isnull=True).order_by("-income_date", "-id")
+    serializer_class = AdditionalIncomeSerializer
+    pagination_class = BarkotPagination
+    paginator = BarkotPagination()
+
+    def get_permissions(self):
+        return [IsAuthenticated(), IsOwner()]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return AdditionalIncomeCreateSerializer
+        if self.action in {"update", "partial_update"}:
+            return AdditionalIncomeUpdateSerializer
+        return AdditionalIncomeSerializer
+
+    def perform_create(self, serializer):
+        self._created_income = AdditionalIncome.objects.create(
+            source=serializer.validated_data["source"],
+            amount=serializer.validated_data["amount"],
+            currency=serializer.validated_data.get("currency", "ETB"),
+            income_date=serializer.validated_data["income_date"],
+            note=serializer.validated_data["note"],
+            payment_method=serializer.validated_data.get("payment_method", "CASH"),
+            created_by=self.request.user,
+            updated_by=self.request.user,
+        )
+
+    def create(self, request: Request, *args, **kwargs) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(
+            AdditionalIncomeSerializer(self._created_income).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def update(self, request: Request, *args, **kwargs) -> Response:
+        instance = self.get_object()
+        serializer = self.get_serializer(instance=instance, data=request.data, partial=kwargs.pop("partial", False))
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            if value is not None:
+                setattr(instance, field, value)
+        instance.updated_by = request.user  # type: ignore[arg-type]
+        instance.save()
+        return Response(AdditionalIncomeSerializer(instance).data)
+
+    def destroy(self, request: Request, *args, **kwargs) -> Response:
+        instance = self.get_object()
+        reason = request.data.get("void_reason") if request.data else None
+        if not reason or not str(reason).strip():
+            reason = "Deleted by owner"
+        instance.void(reason=str(reason).strip(), actor=request.user)  # type: ignore[arg-type]
+        instance.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)

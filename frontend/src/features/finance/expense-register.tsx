@@ -96,7 +96,7 @@ function CategoryManager({
     if (
       category.is_active &&
       !confirm(
-        `Delete the category "${category.name}"? It will no longer appear on new expenses, but past expenses keep it. You can restore it later.`,
+        t("finance.deleteCategoryConfirm").replace("{name}", category.name),
       )
     ) {
       return;
@@ -124,7 +124,7 @@ function CategoryManager({
         {canManage && (
           <div className="flex items-center gap-3">
             <p className="text-sm text-ink-secondary">
-              Create, edit, or delete categories. Deleting hides them from new expenses.
+              {t("finance.expenseCategoriesHelp")}
             </p>
             <button
               type="button"
@@ -132,14 +132,14 @@ function CategoryManager({
               onClick={startCreate}
               disabled={saving || creating}
             >
-              Add category
+              {t("finance.addCategory")}
             </button>
           </div>
         )}
       </div>
       {!canManage && (
         <p className="mt-2 text-sm text-ink-secondary">
-          You don’t have permission to manage expense categories.
+          {t("finance.noPermissionManageCategories")}
         </p>
       )}
       <ul className="mt-3 divide-y divide-border">
@@ -220,7 +220,7 @@ function CategoryManager({
                   {category.name}
                   {!category.is_active && (
                     <span className="ml-2 rounded bg-canvas px-2 py-0.5 text-xs font-semibold text-ink-secondary">
-                      Deleted
+                      {t("finance.deleted")}
                     </span>
                   )}
                 </p>
@@ -244,7 +244,7 @@ function CategoryManager({
                     onClick={() => toggleActive(category)}
                     disabled={saving}
                   >
-                    {category.is_active ? "Delete" : "Restore"}
+                    {category.is_active ? t("finance.delete") : t("finance.restore")}
                   </button>
                 </div>
               )}

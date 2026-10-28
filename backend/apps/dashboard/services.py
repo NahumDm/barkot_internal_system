@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from django.db.models import Count
 
+from apps.accounts.models import Role
 from apps.accounts.permissions import (
     CanViewInventory,
     CanViewPayroll,
@@ -36,7 +37,7 @@ from apps.core.business_time import business_period_bounds
 from apps.core.enums import PaymentMethod
 from apps.core.money import ZERO_MONEY
 from apps.finance.serializers import BalanceSerializer
-from apps.finance.services import finance_balance
+from apps.finance.services import additional_income_total, finance_balance
 from apps.payroll.models import PayrollRun
 from apps.payroll.serializers import PayrollRunSerializer
 from apps.reports.services import inventory_stock_balance
@@ -92,6 +93,17 @@ def dashboard_summary(*, start: date, end: date, user: User) -> dict[str, Any]:
             "transactions": sales_intraday.count(),
             "recent": SaleListSerializer(sales_intraday[:5], many=True).data,
         }
+
+    if (
+        user.has_perm(CanViewReports.required_permission)
+        and getattr(getattr(user, "role", None), "code", None) == Role.Code.OWNER
+    ):
+        try:
+            payload["additional_income"] = {
+                "total": str(additional_income_total(start=start, end=end)),
+            }
+        except Exception:
+            payload["additional_income"] = {"total": "0.00"}
 
     if user.has_perm(CanViewInventory.required_permission):
         report = inventory_stock_balance(as_of=end)

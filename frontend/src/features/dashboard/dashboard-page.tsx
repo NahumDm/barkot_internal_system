@@ -10,6 +10,7 @@ import {
   type DashboardPayroll,
   type DashboardResponse,
   type DashboardSales,
+  type DashboardAdditionalIncome,
 } from "@/lib/api";
 import type { ApiError } from "@/lib/api/errors";
 import type { FinanceBalance } from "@/lib/api/finance";
@@ -52,6 +53,7 @@ export default function DashboardPage() {
   const canViewInventory = granted.includes("inventory.view_inventory");
   const canViewFinance = granted.includes("finance.view_reports");
   const canViewPayroll = granted.includes("payroll.view_payroll");
+  const isOwner = user?.role?.toUpperCase() === "OWNER";
 
   const initialStart = monthStartToday();
   const [start, setStart] = useState(initialStart);
@@ -125,6 +127,13 @@ export default function DashboardPage() {
               <SectionNote>{t("dashboard.noSales")}</SectionNote>
             ) : (
               <SectionNote>{t("dashboard.salesNotShown")}</SectionNote>
+            )}
+            {data.additional_income ? (
+              <AdditionalIncomePanel additionalIncome={data.additional_income} />
+            ) : isOwner && canViewFinance ? (
+              <SectionNote>{t("dashboard.noAdditionalIncome")}</SectionNote>
+            ) : (
+              <SectionNote>{t("dashboard.additionalIncomeNotShown")}</SectionNote>
             )}
             {data.inventory ? (
               <InventoryPanel inventory={data.inventory} />
@@ -334,13 +343,6 @@ function PayrollPanel({ payroll }: { payroll: DashboardPayroll }) {
               }.`
             : "Generated but not approved yet."}
         </p>
-        <p className="text-xs text-ink-secondary">
-          {payroll.approved_by_username
-            ? `Approved by ${payroll.approved_by_username}${
-                payroll.approved_at ? ` on ${dateStamp(payroll.approved_at)}` : ""
-              }.`
-            : "Generated but not approved yet."}
-        </p>
       </div>
     </section>
   );
@@ -379,5 +381,42 @@ function Line({ label, value }: { label: string; value: string }) {
       <dt className="text-ink-secondary">{label}</dt>
       <dd className="font-medium text-ink">{value}</dd>
     </div>
+  );
+}
+
+function AdditionalIncomePanel({
+  additionalIncome,
+}: {
+  additionalIncome: DashboardAdditionalIncome;
+}) {
+  const t = useT();
+  return (
+    <section className="panel rounded border border-border bg-surface p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="panel-title text-sm font-semibold text-ink">
+            {t("dashboard.additionalIncomeTitle")}
+          </h2>
+          <p className="panel-sub text-xs text-ink-secondary">
+            {t("dashboard.additionalIncomeSub")}
+          </p>
+        </div>
+        <Link
+          href="/finance/additional-income"
+          className="btn-outline text-sm font-medium text-ink hover:text-ink-secondary"
+        >
+          {t("dashboard.openAdditionalIncome")}
+        </Link>
+      </div>
+      <dl className="mt-3 space-y-3 text-sm">
+        <Line
+          label={t("dashboard.additionalIncomeTotal")}
+          value={money(additionalIncome.total)}
+        />
+      </dl>
+      <p className="mt-3 text-xs text-ink-secondary">
+        {t("dashboard.additionalIncomeNote")}
+      </p>
+    </section>
   );
 }

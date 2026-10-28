@@ -40,6 +40,10 @@ export interface DashboardSales {
   recent: DashboardSaleRow[];
 }
 
+export interface DashboardAdditionalIncome {
+  total: string;
+}
+
 export interface DashboardInventory {
   as_of: string;
   in_stock_total: string;
@@ -62,6 +66,7 @@ export interface DashboardPayroll {
 export interface DashboardResponse {
   period: DashboardPeriod;
   sales: DashboardSales | null;
+  additional_income: DashboardAdditionalIncome | null;
   inventory: DashboardInventory | null;
   finance: FinanceBalance | null;
   payroll: DashboardPayroll | null;

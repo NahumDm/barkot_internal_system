@@ -4,8 +4,8 @@ import { navGroups, visibleNavGroups } from "@/components/layout/nav";
 describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
   const flat = navGroups.flatMap((group) => group.items);
 
-  it("defines exactly 22 nav items", () => {
-    expect(flat).toHaveLength(22);
+  it("defines exactly 23 nav items", () => {
+    expect(flat).toHaveLength(23);
   });
 
   it("covers every normative route of spec §7.4 plus the category manager, register and Bono", () => {
@@ -28,6 +28,7 @@ describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
         "/finance",
         "/finance/expenses",
         "/finance/balance",
+        "/finance/additional-income",
         "/payroll/employees",
         "/payroll/runs",
         "/payroll/deductions",
@@ -46,15 +47,15 @@ describe("sidebar navigation (UX §3.1, spec §7.4)", () => {
   it("orders sections per UX §3.1 with Bono after sales", () => {
     const groupings = navGroups.map((group) => group.heading ?? group.items[0].label);
     expect(groupings).toEqual([
-      "Dashboard",
-      "Sales",
-      "Bono",
-      "Inventory",
-      "Finance",
-      "Payroll",
-      "Staff",
-      "Reports",
-      "Settings",
+      "nav.dashboard",
+      "nav.sales",
+      "nav.bono",
+      "nav.inventory",
+      "nav.finance",
+      "nav.payroll",
+      "nav.staff",
+      "nav.reports",
+      "nav.settings",
     ]);
   });
 });
@@ -139,8 +140,8 @@ describe("sidebar visibility by role", () => {
     ],
   };
 
-  const hrefsFor = (permissions: string[]) =>
-    visibleNavGroups(permissions)
+  const hrefsFor = (permissions: string[], role?: string) =>
+    visibleNavGroups(permissions, role)
       .flatMap((group) => group.items)
       .map((item) => item.href);
 
@@ -149,24 +150,25 @@ describe("sidebar visibility by role", () => {
   });
 
   it("gives the owner every destination (spec §7.4)", () => {
-    expect(hrefsFor(PERMISSIONS.owner)).toHaveLength(22);
+    expect(hrefsFor(PERMISSIONS.owner, "OWNER")).toHaveLength(23);
   });
 
-  it("hides settings from a manager but keeps their finance, payroll, register and reports work", () => {
-    const hrefs = hrefsFor(PERMISSIONS.manager);
+  it("hides settings from a manager but keeps their finance, payroll and reports work", () => {
+    const hrefs = hrefsFor(PERMISSIONS.manager, "MANAGER");
     expect(hrefs).not.toContain("/settings");
     expect(hrefs).toContain("/finance");
     expect(hrefs).toContain("/payroll/runs");
-    expect(hrefs).toContain("/employees");
+    expect(hrefs).not.toContain("/employees");
+    expect(hrefs).not.toContain("/finance/additional-income");
     expect(hrefs).toContain("/reports");
     expect(hrefs).toContain("/bono");
     expect(hrefs).toContain("/bono/reports");
     expect(hrefs).not.toContain("/bono/configuration");
-    expect(hrefs).toHaveLength(19);
+    expect(hrefs).toHaveLength(18);
   });
 
   it("hides finance, payroll, reports and settings from a cashier", () => {
-    const hrefs = hrefsFor(PERMISSIONS.cashier);
+    const hrefs = hrefsFor(PERMISSIONS.cashier, "CASHIER");
     expect(hrefs).toEqual([
       "/dashboard",
       "/sales",
@@ -182,7 +184,7 @@ describe("sidebar visibility by role", () => {
   });
 
   it("gives a barman Bono read access but no Sales, stock count, finance or settings", () => {
-    const hrefs = hrefsFor(PERMISSIONS.barman);
+    const hrefs = hrefsFor(PERMISSIONS.barman, "BARMAN");
     expect(hrefs).not.toContain("/inventory/counts");
     expect(hrefs).not.toContain("/sales");
     expect(hrefs).not.toContain("/finance");
@@ -203,9 +205,9 @@ describe("sidebar visibility by role", () => {
   });
 
   it("drops a group once every item in it is hidden", () => {
-    const headings = visibleNavGroups(PERMISSIONS.cashier).map(
+    const headings = visibleNavGroups(PERMISSIONS.cashier, "CASHIER").map(
       (group) => group.heading ?? group.items[0].label,
     );
-    expect(headings).toEqual(["Dashboard", "Sales", "Bono", "Inventory"]);
+    expect(headings).toEqual(["nav.dashboard", "nav.sales", "nav.bono", "nav.inventory"]);
   });
 });

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { EmptyNote, ErrorBanner, LoadingNote, PageHeader } from "@/features/payroll/parts";
 import {
   archiveEmployee,
@@ -31,7 +32,7 @@ import type { ApiError } from "@/lib/api/errors";
  *
  * **The document is chosen, not linked.** A file input per row posts straight
  * to the upload endpoint, which validates PDF content and size and stores the
- * file under a name of its own; the table only ever shows "PDF on file" and
+ * file under a name of its own; the table only ever shows "{t("employee.pdfOnFile")}" and
  * that stored name. There is no URL to render and none is invented here.
  *
  * One form serves create and edit, in the same locked-then-unlocked way the
@@ -65,7 +66,10 @@ const EMPTY_FORM = {
 export default function EmployeeRegister() {
   const { status, user } = useAuth();
   const checking = status === "checking";
-  const canManage = user?.permissions?.includes("users.manage_employees") ?? false;
+  const isOwner = user?.role?.toUpperCase() === "OWNER";
+  const canManage =
+    isOwner && (user?.permissions?.includes("users.manage_employees") ?? false);
+  const t = useT();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [ready, setReady] = useState(false);
@@ -75,6 +79,26 @@ export default function EmployeeRegister() {
   const [editing, setEditing] = useState<Employee | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const feedbackRef = useRef<HTMLDivElement>(null);
+
+  // Pressing Edit populates the form above the table. On a laptop the table is
+  // already scrolled into view, so without this the only visible change happens
+  // off-screen and the button looks broken. Moving the form into view (and
+  // focusing its first field) makes the edit state unmistakable.
+  useEffect(() => {
+    if (!editing) return;
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    nameInputRef.current?.focus({ preventScroll: true });
+  }, [editing]);
+
+  // The success/error banner sits above the form and would otherwise be just
+  // outside the viewport after a save. `nearest` scrolls only as far as needed.
+  useEffect(() => {
+    if (!saved && !error) return;
+    feedbackRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [saved, error]);
 
   const refresh = useCallback(
     () =>
@@ -113,10 +137,10 @@ export default function EmployeeRegister() {
       if (editing) {
         const updated = await updateEmployee(editing.id, body satisfies EmployeeUpdateInput);
         setEditing(null);
-        setSaved(`${updated.full_name}'s record was updated.`);
+        setSaved(t("employee.updated").replace("{name}", updated.full_name));
       } else {
         const created = await createEmployee(body);
-        setSaved(`${created.full_name} was added to the register.`);
+        setSaved(t("employee.added").replace("{name}", created.full_name));
       }
       setForm(EMPTY_FORM);
       await refresh();
@@ -156,10 +180,10 @@ export default function EmployeeRegister() {
     try {
       if (employee.is_archived) {
         const restored = await restoreEmployee(employee.id);
-        setSaved(`${restored.full_name} was restored to the register.`);
+        setSaved(t("employee.restored").replace("{name}", restored.full_name));
       } else {
         const archived = await archiveEmployee(employee.id);
-        setSaved(`${archived.full_name} was archived.`);
+        setSaved(t("employee.archivedMsg").replace("{name}", archived.full_name));
       }
       await refresh();
     } catch (value) {
@@ -173,7 +197,7 @@ export default function EmployeeRegister() {
     setSaved(null);
     try {
       await uploadEmployeeDocument(employee.id, file);
-      setSaved(`PDF on file for ${employee.full_name}.`);
+      setSaved(t("employee.pdfOnFileFor").replace("{name}", employee.full_name));
       await refresh();
     } catch (value) {
       setError(value as ApiError);
@@ -182,9 +206,9 @@ export default function EmployeeRegister() {
 
   const header = (
     <PageHeader
-      eyebrow="Staff"
-      title="Employee Register"
-      blurb="Who works here — registered people, their contracts and their documents. Registering someone creates no login account."
+      eyebrow={t("employee.eyebrow")}
+      title={t("employee.title")}
+      blurb={t("employee.blurb")}
     />
   );
 
@@ -193,7 +217,7 @@ export default function EmployeeRegister() {
       <section className="space-y-6">
         {header}
         <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
-          Your role does not include the employee register. Ask an owner if you need access.
+          {t("employee.noAccess")}
         </div>
       </section>
     );
@@ -202,20 +226,34 @@ export default function EmployeeRegister() {
   return (
     <section className="space-y-6">
       {header}
-      <ErrorBanner error={error} />
-      {saved && (
-        <p className="rounded border border-success/30 bg-success/10 p-3 text-sm text-success">
-          {saved}
-        </p>
-      )}
+      <div ref={feedbackRef} className="space-y-3" aria-live="polite">
+        <ErrorBanner error={error} />
+        {saved && (
+          <p className="rounded border border-success/30 bg-success/10 p-3 text-sm text-success">
+            {saved}
+          </p>
+        )}
+      </div>
 
       <form
+        ref={formRef}
         onSubmit={submit}
-        className="grid gap-3 rounded border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4"
+        className="scroll-mt-4 grid gap-3 rounded border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4"
       >
+        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-3 sm:col-span-2 lg:col-span-4">
+          <h2 className="text-sm font-semibold text-ink">
+            {editing ? t("employee.editing").replace("{name}", editing.full_name) : t("employee.registerNew")}
+          </h2>
+          {editing && (
+            <span className="font-mono text-xs text-ink-secondary">
+              Employee ID {editing.employee_id}
+            </span>
+          )}
+        </div>
         <label className="field-label">
-          Full name
+          {t("employee.fullName")}
           <input
+            ref={nameInputRef}
             required
             value={form.full_name}
             onChange={(event) => setForm({ ...form, full_name: event.target.value })}
@@ -223,17 +261,17 @@ export default function EmployeeRegister() {
           />
         </label>
         <label className="field-label">
-          Position
+          {t("employee.position")}
           <input
             required
             value={form.position}
             onChange={(event) => setForm({ ...form, position: event.target.value })}
-            placeholder="e.g. Barman"
+            placeholder={t("employee.positionPlaceholder")}
             className="control mt-1.5"
           />
         </label>
         <label className="field-label">
-          Phone (optional)
+          {t("employee.phoneOptional")}
           <input
             value={form.phone_number}
             onChange={(event) => setForm({ ...form, phone_number: event.target.value })}
@@ -241,25 +279,25 @@ export default function EmployeeRegister() {
           />
         </label>
         <label className="field-label">
-          Address
+          {t("employee.address")}
           <input
             value={form.address}
             onChange={(event) => setForm({ ...form, address: event.target.value })}
             className="control mt-1.5"
-            placeholder="e.g. Addis Ababa"
+            placeholder={t("employee.addressPlaceholder")}
           />
         </label>
         <label className="field-label">
-          Emergency contact
+          {t("employee.emergencyContact")}
           <input
             value={form.emergency_contact}
             onChange={(event) => setForm({ ...form, emergency_contact: event.target.value })}
             className="control mt-1.5"
-            placeholder="e.g. +251911123456 - Mother"
+            placeholder={t("employee.emergencyContactPlaceholder")}
           />
         </label>
         <label className="field-label">
-          Started
+          {t("employee.started")}
           <input
             required
             type="date"
@@ -269,7 +307,7 @@ export default function EmployeeRegister() {
           />
         </label>
         <label className="field-label">
-          Contract type
+          {t("employee.contractType")}
           <select
             value={form.contract_type}
             onChange={(event) =>
@@ -279,13 +317,13 @@ export default function EmployeeRegister() {
           >
             {CONTRACT_TYPES.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {t(`employee.contractType.${option.value}`)}
               </option>
             ))}
           </select>
         </label>
         <label className="field-label">
-          Contract ends (optional)
+          {t("employee.contractEndsOptional")}
           <input
             type="date"
             value={form.contract_end_date}
@@ -294,7 +332,7 @@ export default function EmployeeRegister() {
           />
         </label>
         <label className="field-label sm:col-span-2">
-          Notes (optional)
+          {t("employee.notesOptional")}
           <input
             value={form.notes}
             onChange={(event) => setForm({ ...form, notes: event.target.value })}
@@ -304,18 +342,18 @@ export default function EmployeeRegister() {
         <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-4 lg:justify-self-end">
           {editing && (
             <button type="button" onClick={cancelEdit} className="btn btn-secondary">
-              Cancel
+              {t("common.cancel")}
             </button>
           )}
           <button type="submit" disabled={saving} className="btn btn-primary">
-            {saving ? "Saving..." : editing ? "Save changes" : "Add to register"}
+            {saving ? t("common.saving") : editing ? t("employee.saveChanges") : t("employee.addToRegister")}
           </button>
         </div>
       </form>
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="field-label">
-          Showing
+          {t("employee.showing")}
           <select
             value={filter}
             onChange={(event) => {
@@ -324,9 +362,9 @@ export default function EmployeeRegister() {
             }}
             className="control mt-1.5"
           >
-            <option value="active">Current staff</option>
-            <option value="archived">Archived (left)</option>
-            <option value="all">Everyone</option>
+            <option value="active">{t("employee.currentStaff")}</option>
+            <option value="archived">{t("employee.archivedLeft")}</option>
+            <option value="all">{t("employee.everyone")}</option>
           </select>
         </label>
       </div>
@@ -335,16 +373,16 @@ export default function EmployeeRegister() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">Employee ID</th>
-              <th className="px-3 py-3">Full name</th>
-              <th className="px-3 py-3">Position</th>
-              <th className="px-3 py-3">Phone</th>
-              <th className="px-3 py-3">Address</th>
-              <th className="px-3 py-3">Started</th>
-              <th className="px-3 py-3">Contract</th>
-              <th className="px-3 py-3">Status</th>
-              <th className="px-3 py-3">Document</th>
-              <th className="px-3 py-3">Actions</th>
+              <th className="px-3 py-3">{t("employee.colEmployeeId")}</th>
+              <th className="px-3 py-3">{t("employee.colFullName")}</th>
+              <th className="px-3 py-3">{t("employee.colPosition")}</th>
+              <th className="px-3 py-3">{t("employee.colPhone")}</th>
+              <th className="px-3 py-3">{t("employee.colAddress")}</th>
+              <th className="px-3 py-3">{t("employee.colStarted")}</th>
+              <th className="px-3 py-3">{t("employee.colContract")}</th>
+              <th className="px-3 py-3">{t("employee.colStatus")}</th>
+              <th className="px-3 py-3">{t("employee.colDocument")}</th>
+              <th className="px-3 py-3">{t("employee.colActions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -369,7 +407,7 @@ export default function EmployeeRegister() {
                       employee.is_archived ? "text-danger" : "text-success"
                     }`}
                   >
-                    {employee.is_archived ? "Archived" : "Active"}
+                    {employee.is_archived ? t("employee.archived") : t("employee.active")}
                   </span>
                 </td>
                 <td className="px-3 py-3 text-ink-secondary">
@@ -381,14 +419,14 @@ export default function EmployeeRegister() {
                       className="text-brand underline text-xs font-semibold"
                       title={employee.document_filename}
                     >
-                      PDF on file
+                      {t("employee.pdfOnFile")}
                     </a>
                   ) : (
-                    "None"
+                    t("employee.none")
                   )}
                   <label className="ml-3 inline-flex cursor-pointer items-center">
                     <span className="text-xs font-semibold text-brand underline">
-                      {employee.has_document ? "Replace" : "Upload"}
+                      {employee.has_document ? t("employee.replace") : t("employee.upload")}
                     </span>
                     <input
                       type="file"
@@ -409,7 +447,7 @@ export default function EmployeeRegister() {
                         onClick={() => startEdit(employee)}
                         className="btn btn-secondary"
                       >
-                        Edit
+                        {t("employee.edit")}
                       </button>
                     )}
                     <button
@@ -417,7 +455,7 @@ export default function EmployeeRegister() {
                       onClick={() => void toggleArchived(employee)}
                       className="btn btn-ghost"
                     >
-                      {employee.is_archived ? "Restore" : "Archive"}
+                      {employee.is_archived ? t("employee.restore") : t("employee.archive")}
                     </button>
                   </div>
                 </td>
@@ -427,16 +465,16 @@ export default function EmployeeRegister() {
         </table>
         {!ready ? (
           error ? (
-            <EmptyNote>The register could not be loaded. See the message above.</EmptyNote>
+            <EmptyNote>{t("employee.loadError")}</EmptyNote>
           ) : (
-            <LoadingNote label="Loading the register..." />
+            <LoadingNote label={t("employee.loading")} />
           )
         ) : (
           employees.length === 0 && (
             <EmptyNote>
               {filter === "archived"
-                ? "No one has been archived yet."
-                : "No one is on the register yet. Add the first person above."}
+                ? t("employee.noArchived")
+                : t("employee.noOneYet")}
             </EmptyNote>
           )
         )}

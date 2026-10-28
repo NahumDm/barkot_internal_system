@@ -8,6 +8,13 @@ export interface NavItem {
    * open out of their menu.
    */
   permissions?: string[];
+  /**
+   * Hide the destination from everyone but the Owner. Used where the API is
+   * gated by ownership rather than by a permission code (the employee register
+   * and additional income), because the role matrix alone would also offer it
+   * to the Manager and then answer their request with a refusal.
+   */
+  ownerOnly?: boolean;
 }
 
 export interface NavGroup {
@@ -86,6 +93,12 @@ export const navGroups: NavGroup[] = [
       { label: "nav.overview", href: "/finance", permissions: ["finance.view_reports"] },
       { label: "nav.expenses", href: "/finance/expenses", permissions: ["finance.view_reports"] },
       { label: "nav.balance", href: "/finance/balance", permissions: ["finance.view_reports"] },
+      {
+        label: "nav.additionalIncome",
+        href: "/finance/additional-income",
+        permissions: ["finance.view_reports"],
+        ownerOnly: true,
+      },
     ],
   },
   {
@@ -103,6 +116,7 @@ export const navGroups: NavGroup[] = [
         label: "nav.employeeRegister",
         href: "/employees",
         permissions: ["users.manage_employees"],
+        ownerOnly: true,
       },
     ],
   },
@@ -126,14 +140,16 @@ export const navGroups: NavGroup[] = [
  * heading does not float above nothing. Presentation only - the API decides
  * every request - but a screen a role cannot open should not be offered.
  */
-export function visibleNavGroups(granted: readonly string[]): NavGroup[] {
+export function visibleNavGroups(granted: readonly string[], role?: string): NavGroup[] {
   const allowed = new Set(granted);
+  const isOwner = role?.toUpperCase() === "OWNER";
   return navGroups
     .map((group) => ({
       ...group,
       items: group.items.filter(
         (item) =>
-          !item.permissions || item.permissions.some((permission) => allowed.has(permission)),
+          (!item.ownerOnly || isOwner) &&
+          (!item.permissions || item.permissions.some((permission) => allowed.has(permission))),
       ),
     }))
     .filter((group) => group.items.length > 0);

@@ -23,7 +23,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
   useEffect(() => {
-    setLocaleState(getStoredLocale());
+    const stored = getStoredLocale();
+    setLocaleState(stored);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = stored === 'am' ? 'am' : 'en';
+    }
   }, []);
 
   const setLocale = (l: Locale) => {
@@ -34,7 +38,14 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const t = (key: string, fallback?: string) => {
     const dict = dictionaries[locale] ?? dictionaries.en;
-    return dict[key] ?? dictionaries.en[key] ?? fallback ?? key;
+    const translated = dict[key] ?? dictionaries.en[key];
+    if (translated === undefined && process.env.NODE_ENV !== 'production') {
+      // A missing key is a translation bug, not a runtime failure: the English
+      // dictionary (or the key itself) still renders. Log the exact key so the
+      // gap can be filled without guessing from a screenshot.
+      console.warn(`[i18n] missing ${locale} translation for "${key}"`);
+    }
+    return translated ?? fallback ?? key;
   };
 
   return (

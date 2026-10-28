@@ -55,16 +55,16 @@ export default function InventoryOverview() {
         </p>
       </div>
       {error && <p className="form-error">{error.message}</p>}
-      {loading && <p className="text-sm text-ink-secondary">Loading stock...</p>}
+      {loading && <p className="text-sm text-ink-secondary">{t("inventory.loadingStock")}</p>}
       <div className="overflow-x-auto rounded border border-border bg-surface">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-canvas text-xs uppercase tracking-wider text-ink-secondary">
             <tr>
-              <th className="px-3 py-3">Product</th>
-              <th className="px-3 py-3">SKU</th>
-              <th className="px-3 py-3">Unit</th>
-              <th className="px-3 py-3">On hand</th>
-              <th className="px-3 py-3">Price</th>
+              <th className="px-3 py-3">{t("inventory.colName")}</th>
+              <th className="px-3 py-3">{t("inventory.colSku")}</th>
+              <th className="px-3 py-3">{t("inventory.colUnit")}</th>
+              <th className="px-3 py-3">{t("inventory.colOnHand")}</th>
+              <th className="px-3 py-3">{t("inventory.colPrice")}</th>
             </tr>
           </thead>
           <tbody>
@@ -77,16 +77,16 @@ export default function InventoryOverview() {
                 <td className="px-3 py-3 text-ink-secondary">
                   {product.current_price
                     ? `${product.current_price.unit_price} ${product.current_price.currency}${
-                        crateSize(product) ? " per bottle" : ""
+                        crateSize(product) ? t("inventory.perBottle") : ""
                       }`
-                    : "Unpriced"}
+                    : t("inventory.unpriced")}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
         {!loading && products.length === 0 && !error && (
-          <p className="p-6 text-center text-sm text-ink-secondary">No tracked products found.</p>
+          <p className="p-6 text-center text-sm text-ink-secondary">{t("inventory.noTrackedProducts")}</p>
         )}
       </div>
     </section>

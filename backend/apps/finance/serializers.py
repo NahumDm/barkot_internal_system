@@ -6,7 +6,8 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from apps.finance.models import Expense, ExpenseCategory
+from apps.core.enums import PaymentMethod
+from apps.finance.models import AdditionalIncome, Expense, ExpenseCategory
 
 
 class ExpenseCategorySerializer(serializers.ModelSerializer):
@@ -134,3 +135,109 @@ class BalanceSerializer(serializers.Serializer):
     expense_breakdown = serializers.DictField()
     payroll_total = serializers.DecimalField(max_digits=14, decimal_places=2)
     net = serializers.DecimalField(max_digits=14, decimal_places=2)
+
+
+class AdditionalIncomeSerializer(serializers.ModelSerializer):
+    """An additional income record."""
+    created_by_name = serializers.CharField(
+        source="created_by.get_full_name", read_only=True, default=""
+    )
+
+    class Meta:
+        model = AdditionalIncome
+        fields = [
+            "id",
+            "source",
+            "amount",
+            "currency",
+            "income_date",
+            "note",
+            "payment_method",
+            "created_by",
+            "created_by_name",
+            "created_at",
+            "updated_at",
+            "voided_at",
+            "voided_by",
+            "void_reason",
+        ]
+        read_only_fields = [
+            "id",
+            "currency",
+            "created_by",
+            "created_by_name",
+            "created_at",
+            "updated_at",
+            "voided_at",
+            "voided_by",
+            "void_reason",
+        ]
+
+
+class AdditionalIncomeCreateSerializer(serializers.Serializer):
+    source = serializers.CharField(max_length=255, trim_whitespace=True)
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    currency = serializers.CharField(max_length=3, default="ETB")
+    income_date = serializers.DateField()
+    note = serializers.CharField(trim_whitespace=True)
+    payment_method = serializers.ChoiceField(
+        choices=PaymentMethod.choices, default=PaymentMethod.CASH
+    )
+
+    def validate_source(self, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Income source is required.")
+        return value
+
+    def validate_note(self, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Source / description note is required.")
+        return value
+
+    def validate_amount(self, value: Decimal) -> Decimal:
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than zero.")
+        return value
+
+    def validate_currency(self, value: str) -> str:
+        value = value.strip().upper()
+        if value != "ETB":
+            raise serializers.ValidationError("Only ETB is supported.")
+        return value
+
+
+class AdditionalIncomeUpdateSerializer(serializers.Serializer):
+    source = serializers.CharField(max_length=255, trim_whitespace=True, required=False)
+    amount = serializers.DecimalField(max_digits=14, decimal_places=2, required=False)
+    currency = serializers.CharField(max_length=3, required=False)
+    income_date = serializers.DateField(required=False)
+    note = serializers.CharField(trim_whitespace=True, required=False)
+    payment_method = serializers.ChoiceField(choices=PaymentMethod.choices, required=False)
+
+    def validate_source(self, value: str) -> str:
+        if value is not None:
+            value = value.strip()
+            if not value:
+                raise serializers.ValidationError("Income source is required.")
+        return value
+
+    def validate_note(self, value: str) -> str:
+        if value is not None:
+            value = value.strip()
+            if not value:
+                raise serializers.ValidationError("Source / description note is required.")
+        return value
+
+    def validate_amount(self, value: Decimal) -> Decimal:
+        if value is not None and value <= 0:
+            raise serializers.ValidationError("Amount must be greater than zero.")
+        return value
+
+    def validate_currency(self, value: str) -> str:
+        if value is not None:
+            value = value.strip().upper()
+            if value != "ETB":
+                raise serializers.ValidationError("Only ETB is supported.")
+        return value

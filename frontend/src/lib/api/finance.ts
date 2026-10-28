@@ -123,3 +123,66 @@ export function approveExpense(
     method: "POST",
   });
 }
+
+export interface AdditionalIncome {
+  id: number;
+  source: string;
+  amount: string;
+  currency: string;
+  income_date: string;
+  note: string;
+  payment_method: string;
+  created_by: number | null;
+  created_by_name: string;
+  created_at: string;
+  updated_at: string;
+  voided_at: string | null;
+  voided_by: number | null;
+  void_reason: string;
+}
+
+export interface AdditionalIncomeCreateInput {
+  source: string;
+  amount: string;
+  currency?: "ETB";
+  income_date: string;
+  note: string;
+  payment_method?: string;
+}
+
+export interface AdditionalIncomeUpdateInput {
+  source?: string;
+  amount?: string;
+  currency?: "ETB";
+  income_date?: string;
+  note?: string;
+  payment_method?: string;
+}
+
+export function listAdditionalIncome(options: RequestOptions = {}): Promise<PaginatedResponse<AdditionalIncome>> {
+  return apiFetch<PaginatedResponse<AdditionalIncome>>("/finance/additional-income/", options);
+}
+
+export function createAdditionalIncome(input: AdditionalIncomeCreateInput, options: Omit<RequestOptions, "method" | "body"> = {}): Promise<AdditionalIncome> {
+  return apiFetch<AdditionalIncome>("/finance/additional-income/", {
+    ...options,
+    method: "POST",
+    body: input,
+  });
+}
+
+export function updateAdditionalIncome(id: number, input: AdditionalIncomeUpdateInput, options: Omit<RequestOptions, "method" | "body"> = {}): Promise<AdditionalIncome> {
+  return apiFetch<AdditionalIncome>(`/finance/additional-income/${id}/`, {
+    ...options,
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export function deleteAdditionalIncome(id: number, input?: { void_reason?: string }, options: Omit<RequestOptions, "method" | "body"> = {}): Promise<never> {
+  return apiFetch<never>(`/finance/additional-income/${id}/`, {
+    ...options,
+    method: "DELETE",
+    body: input || { void_reason: "Deleted by owner" },
+  });
+}

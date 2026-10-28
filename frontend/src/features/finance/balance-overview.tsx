@@ -82,37 +82,37 @@ export default function BalanceOverview() {
         <>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <Metric
-              label="Income"
+              label={t("finance.income")}
               value={money(balance.income.total, balance.currency)}
               tone="positive"
             />
             <Metric
-              label="Approved expenses"
+              label={t("finance.approvedExpenses")}
               value={money(balance.expenses_total, balance.currency)}
             />
             <Metric label="Payroll" value={money(balance.payroll_total, balance.currency)} />
             <Metric
-              label="Business balance"
+              label={t("finance.businessBalance")}
               value={money(balance.net, balance.currency)}
               tone="accent"
             />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <section className="rounded border border-border bg-surface p-4">
-              <h2 className="text-sm font-semibold text-ink">Income by method</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("finance.incomeByMethod")}</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 <Line label="Cash" value={money(balance.income.cash, balance.currency)} />
                 <Line
-                  label="Mobile banking"
+                  label={t("finance.mobileBanking")}
                   value={money(balance.income.mobile_banking, balance.currency)}
                 />
               </dl>
             </section>
             <section className="rounded border border-border bg-surface p-4">
-              <h2 className="text-sm font-semibold text-ink">Expenses by category</h2>
+              <h2 className="text-sm font-semibold text-ink">{t("finance.expensesByCategory")}</h2>
               <dl className="mt-4 space-y-3 text-sm">
                 {Object.entries(balance.expense_breakdown).length === 0 ? (
-                  <p className="text-ink-secondary">No approved expenses in this period.</p>
+                  <p className="text-ink-secondary">{t("finance.noApprovedExpenses")}</p>
                 ) : (
                   Object.entries(balance.expense_breakdown).map(([label, value]) => (
                     <Line key={label} label={label} value={money(value, balance.currency)} />

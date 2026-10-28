@@ -88,10 +88,10 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
     // then retry - is what "taking too long" actually means.
     setProblem(
       isRequestTimeout(error)
-        ? "The server is taking too long to respond. Try again in a moment."
+        ? "timeout"
         : error instanceof ApiError
           ? error.message
-          : "Cannot reach the server. Check your connection and try again.",
+          : "network",
     );
     setStatus("unavailable");
   }, []);

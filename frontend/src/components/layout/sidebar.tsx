@@ -72,7 +72,7 @@ export function Sidebar({
   const pathname = usePathname();
   const { user } = useAuth();
   const t = useT();
-  const groups = visibleNavGroups(user?.permissions ?? []);
+  const groups = visibleNavGroups(user?.permissions ?? [], user?.role);
 
   return (
     <>

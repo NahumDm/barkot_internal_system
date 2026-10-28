@@ -15,6 +15,7 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 
 import { ErrorCode, type ApiError } from "@/lib/api";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { useT } from "@/lib/i18n/context";
 
 /**
  * The one message shown above a form.
@@ -27,10 +28,11 @@ export function FormError({
   error,
   variant = "app",
 }: Readonly<{ error: ApiError | null; variant?: "app" | "auth" }>) {
+  const t = useT();
   if (error === null) return null;
   return (
     <p role="alert" className={variant === "auth" ? "auth-error" : "form-error"}>
-      {describe(error)}
+      {describe(error, t)}
     </p>
   );
 }
@@ -43,9 +45,9 @@ export function FormError({
  * so showing "those credentials were not accepted" would be a plain lie about a
  * password that may be entirely correct.
  */
-export function describe(error: ApiError): string {
+export function describe(error: ApiError, t: (key: string, fallback?: string) => string = (k) => k): string {
   if (error.code === ErrorCode.Throttled) {
-    return "Too many sign-in attempts. Wait a minute, then try again.";
+    return t("auth.tooManyAttempts");
   }
 
   const general = error.details?.["non_field_errors"];
@@ -101,6 +103,7 @@ export function Field({
   const id = useId();
   const errorId = `${id}-error`;
   const isAuth = variant === "auth";
+  const t = useT();
   const [revealed, setRevealed] = useState(false);
   const resolvedType = revealable ? (revealed ? "text" : "password") : type;
 
@@ -143,7 +146,7 @@ export function Field({
             ) : (
               <Eye aria-hidden="true" size={18} />
             )}
-            <span className="sr-only">{revealed ? "Hide password" : "Show password"}</span>
+            <span className="sr-only">{revealed ? t("auth.hidePassword") : t("auth.showPassword")}</span>
           </button>
         </div>
       ) : (
@@ -166,6 +169,7 @@ export function FormShell({
   subtitle,
   children,
 }: Readonly<{ title: string; subtitle: string; children?: ReactNode }>) {
+  const t = useT();
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
@@ -188,7 +192,7 @@ export function FormShell({
 
   return (
     <main className="auth-page">
-      <div className="auth-lang" aria-label="Language">
+      <div className="auth-lang" aria-label={t("common.language")}>
         <LanguageSwitcher className="lang-switch lang-switch--auth" />
       </div>
       <div className="auth-decoration" aria-hidden="true">
@@ -220,8 +224,7 @@ export function FormShell({
               <Image
                 className="auth-mark"
                 src="/images/barkot-mark.png"
-                alt="Barkot logo"
-                width={169}
+                alt={t("app.logoAlt")}                width={169}
                 height={169}
                 priority
                 unoptimized
@@ -246,7 +249,7 @@ export function FormShell({
       </div>
       <footer className="auth-page-footer">
         <Copyright aria-hidden="true" size={13} />
-        <span>2026 Barkot Bar &amp; Restaurant</span>
+        <span>{t("common.copyright")}</span>
       </footer>
     </main>
   );

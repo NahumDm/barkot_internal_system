@@ -27,6 +27,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
 import { useAuth, type AuthStatus } from "./auth-provider";
+import { useT } from "@/lib/i18n/context";
 
 export function RequireAuth({ children }: Readonly<{ children: ReactNode }>) {
   const { status, user, problem, refresh } = useAuth();
@@ -60,15 +61,22 @@ function GuardNotice({
   problem,
   onRetry,
 }: Readonly<{ status: AuthStatus; problem: string | null; onRetry: () => void }>) {
+  const t = useT();
   if (status === "unavailable") {
+    const detail =
+      problem === "timeout"
+        ? t("auth.serverSlow")
+        : problem === "network"
+          ? t("auth.cannotReach")
+          : (problem ?? t("auth.sessionCouldNotBeChecked"));
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
-        <h1 className="text-xl font-semibold text-ink">Cannot reach the server</h1>
+        <h1 className="text-xl font-semibold text-ink">{t("auth.cannotReachTitle")}</h1>
         <p className="max-w-md text-sm text-ink-secondary">
-          {problem ?? "The session could not be checked."} This is usually temporary.
+          {detail} {t("auth.usuallyTemporary")}
         </p>
         <button type="button" onClick={onRetry} className="btn btn-secondary">
-          Try again
+          {t("auth.tryAgain")}
         </button>
       </div>
     );
@@ -76,10 +84,10 @@ function GuardNotice({
 
   const message =
     status === "anonymous"
-      ? "Redirecting to sign in…"
+      ? t("auth.redirecting")
       : status === "checking"
-        ? "Checking your session…"
-        : "Setting up your account…";
+        ? t("auth.checkingSession")
+        : t("auth.settingUp");
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">

@@ -72,20 +72,20 @@ export default function ReportsPage() {
         <div className="flex flex-wrap items-end gap-2">
           <TabButton
             active={tab === "financial"}
-            label="Financial"
+            label={t("reports.tabFinancial")}
             onClick={() => setTab("financial")}
           />
           <TabButton
             active={tab === "inventory"}
-            label="Inventory"
+            label={t("reports.tabInventory")}
             onClick={() => setTab("inventory")}
           />
-          <TabButton active={tab === "payroll"} label="Payroll" onClick={() => setTab("payroll")} />
+          <TabButton active={tab === "payroll"} label={t("reports.tabPayroll")} onClick={() => setTab("payroll")} />
         </div>
       </div>
 
       {checking ? (
-        <LoadingNote label="Checking access..." />
+        <LoadingNote label={t("reports.checkingAccess")} />
       ) : !canView ? (
         <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
           Your role does not include reports. Ask an owner if you need access.
@@ -134,10 +134,12 @@ function TabButton({
   );
 }
 
-function DownloadPdf({ href, label = "Download PDF" }: { href: string; label?: string }) {
+function DownloadPdf({ href, label }: { href: string; label?: string }) {
+  const t = useT();
+  const text = label ?? t("reports.downloadPdf");
   return (
     <a href={href} className="btn btn-secondary">
-      {label}
+      {text}
     </a>
   );
 }
@@ -233,7 +235,7 @@ function FinancialTab({
               <dl className="mt-4 space-y-3 text-sm">
                 <Line label="Income" value={money(balance.income.total, balance.currency)} />
                 <Line label="Expenses" value={money(balance.expenses_total, balance.currency)} />
-                <Line label="Payroll" value={money(balance.payroll_total, balance.currency)} />
+                <Line label={t("reports.tabPayroll")} value={money(balance.payroll_total, balance.currency)} />
                 <Line label="Balance" value={money(balance.net, balance.currency)} />
               </dl>
             </section>

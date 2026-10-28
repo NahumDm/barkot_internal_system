@@ -32,9 +32,9 @@ import { useAuth } from "@/features/auth/auth-provider";
 import { useT } from "@/lib/i18n/context";
 import { ApiError, isSessionEnded } from "@/lib/api";
 
-function describeLogoutError(error: unknown): string {
+function describeLogoutError(error: unknown, t: (key: string, fallback?: string) => string): string {
   if (error instanceof ApiError) return error.message;
-  return "Signing out failed. Check your connection and try again.";
+  return t("account.signOutFailed");
 }
 
 function initials(name: string): string {
@@ -77,7 +77,7 @@ export function AccountMenu() {
         // stay signed in. Signing out "optimistically" in the browser while the
         // server keeps the session alive is exactly the failure this guard is
         // for - the user would be redirected, then silently signed back in.
-        setLogoutError(describeLogoutError(caught));
+        setLogoutError(describeLogoutError(caught, t));
         setBusy(false);
         return;
       }

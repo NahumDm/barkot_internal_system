@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { listSales, type SaleListItem, type Payment } from "@/lib/api/sales";
 import { type ApiError } from "@/lib/api/errors";
+import { useT } from "@/lib/i18n/context";
 import { Field, FormError } from "@/features/auth/form-parts";
 
 const PAGE_SIZE = 20;
@@ -63,6 +64,7 @@ function TransactionRow({ sale }: { sale: SaleListItem }) {
 }
 
 export default function SalesTransactionsPage() {
+  const t = useT();
   const [sales, setSales] = useState<SaleListItem[]>([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -124,7 +126,7 @@ export default function SalesTransactionsPage() {
   return (
     <section className="flex flex-col gap-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold text-ink">Transactions</h1>
+        <h1 className="text-2xl font-semibold text-ink">{t("sales.transactionsTitle")}</h1>
         <p className="text-sm text-ink-secondary">
           Every recorded sale, with the payment method used to settle it.
         </p>
@@ -140,13 +142,13 @@ export default function SalesTransactionsPage() {
       >
         <div className="min-w-0 flex-1">
           <Field
-            label="Search"
+            label={t("sales.search")}
             type="search"
             value={searchInput}
             onChange={setSearchInput}
             errors={[]}
             autoComplete="off"
-            hint="Search by reference"
+            hint={t("sales.searchByReference")}
           />
         </div>
         <select
@@ -157,9 +159,9 @@ export default function SalesTransactionsPage() {
           }}
           className="control control--inline"
         >
-          <option value="all">All statuses</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="VOIDED">Voided</option>
+          <option value="all">{t("sales.allStatuses")}</option>
+          <option value="COMPLETED">{t("sales.completed")}</option>
+          <option value="VOIDED">{t("sales.voided")}</option>
         </select>
       </form>
 
@@ -170,7 +172,7 @@ export default function SalesTransactionsPage() {
           Loading transactions…
         </div>
       ) : sales.length === 0 ? (
-        <div className="py-8 text-center text-ink-secondary">No transactions found.</div>
+        <div className="py-8 text-center text-ink-secondary">{t("sales.noTransactionsFound")}</div>
       ) : (
         <>
           <div className="overflow-x-auto rounded border border-border bg-surface">

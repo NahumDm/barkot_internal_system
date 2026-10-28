@@ -1,6 +1,7 @@
 "use client";
 
 import type { ApiError } from "@/lib/api/errors";
+import { useT } from "@/lib/i18n/context";
 import { fieldLabel } from "./format";
 
 /**
@@ -94,9 +95,10 @@ export function EmptyNote({ children }: { children: React.ReactNode }) {
  * payroll" sends them to sign in again for no reason.
  */
 export function NoAccessNote() {
+  const t = useT();
   return (
     <div className="rounded border border-border bg-surface p-6 text-sm text-ink-secondary">
-      Your role does not include payroll. Ask an owner if you need access.
+      {t("payroll.noAccess")}
     </div>
   );
 }

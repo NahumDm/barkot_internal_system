@@ -51,17 +51,17 @@ import { useT } from "@/lib/i18n/context";
  * one. Repairing that with an effect would mean writing state that the previous
  * render already disagrees with.
  */
-const DEDUCTION_TYPES: { value: PayrollDeductionType; label: string }[] = [
-  { value: "ADVANCE", label: "Salary advance" },
-  { value: "ABSENCE", label: "Absence" },
-  { value: "LATE", label: "Tardiness" },
-  { value: "OTHER", label: "Other" },
-];
+
 
 export default function DeductionRegister() {
   const { checking, view: canView, deduct } = usePayrollPermissions();
   const t = useT();
-
+  const DEDUCTION_TYPES = [
+    { value: "ADVANCE" as PayrollDeductionType, label: t("payroll.deductionType.advance") },
+    { value: "ABSENCE" as PayrollDeductionType, label: t("payroll.deductionType.absence") },
+    { value: "LATE" as PayrollDeductionType, label: t("payroll.deductionType.late") },
+    { value: "OTHER" as PayrollDeductionType, label: t("payroll.deductionType.other") },
+  ];
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [deductions, setDeductions] = useState<PayrollDeduction[]>([]);
   const [ready, setReady] = useState(false);
@@ -241,9 +241,9 @@ export default function DeductionRegister() {
 
   const header = (
     <PageHeader
-      eyebrow="Payroll"
-      title="Deductions"
-      blurb="What was taken off a payslip, and why — recorded against the run it belongs to."
+      eyebrow={t("payroll.eyebrow")}
+      title={t("payroll.deductionsTitle")}
+      blurb={t("payroll.deductionsBlurb")}
     />
   );
 
@@ -300,7 +300,7 @@ export default function DeductionRegister() {
               </label>
 
               <label className="field-label">
-                Employee
+                {t("payroll.employee")}
                 <select
                   required
                   disabled={editing !== null || itemsLoading || shownItems.length === 0}
@@ -309,7 +309,7 @@ export default function DeductionRegister() {
                   className="control mt-1.5"
                 >
                   <option value="" disabled>
-                    {itemsLoading ? "Loading employees..." : "Select employee"}
+                    {itemsLoading ? t("payroll.loadingEmployees") : t("payroll.selectEmployee")}
                   </option>
                   {shownItems.map((line) => (
                     <option key={line.id} value={line.id}>
@@ -349,11 +349,11 @@ export default function DeductionRegister() {
               </label>
 
               <label className="field-label">
-                Reason
+                {t("payroll.reason")}
                 <input
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
-                  placeholder="Why this was taken"
+                  placeholder={t("payroll.reasonPlaceholder")}
                   className="control mt-1.5"
                 />
               </label>
@@ -370,10 +370,10 @@ export default function DeductionRegister() {
 
               <p className="text-xs text-ink-secondary sm:col-span-2 lg:col-span-3">
                 {editing
-                  ? "Correcting a recorded deduction: the run and employee are fixed. Deductions cannot pass the line's gross pay."
+                  ? t("payroll.correcting")
                   : selectedLine
                     ? `${selectedLine.full_name} is on ${money(selectedLine.gross_amount, selectedLine.currency)} gross with ${money(selectedLine.total_deductions, selectedLine.currency)} deducted so far — deductions cannot pass the gross.`
-                    : "The date defaults to the run's period, and deductions cannot exceed the line's gross pay."}
+                    : t("payroll.defaultDateNote")}
               </p>
 
               <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-3 lg:justify-self-end">
@@ -385,11 +385,11 @@ export default function DeductionRegister() {
                 <button type="submit" disabled={saving || !itemId} className="btn btn-primary">
                   {saving
                     ? editing
-                      ? "Saving..."
-                      : "Recording..."
+                      ? t("payroll.saving")
+                      : t("payroll.recording")
                     : editing
                       ? "Save correction"
-                      : "Record deduction"}
+                      : t("payroll.recordDeduction")}
                 </button>
               </div>
             </form>

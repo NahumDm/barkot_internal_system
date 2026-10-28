@@ -16,6 +16,7 @@ export function LanguageSwitcher({
   className = "lang-switch",
 }: Readonly<{ className?: string }>) {
   const { locale, setLocale } = useI18n();
+  const t = useI18n().t;
 
   const next: Locale = locale === "en" ? "am" : "en";
   const label = LOCALE_LABELS[next];
@@ -27,8 +28,8 @@ export function LanguageSwitcher({
       type="button"
       className={className}
       onClick={toggle}
-      aria-label={`Switch language to ${label}`}
-      title={`Switch language to ${label}`}
+      aria-label={t("language.switchTo").replace("{label}", label)}
+      title={t("language.switchTo").replace("{label}", label)}
     >
       <Globe className="h-5 w-5" aria-hidden="true" />
       <span className="lang-switch-code" aria-hidden="true">

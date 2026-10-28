@@ -36,7 +36,7 @@ from apps.core.business_time import business_period_bounds
 from apps.core.enums import ExpenseStatus, PaymentMethod, PayrollRunStatus
 from apps.core.exceptions import BARKOTDomainError
 from apps.core.money import ZERO_MONEY, quantize_money
-from apps.finance.models import Expense, ExpenseCategory
+from apps.finance.models import AdditionalIncome, Expense, ExpenseCategory
 from apps.payroll.models import PayrollRun
 from apps.sales.models import Payment
 
@@ -343,6 +343,11 @@ def approve_expense(*, expense: Expense, actor: User | None = None) -> Expense:
 
 __all__ = [
     "FinanceBalance",
+    "additional_income_by_date",
+    "additional_income_by_month",
+    "additional_income_by_range",
+    "additional_income_by_week",
+    "additional_income_total",
     "approve_expense",
     "approved_expenses_by_category",
     "approved_expenses_total",
@@ -354,3 +359,39 @@ __all__ = [
     "income_by_method",
     "update_expense_category",
 ]
+
+
+def additional_income_total(*, start: date | None = None, end: date | None = None) -> Decimal:
+    qs = AdditionalIncome.objects.filter(voided_at__isnull=True)
+    if start is not None:
+        qs = qs.filter(income_date__gte=start)
+    if end is not None:
+        qs = qs.filter(income_date__lte=end)
+    total = qs.aggregate(total=Sum("amount"))["total"]
+    return quantize_money(total or ZERO_MONEY)
+
+
+def additional_income_by_date(*, date_filter: date) -> Decimal:
+    total = AdditionalIncome.objects.filter(
+        voided_at__isnull=True,
+        income_date=date_filter,
+    ).aggregate(total=Sum("amount"))["total"]
+    return quantize_money(total or ZERO_MONEY)
+
+
+def additional_income_by_range(*, start: date, end: date) -> Decimal:
+    return additional_income_total(start=start, end=end)
+
+
+def additional_income_by_week(*, week_start: date) -> Decimal:
+    from datetime import timedelta
+    week_end = week_start + timedelta(days=6)
+    return additional_income_total(start=week_start, end=week_end)
+
+
+def additional_income_by_month(*, month_start: date) -> Decimal:
+    from datetime import timedelta
+    import calendar
+    last_day = calendar.monthrange(month_start.year, month_start.month)[1]
+    month_end = month_start.replace(day=last_day)
+    return additional_income_total(start=month_start, end=month_end)

@@ -202,7 +202,7 @@ export default function PayrollRuns() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            aria-label="Previous month"
+            aria-label={t("payroll.previousMonth")}
             onClick={() => setMonth((current) => shiftMonthKey(current, -1))}
             className="flex h-11 w-11 items-center justify-center rounded border border-border bg-surface text-ink hover:border-ink"
           >
@@ -210,7 +210,7 @@ export default function PayrollRuns() {
           </button>
           <input
             type="month"
-            aria-label="Month"
+            aria-label={t("payroll.month")}
             value={month}
             onChange={(event) => {
               if (event.target.value) setMonth(event.target.value);
@@ -219,7 +219,7 @@ export default function PayrollRuns() {
           />
           <button
             type="button"
-            aria-label="Next month"
+            aria-label={t("payroll.nextMonth")}
             onClick={() => setMonth((current) => shiftMonthKey(current, 1))}
             className="flex h-11 w-11 items-center justify-center rounded border border-border bg-surface text-ink hover:border-ink"
           >
@@ -295,7 +295,7 @@ export default function PayrollRuns() {
                     onClick={() => void perform("approve", () => approvePayrollRun(run.id))}
                     className="btn btn-primary"
                   >
-                    {busy === "approve" ? "Approving..." : "Approve run"}
+                    {busy === "approve" ? t("payroll.approving") : t("payroll.approveRun")}
                   </button>
                 ) : (
                   <span className="text-sm text-ink-secondary">
@@ -389,7 +389,7 @@ export default function PayrollRuns() {
 
           {canGenerate ? (
             <button type="submit" disabled={busy !== null} className="btn btn-primary">
-              {busy === "generate" ? "Generating..." : "Generate run"}
+              {busy === "generate" ? t("payroll.generating") : t("payroll.generateRun")}
             </button>
           ) : (
             <p className="text-sm text-ink-secondary">

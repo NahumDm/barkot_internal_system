@@ -6,7 +6,7 @@
  */
 
 import { apiFetch, type RequestOptions } from "./client";
-import { type ApiError, type ErrorDetails } from "./errors";
+import { type ApiError } from "./errors";
 
 export interface SaleItem {
   id: number;
@@ -65,7 +65,9 @@ export interface SaleListItem {
   total: string;
   currency: string;
   payment_status: string;
+  payment_status_display: string;
   item_count: number;
+  payments: Payment[];
   created_at: string;
 }
 

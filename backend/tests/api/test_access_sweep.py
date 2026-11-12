@@ -39,14 +39,16 @@ because most endpoints do not have a role dimension at all - ``me``, ``logout`` 
 from __future__ import annotations
 
 import json
+import re
 from typing import TYPE_CHECKING
 
 import pytest
-from rest_framework.permissions import AllowAny
+from django.urls import Resolver404, resolve
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.viewsets import ViewSetMixin
 
 from apps.accounts.models import Role
-from apps.accounts.permissions import HasRolePermission
+from apps.accounts.permissions import ROLE_MATRIX, HasRolePermission
 from tests.api.contract import EXEMPTIONS, Endpoint, discover_endpoints
 
 if TYPE_CHECKING:
@@ -54,6 +56,7 @@ if TYPE_CHECKING:
     from typing import Any
 
     from django.test import Client
+    from rest_framework.permissions import BasePermission
 
 ENDPOINTS = discover_endpoints()
 
@@ -88,58 +91,61 @@ def _is_public(endpoint: Endpoint) -> bool:
     return any(e.view_key == endpoint.key and PUBLIC_RULE in e.waives for e in EXEMPTIONS)
 
 
-def _role_gated(endpoint: Endpoint) -> bool:
-    """Return whether this view names a :class:`HasRolePermission`."""
-    declared = getattr(endpoint.view, "permission_classes", []) or []
-    if any(issubclass(permission, HasRolePermission) for permission in declared):
-        return True
+#: Path converters stand in for whatever the router would match. Resolving an
+#: endpoint needs a real path, and ``{pk}`` is not one.
+_PARAM = re.compile(r"\{[^}]+\}")
 
-    if not issubclass(endpoint.view, ViewSetMixin):
-        return False
 
-    action = _viewset_action(endpoint)
+def _concrete(path: str) -> str:
+    """Return ``path`` with its router placeholders filled in."""
+    return _PARAM.sub("1", path)
+
+
+def _action_for(endpoint: Endpoint) -> str | None:
+    """Return the viewset action DRF would dispatch this method to.
+
+    Returns None for anything that is not a routed viewset, or whose URL no longer
+    resolves, so a discovery quirk degrades to "no action" rather than aborting the
+    sweep.
+    """
+    try:
+        match = resolve(_concrete(endpoint.path))
+    except Resolver404:
+        return None
+    return (getattr(match.func, "actions", {}) or {}).get(endpoint.method.lower())
+
+
+def _enforced(endpoint: Endpoint) -> list[type[BasePermission]]:
+    """Return the permission classes DRF enforces for this exact method and path.
+
+    A viewset may narrow its gates per action - ``ProductViewSet`` lets every role
+    read a product but only a Manager change a price - and that choice lives in
+    ``get_permissions()``, not in ``permission_classes``. Reading the class attribute
+    therefore reported every one of those endpoints as session-only, and the sweep
+    below then demanded that a Cashier be let through a write it must be refused.
+
+    So the permission set is taken from the view DRF would actually run, with
+    ``action`` set to the one this URL resolves to. The probe is typed ``Any`` because
+    ``action`` is assigned by DRF at dispatch time and is not a declared attribute of
+    the view class.
+    """
+    view = endpoint.view
+    action = _action_for(endpoint) if issubclass(view, ViewSetMixin) else None
     if action is None:
-        return False
-
-    view = endpoint.view()
-    view.action = action
-    return any(
-        isinstance(permission, HasRolePermission) for permission in view.get_permissions()
-    )
+        return list(getattr(view, "permission_classes", []) or [])
+    probe: Any = view()
+    probe.action = action
+    return [type(p) for p in probe.get_permissions()]
 
 
-def _viewset_action(endpoint: Endpoint) -> str | None:
-    """Infer the ViewSet action name for one discovered endpoint."""
-    method = endpoint.method.lower()
-    segments = [segment for segment in endpoint.path.strip("/").split("/") if segment]
-    has_lookup = "{pk}" in segments
+def _role_classes(endpoint: Endpoint) -> list[type[HasRolePermission]]:
+    """Return the role permissions this endpoint enforces, if any."""
+    return [p for p in _enforced(endpoint) if issubclass(p, HasRolePermission)]
 
-    suffix: list[str] = []
-    if has_lookup:
-        suffix = segments[segments.index("{pk}") + 1 :]
 
-    if not suffix:
-        if has_lookup:
-            return {
-                "get": "retrieve",
-                "put": "update",
-                "patch": "partial_update",
-                "delete": "destroy",
-            }.get(method)
-        return {"get": "list", "post": "create"}.get(method)
-
-    for extra in endpoint.view.get_extra_actions():
-        if bool(getattr(extra, "detail", False)) != has_lookup:
-            continue
-        url_path = (getattr(extra, "url_path", None) or extra.__name__.replace("_", "-")).strip(
-            "/"
-        )
-        if [segment for segment in url_path.split("/") if segment] != suffix:
-            continue
-        mapping = getattr(extra, "mapping", {})
-        if method in mapping:
-            return mapping[method]
-    return None
+def _role_gated(endpoint: Endpoint) -> bool:
+    """Return whether this endpoint enforces a :class:`HasRolePermission`."""
+    return bool(_role_classes(endpoint))
 
 
 PROTECTED: list[Endpoint] = [e for e in ENDPOINTS if not _is_public(e)]
@@ -147,6 +153,17 @@ PUBLIC: list[Endpoint] = [e for e in ENDPOINTS if _is_public(e)]
 
 #: Protected endpoints whose refusal must parse as the project envelope.
 ENVELOPE_PROTECTED: list[Endpoint] = [e for e in PROTECTED if e.key not in NON_JSON_REFUSALS]
+
+#: Endpoints carrying a role dimension, resolved per action rather than per view.
+#: Module level because a comprehension in a class body cannot see a name defined in
+#: that same class body, and the sweep needs to parametrise over it.
+ROLE_GATED: list[Endpoint] = [e for e in ENDPOINTS if _role_gated(e)]
+
+#: Every permission the matrix defines, as the union of the per-role grants. A gate
+#: naming anything else can never be satisfied by any role.
+DEFINED_PERMISSIONS: frozenset[str] = frozenset(
+    permission for grants in ROLE_MATRIX.values() for permission in grants
+)
 
 
 def _ids(endpoints: list[Endpoint]) -> list[str]:
@@ -369,24 +386,93 @@ class TestRoleBypass:
 
     ``me``, ``logout`` and ``change-password`` require a session, not a rank, so a
     Cashier using them is correct behaviour and there is nothing to assert. The check
-    applies to whichever endpoints resolve to a :class:`HasRolePermission`, including
-    ViewSets that choose permissions dynamically per action.
+    applies to whichever endpoints actually enforce a :class:`HasRolePermission`, which
+    since B4 and B5 is the product and sales catalogues: a Cashier may sell and read
+    the catalogue, but not void a sale, restock a price or edit a category.
 
-    A8 already covers role bypass for a shipped permission class end-to-end through
-    ``tests/api/urls_for_tests.py``, which is where a 403 is observable while no business
-    endpoint exists. What this adds is the wiring: when the first role-gated view lands,
-    it is swept here without anyone remembering to add it.
+    A8 covers role bypass for a shipped permission class end-to-end through
+    ``tests/api/urls_for_tests.py``. What this adds is the wiring: every role-gated
+    endpoint in the shipped URLconf is checked here against the matrix without anyone
+    remembering to add it, so a gate can never quietly disagree with who holds the
+    grant.
     """
 
-    ROLE_GATED: list[Endpoint] = [e for e in ENDPOINTS if _role_gated(e)]
+    ROLE_GATED: list[Endpoint] = ROLE_GATED
 
-    def test_some_endpoints_have_role_gates(self) -> None:
-        """The sweep discovers role-gated endpoints when they exist.
+    def test_every_role_gate_names_a_permission_the_matrix_defines(self) -> None:
+        """A gate must be a grant the matrix defines, or nobody can satisfy it.
 
-        Without this, the parameterised session-only checks below could silently widen
-        to include endpoints whose `get_permissions()` resolves role checks per action.
+        The earlier form of this assertion demanded that no shipped view carry a role
+        gate at all, which was true only while the API was authentication endpoints
+        and the payroll phase was still ahead. Left in place it would have kept
+        failing as each vertical landed, and the tempting way out - deleting the
+        assertion - would have left the role dimension untested. Asserting against the
+        matrix instead keeps the checkpoint meaningful for every phase to come.
         """
-        assert self.ROLE_GATED, "expected at least one endpoint to resolve a role gate"
+        unknown = sorted(
+            f"{e.label} requires {p.required_permission!r}"
+            for e in self.ROLE_GATED
+            for p in _role_classes(e)
+            if p.required_permission not in DEFINED_PERMISSIONS
+        )
+        assert unknown == [], (
+            "these endpoints gate on a permission the role matrix never defines, so no "
+            f"role can ever satisfy them and every caller gets 403: {unknown}"
+        )
+
+    def test_every_role_gate_answers_401_before_403(self) -> None:
+        """``IsAuthenticated`` is listed first, so signing out reads as 401 not 403.
+
+        The frontend turns a 401 into a redirect to the login screen. A view whose
+        role gate is consulted first answers 403 to a signed-out caller, which the
+        client cannot tell apart from "you are signed in but not allowed" and so
+        cannot act on.
+        """
+        misordered = sorted(
+            f"{e.label} -> {[p.__name__ for p in _enforced(e)]}"
+            for e in self.ROLE_GATED
+            if not _enforced(e) or not issubclass(_enforced(e)[0], IsAuthenticated)
+        )
+        assert misordered == [], (
+            "these endpoints consult a role gate before IsAuthenticated, so a signed-out "
+            f"caller is answered 403 instead of 401: {misordered}"
+        )
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize("endpoint", ROLE_GATED, ids=_ids(ROLE_GATED))
+    def test_a_cashier_is_refused_exactly_where_the_matrix_withholds(
+        self, client: Client, staff_login: Callable[..., Any], endpoint: Endpoint
+    ) -> None:
+        """A Cashier's outcome follows the matrix, in both directions.
+
+        Asserting only the refusals would pass on a viewset that refused everyone,
+        including the Cashier who is entitled to record a sale; asserting only the
+        allowances would pass on one that never gates. So both are asserted here, and
+        both are read from the same matrix the view resolves its grant through, which
+        is what makes this a check on the wiring rather than a restatement of it.
+
+        Args:
+            client: The Django test client.
+            staff_login: Fixture signing the client in as a given role.
+            endpoint: One role-gated endpoint.
+        """
+        required = {p.required_permission for p in _role_classes(endpoint)}
+        entitled = required & set(ROLE_MATRIX[Role.Code.CASHIER])
+
+        staff_login(client, Role.Code.CASHIER)
+
+        response = _request(client, endpoint)
+
+        if entitled:
+            assert response.status_code not in (401, 403), (
+                f"{endpoint.label} refused a Cashier with {response.status_code}, but the "
+                f"matrix grants {sorted(entitled)} to that role"
+            )
+        else:
+            assert response.status_code == 403, (
+                f"{endpoint.label} answered {response.status_code} to a Cashier; the matrix "
+                f"withholds {sorted(required)}, so the refusal must be a 403"
+            )
 
     @pytest.mark.django_db
     @pytest.mark.parametrize(

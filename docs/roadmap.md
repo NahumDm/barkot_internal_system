@@ -32,22 +32,23 @@ spec must not be read as "Phases 1–4 still ahead".
 
 ## Where the project actually stands
 
-Measured, not assumed:
+Measured, not assumed (last verified after the full audit):
 
 | Layer | State |
 | --- | --- |
 | Domain models | 9 apps with models, 11 migrations applied |
-| Service/use-case layer | 4 apps with services (sales, inventory, finance, payroll) |
-| Tests | 508 passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, idempotency keys and receipt allocation under real thread contention |
-| Static analysis | mypy clean over 135 files, ruff clean |
-| **API endpoints** | **2 health probes, a versioned API root, and an OpenAPI schema with one documented path (`/api/v1/`). No business endpoints yet — that is A4.** |
-| **Frontend** | **24 files, all shell. No API client, no auth, no data. 7 feature directories empty.** |
-| `reports` app | `apps.py` only |
-| `audit` app | Model and `record()` only; not yet written to by any endpoint |
+| Service/use-case layer | 8 apps with services (accounts, dashboard, finance, inventory, payroll, products, reports, sales) |
+| Tests | 1471 backend passing — domain invariants, permission matrix, production settings guards, error envelope, API base, pagination, signed-out access sweep, rate-limit configuration and the write-throttle load test, idempotency keys and receipt allocation under real thread contention, plus per-domain acceptance tests |
+| Static analysis | mypy clean over 202 files, ruff clean |
+| **API endpoints** | **Phases A–C complete: auth, products, sales, finance, inventory, payroll, reports, users/roles/settings and the dashboard, behind an OpenAPI schema that validates with 0 errors** |
+| **Frontend** | **Typed client and protected route group with a screen per domain through C6; 125 Vitest, 48 stubbed and 19 live Playwright tests green** |
+| `reports` app | C4 — financial, inventory and payroll reports with PDF downloads and CSV API compatibility |
+| `audit` app | Model and `record()`; written by services, D1 asks for per-endpoint coverage |
 | Audit coverage | Services call `AuditLog.record()`, so most state changes are already audited |
 
-The backend's middle is built. Its two ends — the API that exposes it and the UI that consumes it —
-are untouched. That is most of the remaining product.
+Phases A–C are built and proven end to end. Phase D — hardening and production readiness — is done
+through D5; D6's local rehearsal passed and its target-host milestone is blocked on client decisions.
+Phase E, optional integrations, is externally blocked.
 
 ## The shape of every phase
 
@@ -166,10 +167,14 @@ did not choose, and flags the account temporary so A6 forces a change at first l
 asserts on `caplog`, `stderr`, stdout, and the raw database column, since a leak here is invisible in
 normal use — the command works perfectly and the only symptom is a secret sitting in a log.
 
-Two things it refuses by default: a username that already exists, and a *second* Owner without
-`--force`. A second Owner is a grant of full authority over payroll and cash, so it has to be asked
-for deliberately. `--check` runs as a bare preflight (`manage.py create_owner --check`) and exits
-non-zero when an Owner already exists, which is the signal a deployment runbook wants.
+Two things it refuses: a username that already exists, and a *second* Owner, unconditionally — there
+is no `--force`. A second Owner is a grant of full authority over payroll and cash, and Barkot has
+exactly one, so the command checks for an existing Owner inside the same transaction as the insert,
+behind a `SELECT … FOR UPDATE` lock on the Owner role, and a PostgreSQL constraint trigger
+(`0002_single_owner`) refuses a second one behind that. The account-admin service refuses one too,
+returning a clean `409 owner_exists` rather than a database error. `--check` runs as a bare preflight
+(`manage.py create_owner --check`) and exits non-zero when an Owner already exists, which is the
+signal a deployment runbook wants.
 
 Building it surfaced a bug that predates it: `Role.objects` was assigned a bare `RoleQuerySet()`
 instance, which does **not** give you a manager carrying that queryset's methods — Django falls back
@@ -252,22 +257,134 @@ gate failed on arrival for exactly this reason — the guard was mounted correct
 runs. Worth stating plainly: before this, three green Playwright tests were measuring far less than
 they appeared to.
 
+### B5: the sale screen had never been opened by a test
+
+**B5 stays open.** Two of its three claims are now proven in a real browser; the third cannot be,
+and closing that gap is a decision rather than a task. The detail is below.
+
+The gate for B5 is a Cashier's browser, this Django and this Postgres. It took until this task for
+that sentence to mean anything, because until now every Playwright spec answered the API itself.
+
+The first run of a real browser against the real backend found a defect that 16 stubbed specs, 57
+vitest tests and 714 backend tests had all passed without noticing: **the New Sale screen crashed on
+load, for every user, every time.** `fieldErrors` is a sparse record — it starts as `{}` and only
+gains keys when the API answers with field-level errors — and four places in
+`frontend/src/app/(app)/sales/transactions/new/page.tsx` read `fieldErrors[key].length` directly
+instead of through the `?? []` the rest of that file already used. First render, before anyone had
+typed anything, so React threw and the error boundary took over.
+
+Nothing caught it because the stubbed suite had never visited the page, and no unit test covered it.
+A stub cannot catch this class of thing at all: it was not the frontend disagreeing with the
+backend, it was the frontend disagreeing with itself.
+
+The live specs now cover one story in order, because each step depends on the last:
+
+1. a wrong password, refused by Django's own authenticator, arriving as a serializer
+   `ValidationError` under `non_field_errors` — the same shape the stub asserts, except Django
+   produced it;
+2. a Cashier signs in with a real session, sees an empty till, records a three-unit sale, and the
+   stock ledger moves **exactly once** — read back over HTTP with the cashier's own cookie, because
+   a screen agreeing with itself is not evidence;
+3. that Cashier's void is a real `403` from a real permission and the sale still stands, and then a
+   Manager's void is a real `204` and the stock is back to 40.
+
+That "exactly once" is checked by mutation, not by inspection: recording the outbound
+`StockMovement` a second time makes the browser spec fail with 34 units on the shelf instead of 37,
+and makes three backend vertical tests fail. The same check on the seed command's reset guard — the
+thing standing between a mistyped `DJANGO_DB_NAME` and an emptied working database — fails four
+tests when the guard is disabled.
+
+**Three harness decisions, each of which cost something to get wrong.**
+
+*A port of its own.* Django runs on 8010, not 8000, because a developer usually has a server on 8000
+pointed at their working database and Playwright reuses an existing server outside CI. Reusing that
+would sell the business's real books during a test run.
+
+*A database of its own, and a seed command rather than a fixture.* pytest builds a test database and
+tears it down; a browser, a `runserver` and a Next proxy all need one database alive at the same
+time, outside pytest's lifecycle. So `backend/apps/core/management/commands/seed_e2e.py` creates it
+and refuses to `flush` anything whose name does not end in `_e2e`. The fixtures address everything by
+constant and print those constants as JSON, so the ids and passwords the specs use live in exactly
+one place instead of being copied into TypeScript and left to drift.
+
+*One origin.* The browser stays on `127.0.0.1:3000` and Next forwards `/api/v1/` to Django, exactly
+as Nginx does in production, so the session and CSRF cookies behave as deployed and no CORS
+configuration was needed. This required `next.config.ts` to grow an opt-in for production builds:
+the proxy used to be development-only, and `next start` is a production build. `API_PROXY_ENABLED=1`
+is now that ask, so a deployment that has not asked for a proxy still has none.
+
+**The third claim is not reachable from a browser yet, which is why B5 is not struck.**
+"E2E §23.1: a Cashier records a sale, stock decreases exactly once, income increases" — the first
+two are asserted in `tests/live/b5-sale.spec.ts` against a real session and a real database. The
+third is not, and not because it was overlooked: **there is no API from which a browser could read
+income.** The finance app has models and services and no viewset; `config/api_urls.py` routes auth,
+products and sales only. The dashboard, which the specs land on after signing in, fetches nothing.
+
+The claim is not unproven so much as unobservable *in a browser*. It is asserted over HTTP in
+`backend/apps/sales/tests/test_sale_vertical.py`, which reads `finance.services.income_by_method`
+and checks it is `0.00` before a sale, the exact total after one, back to `0.00` after a refused sale,
+and back to `0.00` after a void — the same service any future endpoint would call. That is real
+evidence about income, and it is not E2E.
+
+Two honest ways to close this, and the choice is not mine to make:
+
+1. **Add a read-only income endpoint and assert it in the browser.** Small, and it makes the gate
+   literally true. But it is new public API surface, and the roadmap already assigns finance reads to
+   **C1** and displayed figures to **C6**. Doing it here means doing a slice of C1 inside B5.
+2. **Accept that "income increases" is proven at the HTTP-and-service layer, not the browser layer**,
+   and record that as the gate's wording. Defensible — the vertical's own E2E story is about the
+   sale, the stock ledger and the permission, none of which income is — but it *is* a weakening, so it
+   should be said out loud rather than done quietly.
+
+Until one of those is chosen, B5 stays unmarked. Marking it complete on two of three claims would be
+the exact failure this gate exists to prevent.
+
+**A finding this phase did not fix.** The sales screen offers a `Voided` status filter, and
+`StatusBadge` knows how to render `VOIDED`. Neither can ever appear: `SaleViewSet`'s queryset is
+`Sale.objects`, and `VoidableManager` excludes voided rows from the default queryset by design — so
+`?status=VOIDED` returns nothing, always. The design is deliberate and documented, and a voided sale
+correctly leaves the list a cashier reconciles against. But a filter that cannot match is a control
+that lies to the user, and a Manager who needs to see what was voided last week currently cannot.
+Deciding whether the API should list voided sales on request is a product question — "a void is a
+reversal, not a sale" and "an audit record a manager can inspect" are both defensible — so it is
+recorded here rather than quietly changed.
+
+### The stubs stayed, and they are not the weaker half
+
+Worth being explicit, because replacing them would have been the obvious move and the wrong one. A
+real server cannot be asked to produce a dead backend, a `502`, a throttled sign-in or a forced
+password change on demand, and those are exactly the states where the frontend's behaviour matters
+most — a `502` that reads as "session expired" sends a cashier to a login screen where the correct
+password also fails, and they conclude they are locked out. So `tests/e2e/` keeps its stubs and
+`tests/live/` adds the half that installs none.
+
+One thing that split taught me, and it is not obvious: **`page.route` intercepts the browser's
+requests and nothing else.** An `(app)` page's server-side render still asks the real origin for
+`/auth/me/`. Running both projects in a single Playwright invocation meant every stubbed navigation
+paid a real database round trip, and four workers doing that at once pushed four redirect assertions
+past their timeout — a failure caused by the harness and reported as a behavioural one, which is the
+more expensive mistake of the two. `npm run test:e2e` now runs the projects as two invocations. It
+costs an extra production build and buys back three things: the stubbed suite is honest about having
+no backend, it needs neither Postgres nor Python, and CI gets two separately attributable results.
+
 ## Phase C — Remaining domains
 
 Each task is: viewset, serializer, filters, frontend screen, E2E scenario, contract-suite cases.
 Each must be green before the next begins, so a regression is caught in the task that caused it.
 
-| # | Domain | Gate that proves it |
-| --- | --- | --- |
-| C1 | Finance — expenses, balance | E2E plus contract suite; balance reconciles to source transactions |
-| C2 | Payroll — employees, runs, deductions | E2E §23.1: Manager generates a monthly run, deduction reason is captured, net pay reconciles |
-| C3 | Stock — receive, count, variance, breakage | E2E §23.1: Barman receives stock; Manager completes a count and the adjustment requires permission |
-| C4 | Reports — date filters and export | E2E for each report |
-| C5 | Users, roles, settings | Owner-only access enforced; a Manager is refused |
-| C6 | Dashboard summary | Displayed figures reconcile to the underlying transactions |
+| # | Domain | Gate that proves it | Status |
+| --- | --- | --- | --- |
+| C1 | Finance — expenses, balance | E2E plus contract suite; balance reconciles to source transactions | Done |
+| C2 | Payroll — employees, runs, deductions | E2E §23.1: Manager generates a monthly run, deduction reason is captured, net pay reconciles | Done |
+| C3 | Stock — receive, count, variance, breakage | E2E §23.1: Barman receives stock; Manager completes a count and the adjustment requires permission | Done |
+| C4 | Reports — date filters and export | E2E for each report | Done |
+| C5 | Users, roles, settings | Owner-only access enforced; a Manager is refused | Done |
+| C6 | Dashboard summary | Displayed figures reconcile to the underlying transactions | Done |
 
-**Why C is not expected to slip.** The data modelling and business rules for all six domains are
-already written and tested (70 tests, including 19 domain invariants). The remaining work is
+`ENGINEERING_HANDOFF.md` carries the per-phase list of what shipped and the verified gate counts.
+
+**Why C was not expected to slip.** The data modelling and business rules for all six domains were
+already written and tested (70 tests, including 19 domain invariants). The remaining work was
 application of a pattern proven in B4, not new design. The two failure modes that normally make a
 "thin CRUD over existing services" phase slip were checked in advance:
 
@@ -281,16 +398,21 @@ application of a pattern proven in B4, not new design. The two failure modes tha
 
 | # | Task | Gate that proves it |
 | --- | --- | --- |
-| D0 | Rate limiting on all sensitive endpoints (§9.3) | Load test exceeds the configured limit and receives 429 |
-| D1 | Audit coverage: every state-changing endpoint writes `AuditLog` (P06) | A test per endpoint asserts the audit row |
-| D2 | Full E2E suite covering all five §23.1 scenarios | Suite green in CI |
-| D3 | Automated backups | **A restore drill**: restore into a scratch database and reconcile |
-| D4 | Production runbook | A second person can deploy and roll back from the document alone |
-| D5 | Observability baseline (§24): request ID, user ID in logs, alerting on 5xx and health | Alert fires in a test environment |
+| ~~D0~~ | Rate limiting on all state-changing endpoints (spec §9.3): every unsafe method on every endpoint, 60 a minute per client address, installed as DRF's `DEFAULT_THROTTLE_CLASSES` so a new endpoint cannot be exempt by omission. Reads are never throttled; login keeps its stricter 5/m | Load test exceeds the configured limit and receives 429 |
+| ~~D1~~ | Audit coverage: every state-changing endpoint writes `AuditLog` (P06). A completeness test enumerates the discovered unsafe surface and fails if a method/path has no scenario; each of the 31 scenarios then posts through the real view and asserts exactly one new row with the right action, object type, actor, object id and summary. Writing it found three silent gaps - product and category `perform_create` and `set_price` all logged `actor=None` - and confirmed sales mutations are unreachable rather than unlogged: `http_method_names` removes them from DRF's router, so the audit surface and the discovered surface cannot drift apart | A test per endpoint asserts the audit row |
+| ~~D2~~ | Full E2E suite covering all five §23.1 scenarios | Suite green in CI |
+| ~~D3~~ | Automated backups | **A restore drill**: restore into a scratch database and reconcile |
+| ~~D4~~ | Production runbook | A second person can deploy and roll back from the document alone |
+| ~~D5~~ | Observability baseline (§24): request ID, user ID in logs, alerting on 5xx and health | Alert fires in a test environment |
 | D6 | Deployment rehearsal on a target host | Full stack starts from `docker compose.prod.yml` with real secrets |
 
 D3's restore drill is the item most often skipped and the one that matters most: an untested backup is
 a hypothesis.
+
+D6 held a local rehearsal on 2026-10-08 (stack up from `docker compose.prod.yml` with generated secrets,
+migrate applied, `/health/live` + `/health/ready` 200, owner login 200, `X-Request-ID` present, nginx
+`nginx -t` clean, `zone=login` wired). The milestone rehearsal on a real Ubuntu VPS remains open:
+it is blocked on the client decisions for a commercially permitted VPS provider and domain (9/10).
 
 ## Phase E — Optional integrations
 

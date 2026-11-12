@@ -1,16 +1,18 @@
 """Payroll write services (spec §14.1).
 
 The run lifecycle is ``GENERATED`` → ``APPROVED`` → ``PAID``, and each transition
-has exactly one caller permission:
+has exactly one caller permission, all three held by the Owner (spec §9.2 as the
+role matrix now enforces it):
 
-- a Manager *generates* a run (spec §9.2);
+- the Owner *generates* a run from current wages;
 - the Owner *approves* it;
 - the Owner marks it *paid*.
 
 Generation and approval are separate steps for the reason the spec gives: the
 person who calculates the run should not also be the person who signs it off.
-Splitting them in code — not just in the UI — is what stops a single account
-producing an unchallenged payslip.
+They are separate grants even though one role holds both, so splitting them
+remains a matter of changing the matrix rather than the code — and a Manager,
+who may read payroll and record deductions, still cannot produce a run at all.
 
 Deduction rules are **not** computed. The client has not confirmed the
 statutory calculation (spec §30 items 5 and 6), so net pay is
@@ -29,9 +31,15 @@ from django.db.models import Max
 
 from apps.audit.models import AuditLog
 from apps.core.enums import PayrollDeductionType, PayrollItemStatus, PayrollRunStatus
-from apps.core.exceptions import InvalidStateTransition
+from apps.core.exceptions import (
+    ExcessiveDeduction,
+    InvalidDeductionAmount,
+    InvalidEmployeeSelection,
+    InvalidStateTransition,
+)
 from apps.core.money import ZERO_MONEY, quantize_money
 from apps.payroll.models import Employee, PayrollDeduction, PayrollItem, PayrollRun
+from apps.users.models import EmployeeProfile
 
 
 def _first_of_month(day: date) -> date:
@@ -73,10 +81,24 @@ def generate_payroll_run(
     if PayrollRun.all_rows.filter(period_month=month).exists():
         raise InvalidStateTransition(f"A payroll run already exists for {month:%Y-%m}.")
 
-    employees = Employee.objects.select_related("profile").filter(status="ACTIVE")
-    if employee_ids is not None:
-        employees = employees.filter(pk__in=employee_ids)
-    employees = [emp for emp in employees if emp.is_employable]
+    active = Employee.objects.select_related("profile").filter(status="ACTIVE")
+    if employee_ids is None:
+        employees = [employee for employee in active if employee.is_employable]
+    else:
+        requested = set(employee_ids)
+        if len(requested) != len(employee_ids):
+            raise InvalidEmployeeSelection("An employee appears more than once in this run.")
+        found = {employee.pk: employee for employee in active.filter(pk__in=requested)}
+        missing = requested - found.keys()
+        ineligible = {pk for pk, employee in found.items() if not employee.is_employable}
+        if missing or ineligible:
+            details = sorted(missing | ineligible)
+            raise InvalidEmployeeSelection(
+                "These employees are unknown, inactive, or not employable: "
+                + ", ".join(str(pk) for pk in details)
+                + "."
+            )
+        employees = [found[pk] for pk in employee_ids]
 
     if not employees:
         raise InvalidStateTransition("No active employees are available for this payroll run.")
@@ -135,9 +157,12 @@ def add_deduction(
         The created :class:`PayrollDeduction`.
 
     Raises:
-        InvalidStateTransition: If the run is already approved or paid. A
-            signed payslip is not edited; the correction goes in the next run.
-        ValueError: If the deduction would exceed gross pay.
+        InvalidStateTransition: If the run is already approved or paid. A signed
+            payslip is not edited; the correction goes in the next run.
+        InvalidDeductionAmount: If ``amount`` is zero or negative.
+        ExcessiveDeduction: If the deduction would exceed gross pay. A negative
+            payslip is always a data-entry error, and storing it would quietly
+            flow into the finance balance.
     """
     if payroll_item.run.status != PayrollRunStatus.GENERATED:
         raise InvalidStateTransition(
@@ -147,11 +172,11 @@ def add_deduction(
 
     amount = quantize_money(amount, field="amount")
     if amount <= 0:
-        raise ValueError("A deduction amount must be greater than zero.")
+        raise InvalidDeductionAmount
 
     new_total = quantize_money(payroll_item.total_deductions + amount, field="total_deductions")
     if new_total > payroll_item.gross_amount:
-        raise ValueError(
+        raise ExcessiveDeduction(
             f"Deductions ({new_total}) would exceed gross pay ({payroll_item.gross_amount}) "
             f"for {payroll_item.employee.full_name}."
         )
@@ -169,6 +194,100 @@ def add_deduction(
     payroll_item.total_deductions = new_total
     payroll_item.save(update_fields=["total_deductions", "net_amount", "updated_at", "updated_by"])
 
+    AuditLog.record(
+        action=AuditLog.Action.CREATE,
+        object_type="payroll.PayrollDeduction",
+        object_id=deduction.pk,
+        actor=actor,
+        summary=(
+            f"Deducted {deduction.amount} {deduction.deduction_type} from "
+            f"{payroll_item.employee.full_name}"
+        ),
+    )
+    return deduction
+
+
+@transaction.atomic
+def update_deduction(
+    *,
+    deduction: PayrollDeduction,
+    changes: dict[str, Any],
+    actor: Any | None = None,
+) -> PayrollDeduction:
+    """Correct a deduction that has already been recorded.
+
+    The caller's ``validated_data`` *is* the change set: the update serializer
+    declares exactly the four fields a recorded deduction may be edited with, so
+    passing the whole of it means there is no second list of editable fields to
+    keep in step. ``payroll_item`` is not one of them — the correction belongs
+    to the line it was taken from.
+
+    The line's total moves by the *difference* between the old and new amounts
+    rather than being recomputed from the deductions, so one correction cannot
+    quietly absorb another row that changed underneath it.
+
+    Args:
+        deduction: The deduction to correct.
+        changes: Field name to new value. Empty means nothing was submitted, and
+            is a no-op rather than an empty audit entry.
+        actor: The staff member making the correction (permission
+            ``payroll.create_deduction``).
+
+    Returns:
+        The corrected :class:`PayrollDeduction`.
+
+    Raises:
+        InvalidStateTransition: If the run is already approved or paid. A signed
+            payslip is not edited; the correction goes in the next run.
+        InvalidDeductionAmount: If ``amount`` is zero or negative.
+        ExcessiveDeduction: If the corrected total would exceed gross pay.
+    """
+    if not changes:
+        return deduction
+
+    payroll_item = deduction.payroll_item
+    if payroll_item.run.status != PayrollRunStatus.GENERATED:
+        raise InvalidStateTransition(
+            f"Payroll run {payroll_item.run_id} is {payroll_item.run.get_status_display()}; "
+            "deductions can only be edited while it is generated."
+        )
+
+    new_amount = deduction.amount
+    if "amount" in changes:
+        new_amount = quantize_money(changes["amount"], field="amount")
+        if new_amount <= 0:
+            raise InvalidDeductionAmount
+
+    new_total = quantize_money(
+        payroll_item.total_deductions - deduction.amount + new_amount,
+        field="total_deductions",
+    )
+    if new_total > payroll_item.gross_amount:
+        raise ExcessiveDeduction(
+            f"Deductions ({new_total}) would exceed gross pay ({payroll_item.gross_amount}) "
+            f"for {payroll_item.employee.full_name}."
+        )
+
+    for field, value in changes.items():
+        setattr(deduction, field, value)
+    deduction.amount = new_amount
+    deduction.updated_by = actor
+    deduction.save(update_fields=[*changes, "amount", "updated_by", "updated_at"])
+
+    payroll_item.total_deductions = new_total
+    payroll_item.updated_by = actor
+    payroll_item.save(update_fields=["total_deductions", "net_amount", "updated_at", "updated_by"])
+
+    AuditLog.record(
+        action=AuditLog.Action.UPDATE,
+        object_type="payroll.PayrollDeduction",
+        object_id=deduction.pk,
+        actor=actor,
+        summary=(
+            f"Updated {deduction.deduction_type} deduction to {deduction.amount} on "
+            f"{payroll_item.employee.full_name}"
+        ),
+    )
     return deduction
 
 
@@ -208,6 +327,48 @@ def mark_payroll_run_paid(*, run: PayrollRun, actor: Any | None = None) -> Payro
     return run
 
 
+@transaction.atomic
+def add_employee(
+    *,
+    employee: EmployeeProfile,
+    monthly_wage: Decimal,
+    actor: Any | None = None,
+) -> Employee:
+    """Put a register record onto payroll (roadmap D1).
+
+    The subject is an :class:`~apps.users.models.EmployeeProfile` rather than a
+    login account because the register is the roster of who works here (spec
+    §5): a new hire is registered on day one whether or not an account exists,
+    and payroll attaches the wage to that record. Nothing is created or revived
+    on the person side — the register row already exists, and archiving is the
+    register's own business.
+
+    Args:
+        employee: The register record to pay.
+        monthly_wage: Gross monthly wage. Zero is allowed and must be fixed in
+            a later decision (spec §30 item 5), not guessed here.
+        actor: The staff member adding it (permission
+            ``payroll.manage_payroll_employees``).
+
+    Returns:
+        The created :class:`Employee`.
+
+    Raises:
+        IntegrityError: If the record already has a payroll row; the serializer
+            refuses that case before the service runs.
+    """
+    record = Employee.from_profile(employee, monthly_wage=monthly_wage)
+
+    AuditLog.record(
+        action=AuditLog.Action.CREATE,
+        object_type="payroll.Employee",
+        object_id=record.pk,
+        actor=actor,
+        summary=f"Added {record.full_name} to payroll at {monthly_wage}/month",
+    )
+    return record
+
+
 def latest_run_period() -> date | None:
     """Return the most recent run's month, or ``None`` if there are none.
 
@@ -220,6 +381,7 @@ def latest_run_period() -> date | None:
 __all__ = [
     "PayrollDeductionType",
     "add_deduction",
+    "add_employee",
     "approve_payroll_run",
     "generate_payroll_run",
     "latest_run_period",

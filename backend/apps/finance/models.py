@@ -21,7 +21,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.business_time import now_utc
-from apps.core.enums import ExpenseStatus
+from apps.core.enums import ExpenseStatus, PaymentMethod
 from apps.core.exceptions import InvalidStateTransition
 from apps.core.fields import CurrencyField, MoneyField
 
@@ -141,3 +141,49 @@ def approved_expenses_between(start: date, end: date) -> models.QuerySet[Expense
         .select_related("category")
         .order_by("incurred_on", "id")
     )
+
+
+class AdditionalIncome(VoidableModel):
+    """Non-sales income (e.g., customer compensation for breakages)."""
+
+    objects = VoidableManager()
+    all_rows = AllRowsManager()
+
+    source = models.CharField(
+        _("income source"),
+        max_length=255,
+        help_text=_("Descriptive name or category, e.g. Customer Bottle Breakage"),
+    )
+    amount = MoneyField(
+        _("amount"),
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    currency = CurrencyField(_("currency"))
+    income_date = models.DateField(
+        _("income date"),
+        help_text=_("Business-local date the income was received."),
+    )
+    note = models.TextField(
+        _("source / description note"),
+        help_text=_("Explanation of why the income was received."),
+    )
+    payment_method = models.CharField(
+        _("payment method"),
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH,
+    )
+
+    class Meta:
+        verbose_name = _("additional income")
+        verbose_name_plural = _("additional incomes")
+        ordering = ["-income_date", "-id"]
+        permissions = (
+            ("manage_additional_income", "Can manage additional income records"),
+        )
+        indexes = [
+            models.Index(fields=["-income_date"], name="idx_additional_income_date"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source} ({self.amount} {self.currency})"

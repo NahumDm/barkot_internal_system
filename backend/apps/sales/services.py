@@ -37,9 +37,10 @@ from apps.core.exceptions import (
     InconsistentTotals,
     InsufficientStock,
     InvalidStateTransition,
+    ProductNotPriced,
 )
 from apps.core.idempotency import SALE_SCOPE, claim_key, replayed_object
-from apps.core.money import quantize_money, quantize_quantity, sum_money
+from apps.core.money import quantize_money, quantize_quantity, sum_money, validate_whole_quantity
 from apps.inventory.models import StockMovement
 from apps.products.models import Product, ProductPrice
 from apps.sales.models import Payment, Sale, SaleItem, total_of_sale
@@ -52,10 +53,12 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 class SaleLineInput:
     """One product line on a sale.
 
-    ``unit_price`` may be left as ``None`` to take the current catalogue price.
-    Cashiers may also override it (a manager-authorised discount), but the
-    override is recorded rather than inferred, and the price row it relates to
-    is still stored so the receipt can be traced back to the catalogue.
+    ``unit_price`` may be left as ``None`` to take the catalogue price at the
+    sale moment. A caller holding ``products.change_prices`` may override it;
+    the override is recorded on the line and the catalogue price row is still
+    stored so the receipt remains traceable. The API enforces that permission
+    before the service is called, and the service itself still refuses an
+    override that is negative.
     """
 
     product: Product
@@ -221,10 +224,14 @@ def complete_sale(
             )
 
         quantity = quantize_quantity(line.quantity, field="quantity")
+        validate_whole_quantity(quantity, product=product)
         if quantity <= 0:
             raise ValueError(f"Quantity for {product.sku!r} must be greater than zero.")
 
-        price = product.price_at(moment)
+        try:
+            price = product.price_at(moment)
+        except ProductPrice.DoesNotExist as exc:
+            raise ProductNotPriced(str(exc)) from exc
         unit_price = (
             price.unit_price
             if line.unit_price is None

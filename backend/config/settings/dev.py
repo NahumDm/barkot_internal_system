@@ -24,3 +24,7 @@ CSRF_TRUSTED_ORIGINS = [
     for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "http://localhost:3000").split(",")
     if origin.strip()
 ]
+
+from config.logging import get_logging_config  # noqa: E402
+
+LOGGING = get_logging_config()

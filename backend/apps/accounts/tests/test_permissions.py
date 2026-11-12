@@ -119,7 +119,11 @@ def test_managers_can_manage_reference_data_they_own():
         username="matrix-manager", password="pw", role=Role.objects.get(code=Role.Code.MANAGER)
     )
     assert manager.has_perm("finance.manage_expense_categories") is True
-    assert manager.has_perm("payroll.manage_payroll_employees") is True
+    # The employee register is the Manager's (spec §5), but payroll's roster is
+    # not: ``payroll.manage_payroll_employees`` is what feeds
+    # ``POST /payroll/employees/``, and payroll is Owner-only (spec §9.2).
+    assert manager.has_perm("users.manage_employees") is True
+    assert manager.has_perm("payroll.manage_payroll_employees") is False
 
 
 @pytest.mark.django_db

@@ -51,6 +51,19 @@ class Category(TimeStampedModel):
     def __str__(self) -> str:
         return self.name
 
+    @property
+    def product_count(self) -> int:
+        """Number of products in this category.
+
+        The list view annotates ``_product_count`` for a single-query page.
+        The fallback keeps the serializer correct for an instance returned by
+        ``create`` or ``update``, where no annotation has been applied.
+        """
+        annotated = getattr(self, "_product_count", None)
+        if annotated is not None:
+            return annotated
+        return self.products.count()
+
 
 class ProductQuerySet(models.QuerySet["Product"]):
     """QuerySet for :class:`Product`."""
@@ -93,6 +106,27 @@ class Product(TimeStampedModel):
         default="bottle",
         help_text=_("Selling and stocking unit, e.g. bottle, crate, kg, litre."),
     )
+    quantity_mode = models.CharField(
+        _("quantity mode"),
+        max_length=10,
+        choices=[("WHOLE", _("Whole units")), ("FRACTIONAL", _("Fractional units"))],
+        default="WHOLE",
+        help_text=_(
+            "Whole units are counted in whole numbers (e.g. crates, bottles); "
+            "fractional units allow decimals (e.g. kg, litre)."
+        ),
+    )
+    bottles_per_crate = models.PositiveSmallIntegerField(
+        _("bottles per crate"),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(2)],
+        help_text=_(
+            "How many bottles one crate holds, e.g. 24. The bar receives this "
+            "product by the crate and sells it by the bottle. Leave blank if the "
+            "product is not counted in crates."
+        ),
+    )
     is_stock_tracked = models.BooleanField(_("is stock tracked"), default=True)
     is_active = models.BooleanField(
         _("is active"),
@@ -120,6 +154,25 @@ class Product(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.unit})"
+
+    @property
+    def requires_whole_quantity(self) -> bool:
+        """Whether quantities of this product must be whole numbers.
+
+        A ``WHOLE`` product (crates, bottles) cannot be sold or stocked in
+        fractions; a ``FRACTIONAL`` product (kg, litre) can.
+        """
+        return self.quantity_mode == "WHOLE"
+
+    @property
+    def is_crated(self) -> bool:
+        """Whether this product is counted in crates.
+
+        A crated product is received in crates and sold in bottles, so the
+        screens convert between the two with :attr:`bottles_per_crate`. Products
+        with no crate size (spirits, soft drinks) stay in their own unit.
+        """
+        return bool(self.bottles_per_crate and self.bottles_per_crate > 1)
 
     def current_price(self, *, at: datetime | None = None) -> ProductPrice | None:
         """Return the price in effect at ``at`` (default: now).

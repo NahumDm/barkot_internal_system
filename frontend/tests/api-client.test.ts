@@ -91,6 +91,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -213,6 +214,23 @@ describe("write bodies", () => {
     expect(request.body).toBe("{}");
   });
 
+  it("passes a FormData body through as multipart, boundary and all", async () => {
+    // The document upload is the one write that cannot be JSON: the browser
+    // generates the multipart boundary, so Content-Type must stay unset, while
+    // the CSRF header still guards the request.
+    fetchMock().mockImplementation(() => jsonResponse({ id: 4 }));
+    const form = new FormData();
+    form.append("document", new File(["%PDF-1.7"], "contract.pdf", { type: "application/pdf" }));
+
+    await apiFetch("/employees/4/document/", { method: "POST", body: form });
+
+    const request = requests()[0];
+    expect(request.body).toBeInstanceOf(FormData);
+    expect(request.headers.get("Content-Type")).toBeNull();
+    expect(request.headers.get("X-CSRFToken")).toBe(CSRF);
+    expect(request.headers.get("Accept")).toBe("application/json");
+  });
+
   it("sends no body at all on reads", async () => {
     fetchMock().mockImplementation(() => jsonResponse({ user: { id: 1 } }));
 
@@ -289,6 +307,52 @@ describe("failures", () => {
     fetchMock().mockImplementation(noContentResponse);
 
     await expect(logout()).resolves.toBeUndefined();
+  });
+});
+
+describe("deadlines", () => {
+  it("abandons a request that outlives its deadline with a typed timeout", async () => {
+    vi.useFakeTimers();
+    // A connection that is accepted but never answered: the failure mode behind
+    // the "Checking your session…" stall. Left alone, nothing here ever rejects.
+    fetchMock().mockImplementation(() => new Promise<Response>(() => undefined));
+
+    const request = currentUser({ timeoutMs: 1_000 });
+    const outcome = expect(request).rejects.toMatchObject({
+      code: ErrorCode.Timeout,
+      status: 0,
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await outcome;
+  });
+
+  it("leaves a request without a deadline to the browser's own timeouts", async () => {
+    fetchMock().mockImplementation(() => jsonResponse({ user: { id: 1 } }));
+
+    await expect(currentUser()).resolves.toEqual({ id: 1 });
+  });
+
+  it("tells a request the caller cancelled apart from one that timed out", async () => {
+    // The session check aborts on unmount. That abort must stay an AbortError:
+    // a deliberate cancellation is not a slow server and must not be reported as
+    // a retryable timeout.
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    fetchMock().mockImplementation(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+    );
+
+    const request = currentUser({ signal: controller.signal, timeoutMs: 1_000 });
+    const outcome = expect(request).rejects.toMatchObject({ name: "AbortError" });
+
+    controller.abort();
+    await outcome;
   });
 });
 

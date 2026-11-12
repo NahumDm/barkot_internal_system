@@ -97,6 +97,19 @@ class ImmutableRecord(BARKOTDomainError):
     default_message = "This record cannot be modified."
 
 
+class ProductNotPriced(BARKOTDomainError):
+    """A sale named a product with no catalogue price at the sale moment.
+
+    This is a 400 rather than a 500: the request is coherent, but it cannot be
+    priced. It also covers a backdated sale that predates the product's first
+    price row, which the product model raises as ``DoesNotExist``.
+    """
+
+    code = "product_not_priced"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "A product on this sale has no price at the sale time."
+
+
 class InconsistentTotals(BARKOTDomainError):
     """Supplied subtotals do not reconcile with the underlying line items.
 
@@ -107,6 +120,145 @@ class InconsistentTotals(BARKOTDomainError):
     code = "inconsistent_totals"
     status_code = status.HTTP_400_BAD_REQUEST
     default_message = "The supplied totals do not match the line items."
+
+
+class InvalidEmployeeSelection(BARKOTDomainError):
+    """A payroll run named employees who are unknown or not employable.
+
+    Silently generating a run with only the subset that happened to match would
+    pay some staff and omit others while answering 201, leaving the caller to
+    discover the omission from the payslips.
+    """
+
+    code = "invalid_employee_selection"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "One or more selected employees cannot be included in this run."
+
+
+class InvalidDeductionAmount(BARKOTDomainError):
+    """A payroll deduction was submitted with an amount that cannot be deducted (spec §14.2).
+
+    A deduction is money leaving a payslip, so it has to be positive. Zero and
+    negative amounts are refused rather than stored: a negative "deduction" is a
+    payment to the employee wearing the wrong label, and it would quietly inflate
+    net pay and the finance balance with no other symptom.
+
+    400 rather than 409 because the submitted figure is incoherent on its own terms.
+    Nothing about the surrounding state changes the answer, so a retry with the
+    same body should not be invited.
+    """
+
+    code = "invalid_deduction_amount"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "A deduction amount must be greater than zero."
+
+
+class FractionalQuantityNotAllowed(BARKOTDomainError):
+    """A whole-unit product was given a fractional quantity (crates, bottles).
+
+    A product marked ``WHOLE`` is counted in whole numbers; ``2.5`` crates is not
+    a quantity the till can act on. A product marked ``FRACTIONAL`` (kg, litre)
+    accepts decimals, so the refusal is per product rather than global.
+
+    400 because the submitted figure is incoherent for the product it names;
+    nothing about the surrounding state changes the answer.
+    """
+
+    code = "fractional_quantity_not_allowed"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "This product is counted in whole units; enter a whole number."
+
+
+class ExcessiveDeduction(BARKOTDomainError):
+    """Deductions would take an employee's net pay below zero (spec §14.2).
+
+    Raised instead of clamping the total. Clamping would hide the data-entry error
+    that caused it and produce a payslip nobody can reconcile against the
+    deductions recorded against it.
+
+    Distinct from :class:`InvalidDeductionAmount`: the amount here may be perfectly
+    reasonable on its own, and it is the running total that no longer fits inside
+    gross pay. The frontend needs both codes to tell "you typed zero" apart from
+    "this employee has nothing left to deduct".
+    """
+
+    code = "excessive_deduction"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "Deductions cannot exceed gross pay."
+
+
+class BonoPriceMismatch(BARKOTDomainError):
+    """Products proposed for one Bono type do not share its equal selling price."""
+
+    code = "bono_price_mismatch"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = "Every product paired to one Bono type must currently sell at the same price."
+
+
+class BonoTypeConflict(BARKOTDomainError):
+    """A product or display label would collide with another active Bono configuration."""
+
+    code = "bono_type_conflict"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "That Bono configuration conflicts with an existing type or pairing."
+
+
+class BonoActivityInProgress(BARKOTDomainError):
+    """A configuration change touches an operational day that has not been approved."""
+
+    code = "bono_activity_in_progress"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = (
+        "This change affects Bono activity on a day without an approved report. "
+        "Confirm the affected days and give a reason to continue."
+    )
+
+
+class BonoReviewPending(BARKOTDomainError):
+    """A price-change pairing review is still open, so the pairing cannot be reused."""
+
+    code = "bono_review_pending"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "An owner price review is still pending for this Bono pairing."
+
+
+class BonoAllocationExceeded(BARKOTDomainError):
+    """A transfer or loss would take more tokens than the source staff member holds."""
+
+    code = "bono_allocation_exceeded"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "The staff member does not hold enough Bonos for this movement."
+
+
+class BonoReportLocked(BARKOTDomainError):
+    """Operational writes are closed because the day's report has been submitted."""
+
+    code = "bono_report_locked"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = (
+        "Bono operations for this day are locked while its report is submitted or approved."
+    )
+
+
+class BonoReportIncomplete(BARKOTDomainError):
+    """A report is missing a count or an explanation the reconciliation requires."""
+
+    code = "bono_report_incomplete"
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_message = (
+        "Complete every physical count and explain every variance or Bono discrepancy."
+    )
+
+
+class BonoReportStale(BARKOTDomainError):
+    """Underlying activity changed after the draft report was generated."""
+
+    code = "bono_report_stale"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = (
+        "Bono or stock activity changed after this report was prepared. "
+        "Refresh the report before submitting it."
+    )
 
 
 class SessionExpired(BARKOTDomainError):
@@ -163,6 +315,25 @@ class IdempotencyKeyReuse(BARKOTDomainError):
     default_message = "That idempotency key was already used for a different request."
 
 
+class OwnerAlreadyExists(BARKOTDomainError):
+    """A second Owner account was requested (roadmap A7).
+
+    Barkot has exactly one Owner, who holds the whole permission catalogue and is
+    the sole approver of payroll. A second Owner is not a convenience: it is a
+    second person who can approve their own payroll and rewrite the audit-visible
+    configuration, so the invariant is enforced rather than merely documented.
+    The bootstrap command and the account-admin service both refuse one, and a
+    database trigger refuses one behind them (migration ``0002_single_owner``).
+
+    409 rather than 400: the submitted role is valid, and it is the state of the
+    system - an Owner already exists - that makes the request impossible.
+    """
+
+    code = "owner_exists"
+    status_code = status.HTTP_409_CONFLICT
+    default_message = "An Owner account already exists."
+
+
 class IdempotencyInFlight(BARKOTDomainError):
     """A concurrent request holds the same idempotency key and has not finished.
 
@@ -216,8 +387,9 @@ def _validation_details(detail: Any) -> dict[str, list[str]]:
 
     DRF uses three shapes depending on where the error came from: a dict of
     field errors from a serializer, a bare list for a non-field error, or a
-    string. They are normalised to one so the frontend has a single code path
-    for "this field is wrong".
+    string. Nested ``many=True`` serializers add another level (``lines ->
+    index -> field -> messages``). All of them are normalised to one so the
+    frontend has a single code path for "this field is wrong".
 
     Args:
         detail: The ``detail`` attribute of a DRF ``ValidationError``.
@@ -226,13 +398,24 @@ def _validation_details(detail: Any) -> dict[str, list[str]]:
         Field names mapped to their messages, with ``non_field_errors`` used for
         errors that belong to no single field.
     """
+
+    def leaves(value: Any) -> list[str]:
+        """Collect every leaf message, preserving DRF's order."""
+        if isinstance(value, dict):
+            messages: list[str] = []
+            for nested in value.values():
+                messages.extend(leaves(nested))
+            return messages
+        if isinstance(value, list):
+            messages = []
+            for nested in value:
+                messages.extend(leaves(nested))
+            return messages
+        return [str(value)]
+
     if isinstance(detail, dict):
-        return {
-            str(field): [str(message) for message in messages] for field, messages in detail.items()
-        }
-    if isinstance(detail, list):
-        return {NON_FIELD_ERRORS: [str(message) for message in detail]}
-    return {NON_FIELD_ERRORS: [str(detail)]}
+        return {str(field): leaves(messages) for field, messages in detail.items()}
+    return {NON_FIELD_ERRORS: leaves(detail)}
 
 
 def _describe(exc: Exception, response: Response) -> tuple[str, str, dict[str, list[str]] | None]:

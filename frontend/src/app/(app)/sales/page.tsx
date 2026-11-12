@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 
-import { listSales, voidSale, type SaleListItem, type PaginatedResponse } from "@/lib/api/sales";
+import { listSales, voidSale, type SaleListItem } from "@/lib/api/sales";
 import { type ApiError, isValidationError, isPermissionDenied, isNotFound } from "@/lib/api/errors";
+import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { Field, FormError } from "@/features/auth/form-parts";
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
@@ -48,7 +50,16 @@ function PaymentStatusBadge({ status }: { status: string }) {
   );
 }
 
-function SaleRow({ sale, onVoid }: { sale: SaleListItem; onVoid: (id: number) => void }) {
+function SaleRow({
+  sale,
+  onVoid,
+  canVoid,
+}: {
+  sale: SaleListItem;
+  onVoid: (id: number) => void;
+  canVoid: boolean;
+}) {
+  const t = useT();
   return (
     <tr className="border-b border-border hover:bg-surface/50">
       <td className="px-3 py-2 text-sm text-ink font-mono">{sale.reference}</td>
@@ -61,23 +72,34 @@ function SaleRow({ sale, onVoid }: { sale: SaleListItem; onVoid: (id: number) =>
       <td className="px-3 py-2 text-sm">
         <PaymentStatusBadge status={sale.payment_status} />
       </td>
-      <td className="px-3 py-2 text-sm">
-        {sale.status === "COMPLETED" && (
-          <button
-            onClick={() => onVoid(sale.id)}
-            className="rounded border border-danger bg-surface px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
-          >
-            Void
-          </button>
-        )}
-      </td>
+      {canVoid && (
+        <td className="px-3 py-2 text-sm">
+          {sale.status === "COMPLETED" && (
+            <button
+              onClick={() => onVoid(sale.id)}
+              className="rounded border border-danger bg-surface px-2 py-1 text-xs font-medium text-danger hover:bg-danger/10"
+            >
+              {t("sales.voidAction")}
+            </button>
+          )}
+        </td>
+      )}
     </tr>
   );
 }
 
-function SalesTable({ sales, onVoid }: { sales: SaleListItem[]; onVoid: (id: number) => void }) {
+function SalesTable({
+  sales,
+  onVoid,
+  canVoid,
+}: {
+  sales: SaleListItem[];
+  onVoid: (id: number) => void;
+  canVoid: boolean;
+}) {
+  const t = useT();
   if (sales.length === 0) {
-    return <div className="text-center py-8 text-ink-secondary">No sales found.</div>;
+    return <div className="text-center py-8 text-ink-secondary">{t("sales.noSalesFound")}</div>;
   }
 
   return (
@@ -86,31 +108,33 @@ function SalesTable({ sales, onVoid }: { sales: SaleListItem[]; onVoid: (id: num
         <thead className="bg-surface border-b border-border">
           <tr>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Reference
+              {t("sales.colReference")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Date
+              {t("sales.colDate")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Total
+              {t("sales.colTotal")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Items
+              {t("sales.colItems")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Status
+              {t("sales.colStatus")}
             </th>
             <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Payment
+              {t("sales.colPayment")}
             </th>
-            <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
-              Actions
-            </th>
+            {canVoid && (
+              <th className="px-3 py-2 text-xs font-semibold text-ink-secondary uppercase tracking-wider">
+                {t("sales.colActions")}
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
           {sales.map((sale) => (
-            <SaleRow key={sale.id} sale={sale} onVoid={onVoid} />
+            <SaleRow key={sale.id} sale={sale} onVoid={onVoid} canVoid={canVoid} />
           ))}
         </tbody>
       </table>
@@ -133,6 +157,7 @@ function PaginationControls({
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
 }) {
+  const t = useT();
   const start = count === 0 ? 0 : (page - 1) * pageSize + 1;
   const end = Math.min(page * pageSize, count);
 
@@ -149,7 +174,7 @@ function PaginationControls({
         >
           {PAGE_SIZE_OPTIONS.map((size) => (
             <option key={size} value={size}>
-              {size} per page
+              {size} {t("sales.perPage")}
             </option>
           ))}
         </select>
@@ -160,85 +185,32 @@ function PaginationControls({
           disabled={page === 1}
           className="rounded border border-border bg-surface px-2 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface/50"
         >
-          « First
+          « {t("sales.first")}
         </button>
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
           className="rounded border border-border bg-surface px-2 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface/50"
         >
-          ‹ Prev
+          ‹ {t("sales.prev")}
         </button>
         <span className="px-2 py-1 text-sm text-ink">
-          Page {page} of {pages}
+          {t("sales.pageOf").replace("{page}", String(page)).replace("{pages}", String(pages))}
         </span>
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page === pages}
           className="rounded border border-border bg-surface px-2 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface/50"
         >
-          Next ›
+          {t("sales.next")} ›
         </button>
         <button
           onClick={() => onPageChange(pages)}
           disabled={page === pages}
           className="rounded border border-border bg-surface px-2 py-1 text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-surface/50"
         >
-          Last »
+          {t("sales.last")} »
         </button>
-      </div>
-    </div>
-  );
-}
-
-function SalesFilters({
-  search,
-  onSearchChange,
-  statusFilter,
-  onStatusFilterChange,
-  paymentStatusFilter,
-  onPaymentStatusFilterChange,
-}: {
-  search: string;
-  onSearchChange: (value: string) => void;
-  statusFilter: "all" | "COMPLETED" | "VOIDED";
-  onStatusFilterChange: (value: "all" | "COMPLETED" | "VOIDED") => void;
-  paymentStatusFilter: "all" | string;
-  onPaymentStatusFilterChange: (value: "all" | string) => void;
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row gap-3 mb-4">
-      <div className="flex-1 min-w-0">
-        <Field
-          label="Search"
-          type="search"
-          value={search}
-          onChange={onSearchChange}
-          errors={[]}
-          autoComplete="off"
-          hint="Search by reference"
-        />
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <select
-          value={statusFilter}
-          onChange={(e) => onStatusFilterChange(e.target.value as "all" | "COMPLETED" | "VOIDED")}
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
-        >
-          <option value="all">All statuses</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="VOIDED">Voided</option>
-        </select>
-        <select
-          value={paymentStatusFilter}
-          onChange={(e) => onPaymentStatusFilterChange(e.target.value)}
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
-        >
-          <option value="all">All payment statuses</option>
-          <option value="PAID">Paid</option>
-          <option value="PARTIAL">Partial</option>
-          <option value="UNPAID">Unpaid</option>
-        </select>
       </div>
     </div>
   );
@@ -246,6 +218,11 @@ function SalesFilters({
 
 export default function SalesPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const t = useT();
+  const canCreate = (user?.permissions?.includes("sales.create_sale") ?? false)
+    && user?.role !== "MANAGER";
+  const canVoid = user?.permissions.includes("sales.void_sale") ?? false;
 
   const [sales, setSales] = useState<SaleListItem[]>([]);
   const [page, setPage] = useState(1);
@@ -254,13 +231,16 @@ export default function SalesPage() {
   const [pageSize, setPageSize] = useState(20);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "COMPLETED" | "VOIDED">("all");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<"all" | string>("all");
   const [error, setError] = useState<ApiError | null>(null);
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
 
   const fetchSales = useCallback(async () => {
+    const request = ++requestId.current;
     setLoading(true);
     setError(null);
+    setSales([]);
+    setCount(0);
     try {
       const query: Record<string, string | number | boolean> = {
         page,
@@ -268,40 +248,37 @@ export default function SalesPage() {
       };
       if (search) query.search = search;
       if (statusFilter !== "all") query.status = statusFilter;
-      if (paymentStatusFilter !== "all") query.payment_status = paymentStatusFilter;
 
       const response = await listSales({ query });
+      if (request !== requestId.current) return;
       setSales(response.results);
       setPages(response.pages);
       setCount(response.count);
     } catch (caught) {
-      setError(caught as ApiError);
+      if (request === requestId.current) setError(caught as ApiError);
     } finally {
-      setLoading(false);
+      if (request === requestId.current) setLoading(false);
     }
-  }, [page, pageSize, search, statusFilter, paymentStatusFilter]);
+  }, [page, pageSize, search, statusFilter]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchSales();
   }, [fetchSales]);
 
   const handleSearchSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPage(1);
-    fetchSales();
   };
 
   const handlePageSizeChange = (size: number) => {
     setPageSize(size);
     setPage(1);
-    fetchSales();
   };
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pages) {
       setPage(newPage);
-      fetchSales();
     }
   };
 
@@ -330,39 +307,48 @@ export default function SalesPage() {
     <section className="flex flex-col gap-6 p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-ink">Sales</h1>
-          <p className="text-sm text-ink-secondary">View and manage sales transactions.</p>
+          <h1 className="text-2xl font-semibold text-ink">{t("sales.title")}</h1>
+          <p className="text-sm text-ink-secondary">{t("sales.subtitle")}</p>
         </div>
-        <button
-          onClick={handleCreateClick}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface hover:bg-ink/90"
-        >
-          New Sale
-        </button>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={handleCreateClick}
+            className="btn btn-primary self-start sm:self-auto"
+          >
+            {t("sales.newSale")}
+          </button>
+        )}
       </div>
 
-      <form onSubmit={handleSearchSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 min-w-0">
+      <form onSubmit={handleSearchSubmit} className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
             <Field
-              label="Search"
+              label={t("sales.search")}
               type="search"
               value={search}
-              onChange={setSearch}
+              onChange={(value) => {
+                setSearch(value);
+                setPage(1);
+              }}
               errors={[]}
               autoComplete="off"
-              hint="Search by reference"
+              hint={t("sales.searchByReference")}
             />
           </div>
           <div className="flex flex-wrap gap-2">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "all" | "COMPLETED" | "VOIDED")}
-              className="rounded border border-border bg-surface px-3 py-2 text-sm text-ink"
+              onChange={(e) => {
+                setStatusFilter(e.target.value as "all" | "COMPLETED" | "VOIDED");
+                setPage(1);
+              }}
+              className="control control--inline"
             >
-              <option value="all">All statuses</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="VOIDED">Voided</option>
+              <option value="all">{t("sales.allStatuses")}</option>
+              <option value="COMPLETED">{t("sales.completed")}</option>
+              <option value="VOIDED">{t("sales.voided")}</option>
             </select>
           </div>
         </div>
@@ -376,7 +362,7 @@ export default function SalesPage() {
         </div>
       ) : (
         <>
-          <SalesTable sales={sales} onVoid={handleVoid} />
+          <SalesTable sales={sales} onVoid={handleVoid} canVoid={canVoid} />
           {pages > 1 && (
             <PaginationControls
               page={page}

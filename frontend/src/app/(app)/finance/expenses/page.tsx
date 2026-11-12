@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import ExpenseRegister from "@/features/finance/expense-register";
 
 export default function FinanceExpensesPage() {
-  return <PagePlaceholder title="Expenses" />;
+  return <ExpenseRegister />;
 }

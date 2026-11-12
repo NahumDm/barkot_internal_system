@@ -36,6 +36,7 @@ class AuditLog(AppendOnlyModel):
 
         CREATE = "CREATE", _("Created")
         UPDATE = "UPDATE", _("Updated")
+        DELETE = "DELETE", _("Deleted")
         VOID = "VOID", _("Voided")
         LOGIN = "LOGIN", _("Signed in")
         LOGOUT = "LOGOUT", _("Signed out")

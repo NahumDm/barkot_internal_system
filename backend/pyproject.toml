@@ -47,6 +47,13 @@ warn_redundant_casts = true
 pretty = true
 show_error_codes = true
 
+# reportlab ships without PEP 561 stubs. Its runtime imports are exercised by
+# the PDF report tests; treating the untyped imports as Any keeps `mypy .`
+# focused on the code we own.
+[[tool.mypy.overrides]]
+module = ["reportlab.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.dev"
 pythonpath = ["."]

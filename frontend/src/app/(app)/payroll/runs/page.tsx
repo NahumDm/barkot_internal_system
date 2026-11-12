@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import PayrollRuns from "@/features/payroll/payroll-runs";
 
 export default function PayrollRunsPage() {
-  return <PagePlaceholder title="Payroll" />;
+  return <PayrollRuns />;
 }

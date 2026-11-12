@@ -28,7 +28,28 @@ export const ErrorCode = {
   NotFound: "not_found",
   Throttled: "throttled",
   ServerError: "server_error",
-  /** The response was not the error envelope the API promises. */
+  /** The client gave up before a response arrived. Raised locally, never by the
+   * API: a request that is answered but slow is not a timeout, and the two must
+   * stay distinguishable because a timeout is retryable while an answered 5xx
+   * may need a fix first. Status 0 stands for "no HTTP status exists". */
+  Timeout: "request_timeout",
+  /**
+   * A write was refused because the record is not in the state the action
+   * needs. Raised by `BARKOTDomainError` subclasses as 409, so it is a
+   * *business* refusal, not a validation one: the input was well formed and
+   * the answer is still no.
+   */
+  InvalidState: "invalid_state_transition",
+  /** Totals that do not add up (400). */
+  InconsistentTotals: "inconsistent_totals",
+  /** Stock that is not on the shelf (409). */
+  InsufficientStock: "insufficient_stock",
+  /** Deductions greater than gross pay (400). A negative payslip is always a
+   * data-entry error, so the refusal happens before anything is written. */
+  ExcessiveDeduction: "excessive_deduction",
+  /** Zero or negative deduction amount (400). */
+  InvalidDeductionAmount: "invalid_deduction_amount",
+  /** True when the response was not the error envelope the API promises. */
   Malformed: "malformed_response",
 } as const;
 
@@ -80,6 +101,11 @@ export function isSessionEnded(error: unknown): error is ApiError {
   );
 }
 
+/** True when the request was abandoned client-side because it exceeded its deadline. */
+export function isRequestTimeout(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === ErrorCode.Timeout;
+}
+
 /** True when the failure was a permission denied error. */
 export function isPermissionDenied(error: unknown): error is ApiError {
   return error instanceof ApiError && error.code === ErrorCode.PermissionDenied;
@@ -90,29 +116,38 @@ export function isNotFound(error: unknown): error is ApiError {
   return error instanceof ApiError && error.code === ErrorCode.NotFound;
 }
 
-/** True when the failure was an inconsistent totals error. */
+/**
+ * True when the failure was an inconsistent totals error.
+ *
+ * The three predicates below used to look for a substring inside
+ * `validation_error`'s `non_field_errors`, which never matched: the backend
+ * raises these as `BARKOTDomainError` subclasses, and the global handler puts
+ * their own `code` in the envelope. Branching on the real code is also the only
+ * way to tell them apart from an ordinary field rejection, which is what makes
+ * the distinction worth a predicate in the first place.
+ */
 export function isInconsistentTotals(error: unknown): error is ApiError {
-  return (
-    error instanceof ApiError &&
-    error.code === ErrorCode.Validation &&
-    (error.details?.["non_field_errors"]?.includes("totals") ?? false)
-  );
+  return error instanceof ApiError && error.code === ErrorCode.InconsistentTotals;
 }
 
 /** True when the failure was an insufficient stock error. */
 export function isInsufficientStock(error: unknown): error is ApiError {
-  return (
-    error instanceof ApiError &&
-    error.code === ErrorCode.Validation &&
-    (error.details?.["non_field_errors"]?.includes("stock") ?? false)
-  );
+  return error instanceof ApiError && error.code === ErrorCode.InsufficientStock;
 }
 
-/** True when the failure was an invalid state transition error. */
+/**
+ * True when a write was refused because the record is in the wrong state.
+ *
+ * 409 rather than 400: the payload was fine, and the honest answer to "what is
+ * wrong with my input?" is "nothing" — the run is already approved. A form
+ * cannot highlight a field for that, so callers use this to show the message
+ * and refresh rather than to mark an input.
+ */
 export function isInvalidStateTransition(error: unknown): error is ApiError {
-  return (
-    error instanceof ApiError &&
-    error.code === ErrorCode.Validation &&
-    (error.details?.["non_field_errors"]?.includes("state") ?? false)
-  );
+  return error instanceof ApiError && error.code === ErrorCode.InvalidState;
+}
+
+/** True when deductions were refused for exceeding gross pay. */
+export function isExcessiveDeduction(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === ErrorCode.ExcessiveDeduction;
 }

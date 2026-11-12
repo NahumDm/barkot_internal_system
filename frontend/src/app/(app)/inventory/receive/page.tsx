@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import InventoryForm from "@/features/inventory/inventory-forms";
 
 export default function InventoryReceivePage() {
-  return <PagePlaceholder title="Receive Stock" />;
+  return <InventoryForm mode="receive" />;
 }

@@ -1,17 +1,35 @@
 /**
  * Network stubs that stand in for the API during E2E (roadmap B2).
  *
- * The Playwright server runs `next start` alone; there is no Django behind it,
- * and starting one per test run would couple the frontend suite to the backend
- * stack. So `/auth/me/` is answered at the network layer instead.
+ * The `chromium` project runs `next start` with no Django behind it, and
+ * `/auth/me/` is answered at the network layer instead. `npm run test:e2e` runs
+ * this project and the `live` one as two separate Playwright invocations
+ * precisely so that stays true; see `playwright.config.ts` for how the backend is
+ * left out when `live` is not selected.
  *
- * The stubs copy the real contract rather than a convenient one. A request with
- * no session at all is answered 401 `not_authenticated`, because the backend's
- * authenticator returns a challenge header and so makes DRF pick 401 over 403
- * (see `backend/apps/core/authentication.py`); 403 is reserved for a request that
- * was authenticated but not allowed. Answering 403 here would let the guard pass
- * on a pairing the real API never sends, and would turn "signed out" into
- * "signed in but forbidden" for any response that failed to parse as the envelope.
+ * The separation is not tidiness. These stubs are installed with `page.route`,
+ * which intercepts the *browser's* requests and nothing else, so a server-side
+ * render of an `(app)` page still fetches `/auth/me/` from the real origin. With no
+ * Django that request fails immediately and the client-side guard handles it, which
+ * is the path these specs are about. With a Django running, that same render waits
+ * on a real database round trip per navigation, and four workers doing it at once
+ * is enough to push a redirect assertion past its timeout - a failure caused by the
+ * harness, not by the app, and the worst kind to chase.
+ *
+ * The live project (`tests/live/`) is the half that installs no stubs at all. It
+ * exists because a stub can only prove the frontend behaves as its author imagined
+ * the backend would, which is how a route that resolved to the wrong endpoint
+ * shipped green. What follows copies the real contract rather than a convenient
+ * one, because that is the whole value of these stubs once the real thing exists
+ * for comparison.
+ *
+ * A request with no session at all is answered 401 `not_authenticated`, because the
+ * backend's authenticator returns a challenge header and so makes DRF pick 401
+ * over 403 (see `backend/apps/core/authentication.py`); 403 is reserved for a
+ * request that was authenticated but not allowed. Answering 403 here would let the
+ * guard pass on a pairing the real API never sends, and would turn "signed out"
+ * into "signed in but forbidden" for any response that failed to parse as the
+ * envelope.
  *
  * The other 403s are real and mean something different: `session_expired` is
  * raised after a session that did exist idled out, and `password_change_required`
@@ -39,7 +57,39 @@ export const OWNER: StubUser = {
   display_name: "Selam Bekele",
   role: "owner",
   role_name: "Owner",
-  permissions: ["sales.add_sale", "products.change_product"],
+  // The Owner's full slice of the role matrix
+  // (backend/apps/accounts/permissions.py). The sidebar reads this list to
+  // decide what to offer, so a stand-in that holds fewer grants would hide
+  // destinations a real owner sees.
+  permissions: [
+    "products.view_products",
+    "products.manage_categories",
+    "products.manage_products",
+    "products.change_prices",
+    "inventory.view_inventory",
+    "inventory.receive_stock",
+    "inventory.record_breakage",
+    "inventory.complete_stock_count",
+    "inventory.approve_adjustment",
+    "sales.view_sales",
+    "sales.create_sale",
+    "sales.void_sale",
+    "finance.view_reports",
+    "finance.create_expense",
+    "finance.approve_expense",
+    "finance.manage_expense_categories",
+    "payroll.view_payroll",
+    "payroll.generate_run",
+    "payroll.approve_run",
+    "payroll.mark_paid",
+    "payroll.create_deduction",
+    "payroll.manage_payroll_employees",
+    "users.manage_employees",
+    "audit.view_audit_log",
+    "accounts.manage_users",
+    "accounts.manage_roles",
+    "accounts.manage_settings",
+  ],
   email: "",
   phone_number: "",
   is_temporary_password: false,
@@ -216,6 +266,31 @@ export async function stubPasswordChangeAccepted(
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({ user: { ...user, is_temporary_password: false } }),
+    }),
+  );
+}
+
+const LOGOUT_URL = "**/api/v1/auth/logout/";
+
+/**
+ * Accept a logout, answering 204 with no body exactly as the view does.
+ *
+ * Signing out is a CSRF-protected write, so a spec using this also needs
+ * `stubCsrf` unless a real cookie was set earlier in the same session.
+ */
+export async function stubLogout(page: Page): Promise<void> {
+  await page.route(LOGOUT_URL, (route) => route.fulfill({ status: 204, body: "" }));
+}
+
+/** Refuse a logout with a server failure, so the menu must keep the session. */
+export async function stubLogoutFailed(page: Page): Promise<void> {
+  await page.route(LOGOUT_URL, (route) =>
+    route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { code: "server_error", message: "Could not sign you out." },
+      }),
     }),
   );
 }

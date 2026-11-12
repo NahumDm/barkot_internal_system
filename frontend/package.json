@@ -17,7 +17,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "npm run test:e2e:stubbed && npm run test:e2e:live",
+    "test:e2e:stubbed": "playwright test --project=chromium",
+    "test:e2e:live": "playwright test --project=live"
   },
   "dependencies": {
     "lucide-react": "^1.48.0",

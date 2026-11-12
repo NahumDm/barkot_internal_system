@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import EmployeeRoster from "@/features/payroll/employee-roster";
 
 export default function PayrollEmployeesPage() {
-  return <PagePlaceholder title="Employees" />;
+  return <EmployeeRoster />;
 }

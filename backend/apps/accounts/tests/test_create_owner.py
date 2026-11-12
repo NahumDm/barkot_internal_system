@@ -295,25 +295,50 @@ class TestRefusesUnsafeInput:
         with pytest.raises(CommandError, match="already exists"):
             _call("owner", password_stdin=True)
 
-    def test_it_refuses_a_second_owner_without_force(
+    def test_it_refuses_a_second_owner(
         self, supply_stdin: Stdin, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A second Owner is a grant of full authority, so it is asked for."""
+        """A second Owner is refused; there is no flag that creates one."""
         supply_stdin(monkeypatch, GOOD_PASSWORD)
         _call("owner", password_stdin=True)
         supply_stdin(monkeypatch, GOOD_PASSWORD)
         with pytest.raises(CommandError, match="already exists"):
             _call("owner2", password_stdin=True)
+        assert User.objects.filter(role__code=Role.Code.OWNER).count() == 1
 
-    def test_force_allows_a_second_owner(
+    def test_there_is_no_force_escape_hatch(self) -> None:
+        """``--force`` is gone: a second Owner cannot be minted from the CLI.
+
+        Pinned because the flag was the one documented way around the invariant,
+        and re-introducing it would quietly restore the ability to create a
+        second account with full payroll and configuration authority.
+        """
+        with pytest.raises(TypeError, match="force"):
+            _call("owner2", password_stdin=True, force=True)
+
+    def test_the_email_is_prompted_for_on_a_terminal(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An interactive setup asks for the email before it asks for the password.
+
+        The two values share stdin in this test, in the order the command reads
+        them: the email line first, then the password line. That order is the
+        behaviour under test - a password prompt that came first would consume
+        the address as the secret.
+        """
+        stream = io.StringIO(f"owner@example.com\n{GOOD_PASSWORD}\n")
+        monkeypatch.setattr(sys, "stdin", stream)
+        monkeypatch.setattr(stream, "isatty", lambda: True, raising=False)
+        _call("owner", password_stdin=True)
+        owner = User.objects.get(username="owner")
+        assert owner.email == "owner@example.com"
+        assert owner.check_password(GOOD_PASSWORD)
+
+    def test_a_non_interactive_run_leaves_the_email_blank(
         self, supply_stdin: Stdin, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """``--force`` is the deliberate escape hatch."""
+        """CI and piped runs never block waiting for a value nobody will type."""
         supply_stdin(monkeypatch, GOOD_PASSWORD)
         _call("owner", password_stdin=True)
-        supply_stdin(monkeypatch, GOOD_PASSWORD)
-        _call("owner2", password_stdin=True, force=True)
-        assert User.objects.filter(role__code=Role.Code.OWNER).count() == 2
+        assert User.objects.get(username="owner").email == ""
 
     def test_stdin_and_generate_together_are_refused(
         self, supply_stdin: Stdin, monkeypatch: pytest.MonkeyPatch

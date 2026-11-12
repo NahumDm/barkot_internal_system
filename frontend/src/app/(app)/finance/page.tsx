@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import BalanceOverview from "@/features/finance/balance-overview";
 
 export default function FinancePage() {
-  return <PagePlaceholder title="Finance Overview" />;
+  return <BalanceOverview />;
 }

@@ -142,25 +142,34 @@ def test_only_the_owner_can_approve_payroll() -> None:
     assert holders == [Role.Code.OWNER]
 
 
-def test_a_manager_generates_a_run_but_does_not_approve_it() -> None:
+def test_only_the_owner_can_generate_or_approve_a_run() -> None:
     """Worth naming separately: the one place the matrix encodes separation of duties.
 
-    The gradient elsewhere is "more capabilities as you go up". Payroll approval is
-    deliberately withheld from the Manager who computes the figures, so an Owner signs
-    off. Dropping ``approve_run`` from the Manager would be the single most damaging
-    plausible edit to the matrix, so it is pinned directly.
+    The gradient elsewhere is "more capabilities as you go up". Payroll runs are
+    withheld from everyone but the Owner, so the person who reads the figures is
+    also the only one who can produce and sign them off — the A8 split is what
+    keeps both grants out of a Manager's reach at once. Dropping either grant
+    from the Owner, or handing generation back to a Manager, would be the single
+    most damaging plausible edit to the matrix, so both are pinned directly.
     """
-    assert "payroll.generate_run" in ROLE_MATRIX[Role.Code.MANAGER]
+    generators = sorted(
+        code for code, perms in ROLE_MATRIX.items() if "payroll.generate_run" in perms
+    )
+    assert generators == [Role.Code.OWNER]
+    assert "payroll.generate_run" not in ROLE_MATRIX[Role.Code.MANAGER]
     assert "payroll.approve_run" not in ROLE_MATRIX[Role.Code.MANAGER]
 
 
 @pytest.mark.django_db
-def test_the_manager_split_holds_through_the_classes_too() -> None:
+def test_the_owner_only_split_holds_through_the_classes_too() -> None:
     """The separation survives the trip through ``has_perm``, not just in the data."""
+    owner = _user_with(Role.Code.OWNER)
     manager = _user_with(Role.Code.MANAGER)
     factory = APIRequestFactory()
 
-    assert CanGeneratePayrollRun().has_permission(_request_for(factory, manager), None) is True
+    assert CanGeneratePayrollRun().has_permission(_request_for(factory, owner), None) is True
+    assert CanApprovePayrollRun().has_permission(_request_for(factory, owner), None) is True
+    assert CanGeneratePayrollRun().has_permission(_request_for(factory, manager), None) is False
     assert CanApprovePayrollRun().has_permission(_request_for(factory, manager), None) is False
 
 
@@ -202,9 +211,10 @@ def test_no_role_below_owner_can_approve_payroll(client, staff_login, code: str)
     """The A8 gate over real HTTP: BarMan, Cashier and Manager are all refused.
 
     Manager is the case that matters. BarMan and Cashier lack the grant outright;
-    Manager has legitimate payroll access and can generate a run, but approving is
-    withheld. A test using only a Cashier would not have covered that, and would have
-    passed even if the separation of duties had quietly been dropped from the matrix.
+    Manager has legitimate payroll access — reads and deductions — but both run
+    grants are withheld. A test using only a Cashier would not have covered that,
+    and would have passed even if the separation of duties had quietly been
+    dropped from the matrix.
     """
     staff_login(client, code)
 

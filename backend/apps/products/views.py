@@ -7,14 +7,18 @@ Two resources with standard CRUD endpoints:
 
 Permissions are enforced through the role matrix (:mod:`apps.accounts.permissions`):
 - ``CanViewProducts`` for list/retrieve (all staff roles)
-- ``CanManageProducts`` for create/update/retire (Manager, Owner)
-- ``CanChangePrices`` for price history (Manager, Owner)
+- ``CanManageProducts`` for create/update/retire (Owner only)
+- ``CanChangePrices`` for price changes and price history (Owner only)
 - ``CanManageCategories`` for category CRUD (Owner only)
+
+The role matrix is the authority. The prose above names the roles that hold
+each capability today; if the matrix changes, these lines must change with it.
 
 All list endpoints use :class:`apps.core.pagination.BarkotPagination` and return
 the standard envelope: ``{count, page_size, page, pages, results}``.
 """
 
+from django.db.models import Count
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -29,6 +33,7 @@ from apps.accounts.permissions import (
     CanViewProducts,
 )
 from apps.core.pagination import BarkotPagination
+from apps.core.query_params import boolean_value, positive_int
 from apps.products.models import Category, Product
 from apps.products.serializers import (
     CategoryCreateSerializer,
@@ -44,8 +49,11 @@ from apps.products.serializers import (
 from apps.products.services import (
     create_category,
     create_product,
+    delete_category,
     retire_product,
     set_product_price,
+    update_category,
+    update_product,
 )
 
 
@@ -88,7 +96,9 @@ class CategoryViewSet(viewsets.ModelViewSet):
     Write: ``CanManageCategories`` (Owner only).
     """
 
-    queryset = Category.objects.all().order_by("display_order", "name")
+    queryset = Category.objects.annotate(_product_count=Count("products")).order_by(
+        "display_order", "name"
+    )
     pagination_class = BarkotPagination
     paginator = BarkotPagination()
 
@@ -105,23 +115,47 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated(), CanManageCategories()]
 
     def perform_create(self, serializer):
-        create_category(
+        serializer.instance = create_category(
             name=serializer.validated_data["name"],
             description=serializer.validated_data.get("description", ""),
             display_order=serializer.validated_data.get("display_order", 0),
             is_active=serializer.validated_data.get("is_active", True),
+            actor=self.request.user,  # type: ignore[arg-type]
+        )
+
+    def create(self, request: Request, *args, **kwargs) -> Response:
+        """Answer with the full category, including the id a client needs next."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        output = CategorySerializer(serializer.instance).data
+        return Response(
+            output,
+            status=status.HTTP_201_CREATED,
+            headers=self.get_success_headers(output),
         )
 
     def perform_update(self, serializer):
-        category = self.get_object()
-        for field, value in serializer.validated_data.items():
-            setattr(category, field, value)
-        category.save(
-            update_fields=[
-                *serializer.validated_data.keys(),
-                "updated_at",
-            ]
+        serializer.instance = update_category(
+            category=self.get_object(),
+            actor=self.request.user,  # type: ignore[arg-type]
+            **serializer.validated_data,
         )
+
+    def update(self, request: Request, *args, **kwargs) -> Response:
+        """Apply the change and answer with the updated category.
+
+        The update serializer declares only the fields a caller may change, so
+        returning its data would echo the request and hide the result. The
+        full representation keeps a client from reverting the screen to the
+        values it sent.
+        """
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(CategorySerializer(serializer.instance).data)
 
     def destroy(self, request, *args, **kwargs):
         category = self.get_object()
@@ -135,7 +169,8 @@ class CategoryViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return super().destroy(request, *args, **kwargs)
+        delete_category(category=category, actor=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema_view(
@@ -160,8 +195,10 @@ class CategoryViewSet(viewsets.ModelViewSet):
     create=extend_schema(
         summary="Create a product",
         description=(
-            "Create a new sellable product. Requires ``products.manage_products`` (Manager, Owner)."
+            "Create a new sellable product. Requires ``products.manage_products`` (Owner)."
         ),
+        request=ProductCreateSerializer,
+        responses={201: ProductSerializer},
         tags=["products"],
     ),
     partial_update=extend_schema(
@@ -183,8 +220,14 @@ class ProductViewSet(viewsets.ModelViewSet):
     """CRUD for sellable products.
 
     List/retrieve: ``CanViewProducts`` (all staff roles).
-    Write: ``CanManageProducts`` (Manager, Owner).
-    Price actions: ``CanChangePrices`` (Manager, Owner).
+    Write: ``CanManageProducts`` (Owner only).
+    Price actions: ``CanChangePrices`` (Owner only).
+
+    The two price actions answer on separate paths - ``prices`` to add one,
+    ``prices/history`` to read them back - because a router turns each action into
+    its own route and Django resolves by path alone, never by method. Two actions
+    sharing ``url_path="prices"`` produce two identical routes, the second is
+    unreachable, and the one that is reachable answers 405 for the other's method.
     """
 
     queryset = Product.objects.select_related("category").order_by(
@@ -213,13 +256,13 @@ class ProductViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         category = self.request.query_params.get("category")
         if category:
-            qs = qs.filter(category_id=category)
+            qs = qs.filter(category_id=positive_int(category, "category"))
         active = self.request.query_params.get("active")
         if active is not None:
-            qs = qs.filter(is_active=active.lower() == "true")
+            qs = qs.filter(is_active=boolean_value(active, "active"))
         stock_tracked = self.request.query_params.get("stock_tracked")
         if stock_tracked is not None:
-            qs = qs.filter(is_stock_tracked=stock_tracked.lower() == "true")
+            qs = qs.filter(is_stock_tracked=boolean_value(stock_tracked, "stock_tracked"))
         search = self.request.query_params.get("search")
         if search:
             qs = (
@@ -230,25 +273,51 @@ class ProductViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        create_product(
+        serializer.instance = create_product(
             category=serializer.validated_data["category"],
             name=serializer.validated_data["name"],
             sku=serializer.validated_data["sku"],
             unit=serializer.validated_data.get("unit", "bottle"),
+            quantity_mode=serializer.validated_data.get("quantity_mode", "WHOLE"),
+            bottles_per_crate=serializer.validated_data.get("bottles_per_crate"),
             is_stock_tracked=serializer.validated_data.get("is_stock_tracked", True),
             description=serializer.validated_data.get("description", ""),
+            actor=self.request.user,  # type: ignore[arg-type]
         )
 
+    def create(self, request: Request, *args, **kwargs) -> Response:
+        """Create a product and answer with its full representation.
+
+        ``ProductCreateSerializer`` is a plain ``Serializer`` - it carries only
+        the fields a caller sends, so it has no ``id``. The default create flow
+        would therefore answer with the input echoed back, and a client that
+        needs the new product's id to continue (setting its price is a second
+        request keyed by that id) would have nothing to key on. Serializing the
+        created instance with ``ProductSerializer`` returns that id, along with
+        the current price and stock the list and edit screens read.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        output = ProductSerializer(serializer.instance).data
+        headers = self.get_success_headers(output)
+        return Response(output, status=status.HTTP_201_CREATED, headers=headers)
+
     def perform_update(self, serializer):
-        product = self.get_object()
-        for field, value in serializer.validated_data.items():
-            setattr(product, field, value)
-        product.save(
-            update_fields=[
-                *serializer.validated_data.keys(),
-                "updated_at",
-            ]
+        serializer.instance = update_product(
+            product=self.get_object(),
+            actor=self.request.user,  # type: ignore[arg-type]
+            **serializer.validated_data,
         )
+
+    def update(self, request: Request, *args, **kwargs) -> Response:
+        """Apply the change and answer with the full updated product."""
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(ProductSerializer(serializer.instance).data)
 
     def destroy(self, request, *args, **kwargs):
         """Retire (deactivate) instead of hard delete."""
@@ -288,6 +357,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             unit_price=serializer.validated_data["unit_price"],
             currency=serializer.validated_data["currency"],
             effective_from=serializer.validated_data.get("effective_from"),
+            actor=request.user,  # type: ignore[arg-type]
         )
         return Response(ProductPriceSerializer(price).data, status=status.HTTP_201_CREATED)
 
@@ -300,7 +370,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         responses={200: ProductPriceSerializer(many=True)},
         tags=["products"],
     )
-    @action(detail=True, methods=["get"], url_path="prices")
+    @action(detail=True, methods=["get"], url_path="prices/history")
     def price_history(self, request: Request, pk: int | None = None) -> Response:
         """Return all price rows for this product."""
         product = self.get_object()

@@ -63,7 +63,9 @@ INSTALLED_APPS = [
     "apps.inventory",
     "apps.finance",
     "apps.payroll",
+    "apps.bono",
     "apps.reports",
+    "apps.dashboard",
     "apps.audit",
     "apps.integrations",
 ]
@@ -79,6 +81,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.core.middleware.RequestContextMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -104,18 +107,27 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 # ── Database ───────────────────────────────────────────────────────────────
-# PostgreSQL is the system of record (spec P02). Never SQLite in any branch.
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("DJANGO_DB_NAME", "barkot"),
-        "USER": os.environ.get("DJANGO_DB_USER", "barkot"),
-        "PASSWORD": os.environ.get("DJANGO_DB_PASSWORD", ""),
-        "HOST": os.environ.get("DJANGO_DB_HOST", "127.0.0.1"),
-        "PORT": os.environ.get("DJANGO_DB_PORT", "5432"),
-        "CONN_MAX_AGE": int(os.environ.get("DJANGO_DB_CONN_MAX_AGE", "60")),
+# PostgreSQL is the system of record (spec P02). Use SQLite in-memory for tests if requested.
+DATABASES: dict[str, dict[str, str | int]]
+if os.environ.get("USE_SQLITE") == "1" or os.environ.get("DJANGO_TEST_USE_SQLITE") == "1":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ.get("DJANGO_DB_NAME", "barkot"),
+            "USER": os.environ.get("DJANGO_DB_USER", "barkot"),
+            "PASSWORD": os.environ.get("DJANGO_DB_PASSWORD", ""),
+            "HOST": os.environ.get("DJANGO_DB_HOST", "127.0.0.1"),
+            "PORT": os.environ.get("DJANGO_DB_PORT", "5432"),
+            "CONN_MAX_AGE": int(os.environ.get("DJANGO_DB_CONN_MAX_AGE", "60")),
+        }
+    }
 
 # ── Internationalisation / time ────────────────────────────────────────────
 # Timestamps stored in UTC; business reports computed in BUSINESS_TIMEZONE
@@ -226,13 +238,20 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.BarkotPagination",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.core.exceptions.exception_handler",
-    # 5/m is the A5 gate - "6th attempt from one IP returns 429" - expressed in the
-    # same per-minute shape nginx.conf uses for its own zones. Nothing is listed in
-    # DEFAULT_THROTTLE_CLASSES on purpose: this is the rate an endpoint gets if it
-    # asks for one, and nothing asks automatically. Login opts in explicitly
-    # (apps.accounts.views.LoginView), so a new endpoint cannot acquire a limit by
-    # being added to a list nobody read.
-    "DEFAULT_THROTTLE_RATES": {"login": "5/m"},
+    # Two scopes (spec 9.3, A5 + D0). `login` (5/m) is the A5 gate - "6th attempt
+    # from one IP returns 429" - and only LoginView asks for it. `write` (60/m) is
+    # D0: every unsafe method on every endpoint, one budget per client address.
+    # The rates use the same per-minute shape nginx.conf uses for its own zones;
+    # apps.core.throttling explains why 60 matches the edge's api zone.
+    #
+    # DEFAULT_THROTTLE_CLASSES is what makes D0 hold for endpoints that do not
+    # exist yet: a new view inherits the write limit the way it already inherits
+    # IsAuthenticated, rather than depending on whoever writes it remembering.
+    # A view that must be exempt has to override throttle_classes deliberately -
+    # the only one today is LoginView, whose 5/m scope is stricter than this
+    # default and replaces it rather than stacking with it.
+    "DEFAULT_THROTTLE_RATES": {"login": "5/m", "write": "60/m"},
+    "DEFAULT_THROTTLE_CLASSES": ("apps.core.throttling.WriteRateThrottle",),
     # The version is in the path, so DRF only has to agree which paths count as
     # versioned. NamespaceVersioning reads the `namespace` given by the URLconf,
     # which means /api/v2/ cannot quietly resolve against v1 views: it 404s until
@@ -279,6 +298,24 @@ SPECTACULAR_SETTINGS = {
 # ── Static files ───────────────────────────────────────────────────────────
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# ── Uploaded documents ─────────────────────────────────────────────────────
+# Employee contract documents (spec §5) are written here and are deliberately
+# never served: config/urls.py mounts no /media/ route, no endpoint returns a
+# file's bytes, and no serializer emits a URL for one, so there is no link to
+# leak in the first place. Only the API's own screens can tell you a document is
+# on file, which is the requirement rather than a shortcut.
+#
+# In Docker this is a named volume (see docker-compose.yml) so a rebuilt image
+# does not lose the paperwork.
+MEDIA_ROOT = BASE_DIR / "media"
+
+# Hard ceiling on one uploaded document, read from the environment so a
+# deployment with larger scans can raise it without a code change. Anything
+# bigger is refused by the upload serializer before a byte is written to disk.
+EMPLOYEE_DOCUMENT_MAX_BYTES = int(
+    os.environ.get("EMPLOYEE_DOCUMENT_MAX_BYTES", str(5 * 1024 * 1024))
+)
 
 # ── Defaults ───────────────────────────────────────────────────────────────
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

@@ -103,6 +103,24 @@ class Sale(VoidableModel):
         """Whether payments cover the total."""
         return self.amount_paid >= self.total
 
+    @property
+    def item_count(self) -> int:
+        """Number of distinct product lines on the receipt.
+
+        A list queryset either annotates the same name or prefetches ``items``,
+        so counting the prefetched rows does not issue a query per sale. The
+        setter accepts the annotation; the fallback keeps the field present on a
+        freshly created sale, where no annotation or prefetch exists.
+        """
+        annotated = getattr(self, "_item_count", None)
+        if annotated is not None:
+            return annotated
+        return len(self.items.all())
+
+    @item_count.setter
+    def item_count(self, value: int) -> None:
+        self._item_count = value
+
     def void(self, *, reason: str, actor: User | None = None) -> None:
         """Void the sale and its payments.
 

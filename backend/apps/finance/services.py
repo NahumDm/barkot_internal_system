@@ -26,15 +26,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
+from django.db import transaction
 from django.db.models import Sum
 
+from apps.audit.models import AuditLog
 from apps.core.business_time import business_period_bounds
 from apps.core.enums import ExpenseStatus, PaymentMethod, PayrollRunStatus
+from apps.core.exceptions import BARKOTDomainError
 from apps.core.money import ZERO_MONEY, quantize_money
-from apps.finance.models import Expense
+from apps.finance.models import AdditionalIncome, Expense, ExpenseCategory
 from apps.payroll.models import PayrollRun
 from apps.sales.models import Payment
+
+if TYPE_CHECKING:  # pragma: no cover
+    from apps.accounts.models import User
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,11 +188,210 @@ def finance_balance(*, start: date, end: date, currency: str = "ETB") -> Finance
     )
 
 
+@transaction.atomic
+def create_expense_category(
+    *, name: str, description: str = "", actor: User | None = None
+) -> ExpenseCategory:
+    """Create an active expense category and its audit record."""
+    normalized_name = name.strip()
+    if not normalized_name:
+        raise BARKOTDomainError("Expense category name is required.")
+    if ExpenseCategory.objects.filter(name__iexact=normalized_name).exists():
+        raise BARKOTDomainError(f"Expense category {normalized_name!r} already exists.")
+
+    category = ExpenseCategory.objects.create(
+        name=normalized_name,
+        description=description.strip(),
+    )
+    AuditLog.record(
+        action=AuditLog.Action.CREATE,
+        object_type="finance.ExpenseCategory",
+        object_id=category.pk,
+        actor=actor,
+        summary=f"Created expense category {category.name}",
+    )
+    return category
+
+
+@transaction.atomic
+def update_expense_category(
+    *,
+    category: ExpenseCategory,
+    name: str | None = None,
+    description: str | None = None,
+    is_active: bool | None = None,
+    actor: User | None = None,
+) -> ExpenseCategory:
+    """Edit an expense category in place.
+
+    Only the supplied fields change. A rename is refused if another category
+    already uses the name, matching the create rule so the two paths cannot
+    leave the table with a duplicate the API would have rejected on create.
+    """
+    update_fields: list[str] = []
+
+    if name is not None:
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise BARKOTDomainError("Expense category name is required.")
+        clash = ExpenseCategory.objects.filter(name__iexact=normalized_name).exclude(pk=category.pk)
+        if clash.exists():
+            raise BARKOTDomainError(f"Expense category {normalized_name!r} already exists.")
+        category.name = normalized_name
+        update_fields.append("name")
+
+    if description is not None:
+        category.description = description.strip()
+        update_fields.append("description")
+
+    if is_active is not None:
+        category.is_active = is_active
+        update_fields.append("is_active")
+
+    if not update_fields:
+        return category
+
+    update_fields.append("updated_at")
+    category.save(update_fields=update_fields)
+
+    AuditLog.record(
+        action=AuditLog.Action.UPDATE,
+        object_type="finance.ExpenseCategory",
+        object_id=category.pk,
+        actor=actor,
+        summary=f"Updated expense category {category.name}",
+    )
+    return category
+
+
+@transaction.atomic
+def archive_expense_category(
+    *, category: ExpenseCategory, actor: User | None = None
+) -> ExpenseCategory:
+    """Retire an expense category without deleting it.
+
+    The category stays on the books so historic expenses keep their grouping;
+    it simply stops being offered when recording new expenses. Deactivating an
+    already-inactive category is a no-op rather than an error, so the action is
+    idempotent.
+    """
+    if category.is_active:
+        category.is_active = False
+        category.save(update_fields=["is_active", "updated_at"])
+        AuditLog.record(
+            action=AuditLog.Action.UPDATE,
+            object_type="finance.ExpenseCategory",
+            object_id=category.pk,
+            actor=actor,
+            summary=f"Archived expense category {category.name}",
+        )
+    return category
+
+
+@transaction.atomic
+def create_expense(
+    *,
+    category: ExpenseCategory,
+    description: str,
+    amount: Decimal,
+    currency: str,
+    incurred_on: date,
+    actor: User | None = None,
+) -> Expense:
+    """Record an expense awaiting approval."""
+    if not category.is_active:
+        raise BARKOTDomainError(f"Expense category {category.name!r} is inactive.")
+    if amount <= 0:
+        raise BARKOTDomainError("Expense amount must be greater than zero.")
+    if currency.strip().upper() != "ETB":
+        raise BARKOTDomainError("Only ETB expenses are supported.")
+
+    expense = Expense.objects.create(
+        category=category,
+        description=description.strip(),
+        amount=quantize_money(amount),
+        currency="ETB",
+        incurred_on=incurred_on,
+        created_by=actor,
+        updated_by=actor,
+    )
+    AuditLog.record(
+        action=AuditLog.Action.CREATE,
+        object_type="finance.Expense",
+        object_id=expense.pk,
+        actor=actor,
+        summary=f"Recorded expense {expense.description} ({expense.amount} ETB)",
+    )
+    return expense
+
+
+@transaction.atomic
+def approve_expense(*, expense: Expense, actor: User | None = None) -> Expense:
+    """Approve an expense so it contributes to the business balance."""
+    expense.approve(actor=actor)
+    expense.updated_by = actor
+    expense.save(update_fields=["status", "approved_at", "approved_by", "updated_by", "updated_at"])
+    AuditLog.record(
+        action=AuditLog.Action.APPROVE,
+        object_type="finance.Expense",
+        object_id=expense.pk,
+        actor=actor,
+        summary=f"Approved expense {expense.description} ({expense.amount} ETB)",
+    )
+    return expense
+
+
 __all__ = [
     "FinanceBalance",
+    "additional_income_by_date",
+    "additional_income_by_month",
+    "additional_income_by_range",
+    "additional_income_by_week",
+    "additional_income_total",
+    "approve_expense",
     "approved_expenses_by_category",
     "approved_expenses_total",
     "approved_payroll_total",
+    "archive_expense_category",
+    "create_expense",
+    "create_expense_category",
     "finance_balance",
     "income_by_method",
+    "update_expense_category",
 ]
+
+
+def additional_income_total(*, start: date | None = None, end: date | None = None) -> Decimal:
+    qs = AdditionalIncome.objects.filter(voided_at__isnull=True)
+    if start is not None:
+        qs = qs.filter(income_date__gte=start)
+    if end is not None:
+        qs = qs.filter(income_date__lte=end)
+    total = qs.aggregate(total=Sum("amount"))["total"]
+    return quantize_money(total or ZERO_MONEY)
+
+
+def additional_income_by_date(*, date_filter: date) -> Decimal:
+    total = AdditionalIncome.objects.filter(
+        voided_at__isnull=True,
+        income_date=date_filter,
+    ).aggregate(total=Sum("amount"))["total"]
+    return quantize_money(total or ZERO_MONEY)
+
+
+def additional_income_by_range(*, start: date, end: date) -> Decimal:
+    return additional_income_total(start=start, end=end)
+
+
+def additional_income_by_week(*, week_start: date) -> Decimal:
+    from datetime import timedelta
+    week_end = week_start + timedelta(days=6)
+    return additional_income_total(start=week_start, end=week_end)
+
+
+def additional_income_by_month(*, month_start: date) -> Decimal:
+    from datetime import timedelta
+    import calendar
+    last_day = calendar.monthrange(month_start.year, month_start.month)[1]
+    month_end = month_start.replace(day=last_day)
+    return additional_income_total(start=month_start, end=month_end)

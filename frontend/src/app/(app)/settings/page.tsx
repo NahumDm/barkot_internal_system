@@ -1,5 +1,5 @@
-import PagePlaceholder from "@/components/page-placeholder";
+import SettingsPage from "@/features/settings/settings-page";
 
-export default function SettingsPage() {
-  return <PagePlaceholder title="Settings" />;
+export default function SettingsPageRoute() {
+  return <SettingsPage />;
 }

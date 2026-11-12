@@ -16,7 +16,11 @@
  * check reads the body looking for a form token, so a request sent as
  * `multipart/form-data` is rejected with 415 before it is ever authorised. A
  * bodyless `POST` (logout) therefore goes out as `{}` with an explicit
- * `Content-Type: application/json`.
+ * `Content-Type: application/json`. The one exception is a caller that hands
+ * over a `FormData` (employee document upload): that goes out as multipart
+ * with the browser's own `Content-Type` (the boundary is generated per
+ * request and cannot be set by hand), still carrying the CSRF header, to an
+ * endpoint that declares DRF's `MultiPartParser`.
  *
  * **Nothing is persisted.** The session lives in an HttpOnly cookie that this
  * module cannot read, and the CSRF token lives in a cookie Django rewrites. So
@@ -43,12 +47,24 @@ export type QueryValue = string | number | boolean | null | undefined;
 
 export interface RequestOptions {
   method?: HttpMethod;
-  /** Serialised as JSON. Defaults to `{}` on unsafe requests. */
+  /**
+   * Serialised as JSON. Defaults to `{}` on unsafe requests. A `FormData`
+   * instance is passed through untouched and sent as multipart instead.
+   */
   body?: unknown;
   query?: Record<string, QueryValue>;
   /** Passed through as `Idempotency-Key` (spec §10.2). */
   idempotencyKey?: string;
   signal?: AbortSignal;
+  /**
+   * Milliseconds to wait for a response before aborting. Off by default so a
+   * slow report query is not killed by a deadline meant for interactivity; the
+   * session check and logout opt in. A request that hits the deadline rejects
+   * with an `ApiError` whose code is `request_timeout`, so callers can tell a
+   * timed-out check from a refusal to authenticate - they need very different
+   * handling.
+   */
+  timeoutMs?: number;
 }
 
 type JsonResult = { ok: true; value: unknown } | { ok: false; contentType: string | null };
@@ -172,6 +188,65 @@ async function csrfToken(): Promise<string> {
   return readCookie(CSRF_COOKIE) ?? fetchCsrfToken();
 }
 
+const TIMEOUT_MESSAGE = "The request took too long to answer. Try again in a moment.";
+
+function timeoutError(): ApiError {
+  return new ApiError(0, { code: ErrorCode.Timeout, message: TIMEOUT_MESSAGE, details: null });
+}
+
+/**
+ * Run a `fetch` with an optional deadline.
+ *
+ * A plain fetch has exactly one failure mode that matters for the session
+ * check: the connection is accepted but never answered, and the request hangs
+ * until the browser's network stack gives up minutes later. That is the whole
+ * "Checking your session…" stall: nothing rejects, so the guard has nothing to
+ * react to and offers no way out. Aborting after `timeoutMs` converts the stall
+ * into a typed, catchable `ApiError` at the cost of one timer.
+ *
+ * A caller-supplied `signal` still works: aborting it cancels the request too,
+ * and that abort is distinguishable from a deadline - an external abort
+ * propagates as the browser's `AbortError` rather than as a timeout.
+ */
+async function fetchWithDeadline(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs?: number,
+): Promise<Response> {
+  if (!timeoutMs || timeoutMs <= 0) return fetch(input, init);
+
+  const controller = new AbortController();
+  if (init.signal) {
+    if (init.signal.aborted) {
+      controller.abort();
+    } else {
+      init.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+  }
+
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<Response>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      reject(timeoutError());
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([fetch(input, { ...init, signal: controller.signal }), deadline]);
+  } catch (error) {
+    // The underlying fetch may reject with an AbortError a tick after the
+    // deadline did; both mean the deadline passed, so whatever settles the race
+    // first, the caller sees the typed timeout.
+    if (timedOut) throw timeoutError();
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Perform an API request and return its parsed body.
  *
@@ -184,24 +259,33 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   const method = options.method ?? "GET";
   const unsafe = !SAFE_METHODS.has(method);
   const headers = new Headers({ Accept: "application/json" });
-  let body: string | undefined;
+  let body: BodyInit | undefined;
 
   if (unsafe) {
-    body = JSON.stringify(options.body ?? {});
-    headers.set("Content-Type", "application/json");
+    if (typeof FormData !== "undefined" && options.body instanceof FormData) {
+      // Multipart: the browser generates the boundary, so Content-Type must
+      // not be set by hand; the CSRF header still guards the request and the
+      // endpoint must declare DRF's MultiPartParser.
+      body = options.body;
+    } else {
+      body = JSON.stringify(options.body ?? {});
+      headers.set("Content-Type", "application/json");
+    }
     headers.set(CSRF_HEADER, await csrfToken());
   }
   if (options.idempotencyKey) {
     headers.set(IDEMPOTENCY_HEADER, options.idempotencyKey);
   }
 
-  const response = await fetch(buildUrl(path, options.query), {
+  const init: RequestInit = {
     method,
     headers,
     body,
     credentials: "include",
     ...(options.signal ? { signal: options.signal } : {}),
-  });
+  };
+
+  const response = await fetchWithDeadline(buildUrl(path, options.query), init, options.timeoutMs);
 
   const parsed = await readJson(response);
 

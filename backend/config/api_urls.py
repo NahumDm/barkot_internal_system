@@ -22,6 +22,22 @@ urlpatterns = [
     path("auth/", include("apps.accounts.auth_urls")),
     path("products/", include("apps.products.urls")),
     path("sales/", include("apps.sales.urls")),
+    path("finance/", include("apps.finance.urls")),
+    path("inventory/", include("apps.inventory.urls")),
+    path("payroll/", include("apps.payroll.urls")),
+    path("bono/", include("apps.bono.urls")),
+    path("reports/", include("apps.reports.urls")),
+    path("dashboard/", include("apps.dashboard.urls")),
+    # The employee register lives at the root of the version
+    # (/employees/). Its prefix is claimed before the account-administration
+    # include below so the register's detail wildcard can never swallow an
+    # admin route, and after every domain prefix above, none of which use
+    # "employees/".
+    path("", include("apps.users.urls")),
+    # C5: Owner account administration lives at the root of the version
+    # (/users/, /roles/, /settings/). Included last so the more specific
+    # domain prefixes above always win on their own paths.
+    path("", include("apps.accounts.urls")),
 ]
 
 #: Wired in ``config/urls.py``. The schema is mounted beside the version rather

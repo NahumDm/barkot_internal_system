@@ -94,6 +94,42 @@ def quantize_quantity(value: Decimal | int | str, *, field: str = "quantity") ->
     return to_decimal(value, field=field).quantize(QUANTITY_UNIT, rounding=ROUND_HALF_UP)
 
 
+def validate_whole_quantity(
+    value: Decimal | int | str, *, product: object, field: str = "quantity"
+) -> Decimal:
+    """Coerce ``value`` to a quantity and refuse a fraction for a whole-unit product.
+
+    A product whose ``quantity_mode`` is ``WHOLE`` (crates, bottles) is counted
+    in whole numbers; a ``FRACTIONAL`` product (kg, litre) keeps decimals.
+
+    Args:
+        value: The submitted quantity.
+        product: The product it belongs to. Anything exposing
+            ``requires_whole_quantity`` and ``sku`` works.
+        field: Field name used in the error message.
+
+    Returns:
+        The value as an exact ``Decimal`` (not quantised).
+
+    Raises:
+        MoneyError: If ``value`` is a float or cannot be parsed.
+        FractionalQuantityNotAllowed: If the product is whole-unit and the value
+            has a fractional part.
+    """
+    from apps.core.exceptions import FractionalQuantityNotAllowed
+
+    quantity = to_decimal(value, field=field)
+    sku = getattr(product, "sku", "product")
+    if (
+        getattr(product, "requires_whole_quantity", False)
+        and quantity != quantity.to_integral_value()
+    ):
+        raise FractionalQuantityNotAllowed(
+            f"Product {sku!r} is counted in whole units; enter a whole number, not {quantity}."
+        )
+    return quantity
+
+
 def multiply_money(unit_price: Decimal | int | str, quantity: Decimal | int | str) -> Decimal:
     """Return ``unit_price * quantity`` as quantised money.
 

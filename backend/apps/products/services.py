@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.db import transaction
 from django.db.models import QuerySet
@@ -46,6 +46,7 @@ class ProductCreateInput:
         name: The product name (unique within its category).
         sku: Stable internal code, never reused.
         unit: Selling and stocking unit (e.g. "bottle", "crate", "kg").
+        quantity_mode: "WHOLE" for whole-number units, "FRACTIONAL" for decimals.
         is_stock_tracked: Whether inventory ledger tracks this product.
         description: Free-text description.
     """
@@ -54,6 +55,8 @@ class ProductCreateInput:
     name: str
     sku: str
     unit: str = "bottle"
+    quantity_mode: str = "WHOLE"
+    bottles_per_crate: int | None = None
     is_stock_tracked: bool = True
     description: str = ""
 
@@ -102,6 +105,8 @@ def create_product(
     name: str,
     sku: str,
     unit: str = "bottle",
+    quantity_mode: str = "WHOLE",
+    bottles_per_crate: int | None = None,
     is_stock_tracked: bool = True,
     description: str = "",
     actor: User | None = None,
@@ -113,6 +118,9 @@ def create_product(
         name: The product name (unique within its category).
         sku: Stable internal code, never reused.
         unit: Selling and stocking unit.
+        quantity_mode: "WHOLE" or "FRACTIONAL" - whether quantities must be whole.
+        bottles_per_crate: How many bottles one crate holds, e.g. 24. ``None``
+            when the product is not counted in crates.
         is_stock_tracked: Whether inventory ledger tracks this product.
         description: Free-text description.
         actor: The staff member creating the product (permission
@@ -139,6 +147,8 @@ def create_product(
         name=name.strip(),
         sku=sku.strip().upper(),
         unit=unit.strip(),
+        quantity_mode=quantity_mode,
+        bottles_per_crate=bottles_per_crate,
         is_stock_tracked=is_stock_tracked,
         description=description.strip(),
     )
@@ -190,6 +200,7 @@ def set_product_price(
         raise BARKOTDomainError(f"Currency {currency!r} must be a 3-letter ISO code.")
 
     moment = effective_from or now_utc()
+    previous = product.current_price()
 
     price = ProductPrice.objects.create(
         product=product,
@@ -197,6 +208,24 @@ def set_product_price(
         currency=currency,
         effective_from=moment,
     )
+
+    # Bono pairings are an equal-selling-price promise. A price change is not
+    # allowed to silently reinterpret which products share a token, so the Bono
+    # domain opens an Owner review inside this same transaction. The hook is
+    # imported lazily because the Bono domain itself depends on products.
+    if previous is not None and (
+        previous.unit_price != price.unit_price or previous.currency != currency
+    ):
+        from apps.bono.services import flag_pairings_for_price_change
+
+        flag_pairings_for_price_change(
+            product=product,
+            previous_price=previous.unit_price,
+            new_price=price.unit_price,
+            currency=price.currency,
+            effective_from=moment,
+            actor=actor,
+        )
 
     AuditLog.record(
         action=AuditLog.Action.CREATE,
@@ -291,6 +320,107 @@ def create_category(
     return category
 
 
+@transaction.atomic
+def update_product(
+    *,
+    product: Product,
+    actor: User | None = None,
+    **changed: Any,
+) -> Product:
+    """Apply a maintenance edit to a product (PUT/PATCH ``/products/{id}/``).
+
+    This loop used to live in the view, which made product editing the one
+    product write with no audit entry beside it (roadmap D1). A body that
+    changes nothing still touches ``updated_at`` - matching the admin update
+    path's no-op behaviour - but writes no audit row, so the log never claims
+    a change that did not happen.
+
+    Args:
+        product: The product being edited.
+        actor: The staff member editing it (permission ``products.manage_products``).
+        **changed: Field name to new value, already validated by
+            ``ProductUpdateSerializer``.
+
+    Returns:
+        The updated :class:`Product`.
+    """
+    for field, value in changed.items():
+        setattr(product, field, value)
+    product.save(update_fields=[*changed, "updated_at"])
+
+    if changed:
+        AuditLog.record(
+            action=AuditLog.Action.UPDATE,
+            object_type="products.Product",
+            object_id=product.pk,
+            actor=actor,
+            summary=f"Updated {', '.join(sorted(changed))} on product {product.sku}",
+        )
+    return product
+
+
+@transaction.atomic
+def update_category(
+    *,
+    category: Category,
+    actor: User | None = None,
+    **changed: Any,
+) -> Category:
+    """Apply an edit to a product category (PUT/PATCH ``/products/categories/{id}/``).
+
+    The same shape and the same no-op rule as :func:`update_product`: the
+    change and its audit entry commit together or not at all.
+
+    Args:
+        category: The category being edited.
+        actor: The staff member editing it (permission ``products.manage_categories``).
+        **changed: Field name to new value, already validated by
+            ``CategoryUpdateSerializer``.
+
+    Returns:
+        The updated :class:`Category`.
+    """
+    for field, value in changed.items():
+        setattr(category, field, value)
+    category.save(update_fields=[*changed, "updated_at"])
+
+    if changed:
+        AuditLog.record(
+            action=AuditLog.Action.UPDATE,
+            object_type="products.Category",
+            object_id=category.pk,
+            actor=actor,
+            summary=f"Updated {', '.join(sorted(changed))} on category {category.name}",
+        )
+    return category
+
+
+@transaction.atomic
+def delete_category(*, category: Category, actor: User | None = None) -> None:
+    """Delete an unreferenced product category (roadmap D1).
+
+    Categories are reference data, so unlike financial records they are really
+    deleted rather than voided - but the deletion used to write nothing, which
+    is exactly the evidence P06 asks for. The audit row is written after the
+    row is gone and keeps the id the table no longer has.
+
+    Args:
+        category: The category, checked by the view to have no products.
+        actor: The staff member deleting it (permission ``products.manage_categories``).
+    """
+    name = category.name
+    pk = category.pk
+    category.delete()
+
+    AuditLog.record(
+        action=AuditLog.Action.DELETE,
+        object_type="products.Category",
+        object_id=pk,
+        actor=actor,
+        summary=f"Deleted category {name}",
+    )
+
+
 __all__ = [
     "PriceCreateInput",
     "ProductCreateInput",
@@ -298,8 +428,11 @@ __all__ = [
     "categories_queryset",
     "create_category",
     "create_product",
+    "delete_category",
     "products_queryset",
     "retire_product",
     "sellable_products_queryset",
     "set_product_price",
+    "update_category",
+    "update_product",
 ]

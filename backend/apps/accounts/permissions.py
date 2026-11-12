@@ -77,6 +77,18 @@ PAYROLL_PERMISSIONS: Final[tuple[str, ...]] = (
     "payroll.manage_payroll_employees",
 )
 
+#: Bono is its own accountability workflow. Configuration, shop-floor custody
+#: and signed daily reports are separate grants because the job that hands out a
+#: token, the job that writes off a loss and the job that signs the day off are
+#: intentionally not the same pair of hands.
+BONO_PERMISSIONS: Final[tuple[str, ...]] = (
+    "bono.view_bono",
+    "bono.manage_configuration",
+    "bono.manage_operations",
+    "bono.submit_report",
+    "bono.approve_report",
+)
+
 ADMINISTRATION_PERMISSIONS: Final[tuple[str, ...]] = (
     "users.manage_employees",
     "audit.view_audit_log",
@@ -92,6 +104,7 @@ ALL_PERMISSIONS: Final[tuple[str, ...]] = (
     + PRODUCT_PERMISSIONS
     + FINANCE_PERMISSIONS
     + PAYROLL_PERMISSIONS
+    + BONO_PERMISSIONS
     + ADMINISTRATION_PERMISSIONS
 )
 
@@ -101,24 +114,32 @@ _CASHIER_SHOPFLOOR: Final[tuple[str, ...]] = (
     "inventory.complete_stock_count",
     "sales.view_sales",
     "sales.create_sale",
+    "bono.view_bono",
+    "bono.submit_report",
 )
 
-_MANAGER: Final[tuple[str, ...]] = (
-    *_CASHIER_SHOPFLOOR,
-    "inventory.receive_stock",
-    "inventory.record_breakage",
-    "inventory.approve_adjustment",
-    "sales.void_sale",
-    "finance.view_reports",
-    "finance.create_expense",
-    "finance.approve_expense",
-    "finance.manage_expense_categories",
-    "payroll.view_payroll",
-    "payroll.generate_run",
-    "payroll.create_deduction",
-    "payroll.manage_payroll_employees",
-    "users.manage_employees",
-    "audit.view_audit_log",
+_MANAGER: Final[tuple[str, ...]] = tuple(
+    permission
+    for permission in (
+        *_CASHIER_SHOPFLOOR,
+        "inventory.receive_stock",
+        "inventory.record_breakage",
+        "inventory.approve_adjustment",
+        "sales.void_sale",
+        "finance.view_reports",
+        "finance.create_expense",
+        "finance.approve_expense",
+        "finance.manage_expense_categories",
+        "payroll.view_payroll",
+        "payroll.create_deduction",
+        "bono.manage_operations",
+        "users.manage_employees",
+        "audit.view_audit_log",
+    )
+    # The Manager records custody; the Cashier prepares and submits the daily
+    # report, and the Owner signs it off. Inheriting the shopfloor tuple would
+    # otherwise hand the Manager the Cashier's report-submission grant.
+    if permission != "bono.submit_report"
 )
 
 #: Role code → permission codenames. The Owner is given everything explicitly
@@ -131,7 +152,7 @@ ROLE_MATRIX: Final[dict[str, tuple[str, ...]]] = {
         "inventory.view_inventory",
         "inventory.receive_stock",
         "inventory.record_breakage",
-        "sales.view_sales",
+        "bono.view_bono",
     ),
     Role.Code.CASHIER: _CASHIER_SHOPFLOOR,
     Role.Code.MANAGER: _MANAGER,
@@ -141,17 +162,19 @@ ROLE_MATRIX: Final[dict[str, tuple[str, ...]]] = {
 #: Descriptive text for each role, used by the seed migration.
 ROLE_DESCRIPTIONS: Final[dict[str, str]] = {
     Role.Code.BARMAN: (
-        "Receives stock and records breakage or waste. Does not sell, count stock or "
-        "approve adjustments."
+        "Receives stock, records breakage or waste and reads Bono operational "
+        "allocations. Does not sell, count stock, approve adjustments or open Sales."
     ),
     Role.Code.CASHIER: (
-        "Records individual sales and completes stock counts. Cannot void sales or "
-        "approve variances."
+        "Records individual sales, completes stock counts and prepares/submits the "
+        "daily Bono report. Cannot void sales, configure Bono or approve reports."
     ),
     Role.Code.MANAGER: (
         "Reviews and approves counts and variances, records and approves expenses, "
-        "generates payroll, manages employees and views reports. Generates but does "
-        "not approve payroll."
+        "manages the employee register and views reports. Records Bono issues, "
+        "transfers and losses, reads payroll and records deductions, but does not "
+        "configure Bono, submit or approve Bono reports, generate payroll runs or "
+        "manage payroll employees."
     ),
     Role.Code.OWNER: (
         "Full access. Sole approver of payroll runs and the only role that manages "
@@ -173,6 +196,11 @@ ViewReports = "finance.view_reports"
 GeneratePayrollRun = "payroll.generate_run"
 ApprovePayrollRun = "payroll.approve_run"
 MarkPayrollPaid = "payroll.mark_paid"
+ViewBono = "bono.view_bono"
+ManageBonoConfiguration = "bono.manage_configuration"
+ManageBonoOperations = "bono.manage_operations"
+SubmitBonoReport = "bono.submit_report"
+ApproveBonoReport = "bono.approve_report"
 ManageUsers = "accounts.manage_users"
 
 
@@ -293,9 +321,19 @@ class CanViewSales(HasRolePermission):
 
 
 class CanCreateSale(HasRolePermission):
-    """Ring up a sale."""
+    """Ring up a sale (Cashier and Owner only — Manager is view-only)."""
 
     required_permission = "sales.create_sale"
+
+    def has_permission(self, request, view):
+        # Manager must not record new sales (clarified issue): block MANAGER
+        # explicitly even if matrix accidentally grants the permission.
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        if getattr(getattr(user, "role", None), "code", None) == "MANAGER":
+            return False
+        return user.has_perm("sales.create_sale")
 
 
 class CanVoidSale(HasRolePermission):
@@ -329,9 +367,31 @@ class CanChangePrices(HasRolePermission):
 
 
 class CanViewReports(HasRolePermission):
-    """Read the reporting summaries."""
+    """Read reporting summaries (Owner only — Manager view-only clarification)."""
 
     required_permission = "finance.view_reports"
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        # Manager must not download financial reports (issue clarification)
+        if getattr(getattr(user, "role", None), "code", None) == "MANAGER":
+            return False
+        return user.has_perm("finance.view_reports")
+
+
+class IsOwner(BasePermission):
+    """Only the Owner role."""
+
+    def has_permission(self, request: Request, view: Any) -> bool:
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        role = getattr(user, "role", None)
+        if not role:
+            return False
+        return getattr(role, "code", None) == Role.Code.OWNER
 
 
 class CanCreateExpense(HasRolePermission):
@@ -359,7 +419,7 @@ class CanViewPayroll(HasRolePermission):
 
 
 class CanGeneratePayrollRun(HasRolePermission):
-    """Produce a draft run. A Manager generates; an Owner approves."""
+    """Produce a draft run. Owner-only: a Manager may read payroll but not run it."""
 
     required_permission = "payroll.generate_run"
 
@@ -367,9 +427,10 @@ class CanGeneratePayrollRun(HasRolePermission):
 class CanApprovePayrollRun(HasRolePermission):
     """Approve a run so it can be paid.
 
-    The A8 gate. Deliberately not granted to a Manager: the role descriptions say a
-    Manager generates but does not approve, and payroll is the one place where whoever
-    computes the figure must not also be whoever signs it off.
+    The A8 gate. Deliberately not granted to a Manager: payroll is the one place
+    where whoever computes the figure must not also be whoever signs it off, and
+    since a Manager can no longer generate a run either, only the Owner ever
+    moves a run past ``GENERATED``.
     """
 
     required_permission = "payroll.approve_run"
@@ -388,15 +449,53 @@ class CanCreateDeduction(HasRolePermission):
 
 
 class CanManagePayrollEmployees(HasRolePermission):
-    """Add employees to a run and set their pay."""
+    """Add employees to payroll and set their pay. Owner-only (spec §14.3)."""
 
     required_permission = "payroll.manage_payroll_employees"
 
 
-class CanManageEmployees(HasRolePermission):
-    """Create staff accounts and change what roles they hold."""
+class CanViewBono(HasRolePermission):
+    """Read Bono operations, custody balances and daily reports."""
 
+    required_permission = "bono.view_bono"
+
+
+class CanManageBonoConfiguration(HasRolePermission):
+    """Create/retire Bono types, pair products and resolve price reviews. Owner-only."""
+
+    required_permission = "bono.manage_configuration"
+
+
+class CanManageBonoOperations(HasRolePermission):
+    """Issue tokens, transfer custody and record losses. Manager and Owner."""
+
+    required_permission = "bono.manage_operations"
+
+
+class CanSubmitBonoReport(HasRolePermission):
+    """Prepare, adjust, refresh and submit the daily Bono report. Cashier and Owner."""
+
+    required_permission = "bono.submit_report"
+
+
+class CanApproveBonoReport(HasRolePermission):
+    """Approve, reject or start a correction on a submitted Bono report. Owner-only."""
+
+    required_permission = "bono.approve_report"
+
+
+class CanManageEmployees(HasRolePermission):
+    """Maintain the employee register: Owner only (spec §5, role matrix D5)."""
     required_permission = "users.manage_employees"
+
+    def has_permission(self, request, view):
+        # Restrict to Owner only. Manager has manage_employees in matrix but
+        # register access is Owner-only per clarification.
+        return bool(
+            request.user and request.user.is_authenticated
+            and request.user.has_perm("users.manage_employees")
+            and getattr(getattr(request.user, "role", None), "code", None) == "OWNER"
+        )
 
 
 class CanViewAuditLog(HasRolePermission):
@@ -452,6 +551,11 @@ PERMISSION_CLASSES: dict[str, type[HasRolePermission]] = {
         CanMarkPayrollPaid,
         CanCreateDeduction,
         CanManagePayrollEmployees,
+        CanViewBono,
+        CanManageBonoConfiguration,
+        CanManageBonoOperations,
+        CanSubmitBonoReport,
+        CanApproveBonoReport,
         CanManageEmployees,
         CanViewAuditLog,
         CanManageUsers,

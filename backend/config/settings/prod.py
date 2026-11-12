@@ -16,7 +16,7 @@ import os
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F403
-from .base import DEV_INSECURE_SECRET_KEY
+from .base import DEV_INSECURE_SECRET_KEY, TRUSTED_PROXY
 
 # Not configurable. There is deliberately no DJANGO_DEBUG escape hatch: a
 # production process that can be talked into debug mode serves tracebacks,
@@ -62,6 +62,15 @@ _require_real_secret_key()
 if os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "false").lower() in {"1", "true", "yes"}:
     SECURE_SSL_REDIRECT = True
 
+# Nginx (infrastructure/nginx) terminates TLS and forwards the caller's original
+# scheme in X-Forwarded-Proto. Without this, Django would see every proxied
+# request as plain http and, with SECURE_SSL_REDIRECT on, answer with an endless
+# https redirect from behind the proxy. It is behind the same TRUSTED_PROXY
+# switch as the throttle client-IP logic: a bare gunicorn that never set the
+# header must not be led by one written by whoever sent the request.
+if TRUSTED_PROXY:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
 if os.environ.get("DJANGO_SESSION_COOKIE_SECURE", "true").lower() in {"1", "true", "yes"}:
     SESSION_COOKIE_SECURE = True
 
@@ -74,3 +83,7 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
+
+from config.logging import get_logging_config  # noqa: E402
+
+LOGGING = get_logging_config()

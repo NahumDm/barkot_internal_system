@@ -16,3 +16,6 @@
 *.log
 .DS_Store
 next-env.d.ts
+
+# Live E2E fixtures written by tests/live/global-setup.ts
+/tests/live/.seeded.json

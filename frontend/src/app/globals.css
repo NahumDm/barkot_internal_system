@@ -1,15 +1,25 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Source+Sans+3:wght@400;500;600&family=Noto+Sans+Ethiopic:wght@400;500&display=swap");
 @import "tailwindcss";
 
 @theme {
-  /* Monochrome operationally-priority palette (UX §2.1, §3.3) */
-  --color-background: #f7f7f7;
+  /* Barkot dashboard palette (visual restyle). Values come from the
+   * "Visual Restyle Instructions" §4; token names are unchanged so no
+   * component markup has to change. */
+  --color-background: #ffffff;
   --color-surface: #ffffff;
-  --color-ink: #111111;
-  --color-ink-secondary: #666666;
-  --color-border: #e5e5e5;
+  /* The fill a form field or a table header sits on: the page tone, not the
+   * card tone, so an input reads as a well you type into rather than as a
+   * continuation of the white card around it. Without this token the 19
+   * `bg-canvas` / `text-canvas` uses in finance and inventory compiled to
+   * nothing, which left the primary buttons black-on-black. */
+  --color-canvas: #ece0cd;
+  --color-ink: #2b0f17;
+  --color-ink-secondary: #6b5a5e;
+  --color-border: #ddd3c8;
+  --color-brand: #8e192f;
 
-  --color-sidebar: #111111;
-  --color-sidebar-surface: #181818;
+  --color-sidebar: #2b0f17;
+  --color-sidebar-surface: #3a1722;
 
   /* Semantic status colors — desaturated for print/grayscale clarity */
   --color-success: #5b7a5b;
@@ -23,13 +33,1141 @@
     margin: 0;
     background-color: var(--color-background);
     color: var(--color-ink);
-    font-family:
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      "Segoe UI",
-      Roboto,
-      sans-serif;
+    font-family: "Source Sans 3", "Noto Sans Ethiopic", "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums lining-nums;
     -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .auth-page {
+    background: #eeeae5;
+    display: flex;
+    flex-direction: column;
+    min-height: 100svh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .auth-stage {
+    align-items: center;
+    display: flex;
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .auth-decoration {
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+  }
+  .auth-blob,
+  .auth-bubble {
+    border-radius: 50%;
+    position: absolute;
+  }
+  .auth-blob {
+    background: rgba(142, 25, 47, 0.06);
+  }
+  .auth-blob-top {
+    height: 520px;
+    right: -160px;
+    top: -200px;
+    width: 520px;
+  }
+  .auth-blob-bottom {
+    bottom: -190px;
+    height: 420px;
+    left: -140px;
+    width: 420px;
+  }
+  .auth-bubble {
+    background: radial-gradient(
+      circle at 30% 30%,
+      rgba(255, 255, 255, 0.9),
+      rgba(142, 25, 47, 0.07)
+    );
+    box-shadow: 0 4px 14px rgba(142, 25, 47, 0.08);
+  }
+  .auth-bubble-one {
+    height: 64px;
+    left: 6%;
+    top: 12%;
+    width: 64px;
+  }
+  .auth-bubble-two {
+    height: 34px;
+    left: 30%;
+    top: 5%;
+    width: 34px;
+  }
+  .auth-bubble-three {
+    bottom: 7%;
+    height: 84px;
+    right: 5%;
+    width: 84px;
+  }
+  .auth-bubble-four {
+    height: 26px;
+    right: 22%;
+    top: 6%;
+    width: 26px;
+  }
+
+  .auth-card-frame {
+    flex: 0 0 auto;
+    position: relative;
+  }
+
+  .auth-card {
+    background: #2b0f17;
+    border-radius: 50px;
+    box-shadow:
+      0 30px 70px rgba(43, 15, 23, 0.28),
+      0 6px 16px rgba(43, 15, 23, 0.12);
+    height: 563px;
+    overflow: hidden;
+    position: relative;
+    transform-origin: top left;
+    width: 900px;
+  }
+
+  .auth-wave {
+    height: 100%;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 100%;
+    z-index: 1;
+  }
+
+  .auth-wave path {
+    fill: #fff;
+  }
+
+  .auth-left {
+    display: contents;
+  }
+
+  .auth-mark,
+  .auth-lockup,
+  .auth-form-panel {
+    position: absolute;
+    z-index: 2;
+  }
+
+  .auth-mark {
+    height: 56px;
+    left: 33px;
+    mix-blend-mode: multiply;
+    object-fit: contain;
+    top: 34px;
+    width: auto;
+  }
+
+  .auth-lockup {
+    height: auto;
+    left: 62px;
+    mix-blend-mode: multiply;
+    object-fit: contain;
+    top: 222px;
+    width: 340px;
+  }
+
+  .auth-form-panel {
+    color: #fff;
+    left: 625px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 200px;
+  }
+
+  .auth-form-panel h1 {
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 1.1;
+    margin: 0 0 14px;
+  }
+
+  .auth-subtitle {
+    color: rgba(243, 235, 227, 0.75);
+    font-size: 13px;
+    line-height: 17px;
+    margin: -6px 0 14px;
+  }
+
+  .auth-form {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .auth-field {
+    margin: 0 0 10px;
+  }
+
+  .auth-field label {
+    color: #f3ebe3;
+    display: block;
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 5px;
+  }
+
+  .auth-input {
+    background: #1b080d;
+    border: 0;
+    border-radius: 999px;
+    box-sizing: border-box;
+    color: #fff;
+    font-size: 14px;
+    height: 34px;
+    outline: none;
+    padding: 0 15px;
+    width: 100%;
+  }
+
+  .auth-input::placeholder {
+    color: #a98c92;
+    opacity: 1;
+  }
+
+  .auth-input:focus-visible,
+  .auth-form > button:focus-visible {
+    outline: 2px solid #ece0cd;
+    outline-offset: 2px;
+  }
+
+  .auth-form > button {
+    background: #8e192f;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 500;
+    height: 36px;
+    margin-top: 14px;
+    transition: background-color 150ms ease;
+    width: 100%;
+  }
+
+  .auth-form > button:hover {
+    background: #a52039;
+  }
+  .auth-form > button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  .auth-error {
+    color: #ffd9df;
+    font-size: 12px;
+    margin: 0 0 10px;
+  }
+  .auth-hint,
+  .auth-field-error {
+    color: #f3c9d0;
+    font-size: 11px;
+    margin: 4px 0 0;
+  }
+
+  .auth-field-error + .auth-field-error {
+    margin-top: 2px;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Password reveal, auth footer and form action spacing.
+ *
+ * Declared outside `@layer` so these rules win over the utility classes
+ * already on the elements. The reveal control is positioned inside the
+ * field so the input keeps its full width and the caret never jumps.
+ *
+ * The reveal control is a `<button>` that can sit inside a form whose action
+ * button is styled by a `.auth-form > button` rule. That rule is scoped to
+ * direct children so its chrome - the `margin-top` that separates the submit
+ * button from the last field, in particular - cannot leak onto this
+ * absolutely positioned control and push it off the input's vertical centre.
+ * `margin: 0` below is the second line of defence: a control pinned with
+ * `top: 50%` must never take a margin from an ancestor selector.
+ * ------------------------------------------------------------------ */
+
+.control-wrap {
+  display: block;
+  position: relative;
+}
+.control-wrap > .control,
+.control-wrap > .auth-input {
+  padding-right: 44px;
+}
+.password-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+}
+.password-toggle:hover:not(:disabled) {
+  background: rgba(43, 15, 23, 0.06);
+  color: var(--ink);
+}
+.password-toggle:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 1px;
+}
+.password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.control-wrap--auth .password-toggle {
+  color: #a98c92;
+  height: 28px;
+  right: 4px;
+  width: 28px;
+}
+.control-wrap--auth .password-toggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.control-wrap--auth .password-toggle:focus-visible {
+  outline: 2px solid #ece0cd;
+  outline-offset: 1px;
+}
+
+.auth-page-footer {
+  align-items: center;
+  color: #6b5a5e;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  gap: 6px;
+  justify-content: center;
+  line-height: 1.4;
+  padding: 0 16px 14px;
+}
+
+/* A divider and breathing room above a form's primary action, so the
+ * submit button is not crowded against the last field's border. */
+.form-actions {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+  margin-top: 4px;
+  padding-top: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-form > button {
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .auth-page {
+    overflow: auto;
+  }
+  .auth-page-footer {
+    padding-bottom: 18px;
+  }
+
+  .auth-card-frame {
+    height: auto !important;
+    width: 100% !important;
+  }
+  .auth-card {
+    border-radius: 28px;
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+    transform: none !important;
+    width: 100%;
+  }
+  .auth-wave,
+  .auth-mark {
+    display: none;
+  }
+  .auth-left {
+    align-items: center;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 28px 24px 18px;
+  }
+  .auth-lockup {
+    height: auto;
+    left: auto;
+    max-width: 340px;
+    mix-blend-mode: multiply;
+    position: static;
+    width: 100%;
+  }
+  .auth-form-panel {
+    background: #2b0f17;
+    left: auto;
+    padding: 28px 24px 30px;
+    position: static;
+    transform: none;
+    width: auto;
+  }
+  .auth-form-panel h1 {
+    font-size: 34px;
+  }
+  .auth-form {
+    margin: 0 auto;
+    max-width: 320px;
+  }
+  .auth-input {
+    height: 44px;
+  }
+  .auth-form > button {
+    height: 44px;
+    margin-bottom: 22px;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Dashboard visual restyle (appearance only).
+ *
+ * Declared outside `@layer` so these rules win over the utility classes
+ * already on the elements. No class names were renamed: each rule either
+ * targets a class added alongside the existing ones, or an existing class
+ * via a descendant selector.
+ * ------------------------------------------------------------------ */
+
+:root {
+  --page: #ffffff;
+  --card: #ffffff;
+  --wine: #8e192f;
+  --wine-hover: #a52039;
+  --ink: #2b0f17;
+  --ink-hover: #3a1722;
+  --cream: #ece0cd;
+  --muted: #6b5a5e;
+  --muted-dark: #b9a3a8;
+  --nav-text: #e6d8db;
+  --on-wine-muted: #ecd3d8;
+  --line: #e4ddd5;
+  --border: #ddd3c8;
+}
+
+.app {
+  background: var(--page);
+  color: var(--ink);
+  font-family: "Source Sans 3", "Noto Sans Ethiopic", "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ------------------------------------------------------------------ *
+ * App form controls.
+ *
+ * One height, radius, border and focus treatment for every input,
+ * select and textarea on a white surface, so a field looks the same
+ * wherever it appears - a wide search box, a compact date filter, a
+ * four-column form grid. The auth card keeps its own dark `.auth-*`
+ * chrome; nothing here reaches inside it.
+ * ------------------------------------------------------------------ */
+:root {
+  --control-height: 44px;
+  --control-radius: 10px;
+  --control-border: #bcae96;
+  --control-border-hover: #a6957c;
+  --control-bg: #ffffff;
+  --control-bg-disabled: #f4efe8;
+  --control-disabled-text: #9a8c86;
+  --control-focus-ring: rgba(142, 25, 47, 0.14);
+}
+
+.control {
+  box-sizing: border-box;
+  height: var(--control-height);
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: var(--control-bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.3;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+.control::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.control:hover:not(:disabled) {
+  border-color: var(--control-border-hover);
+}
+.control:focus-visible {
+  outline: none;
+  border-color: var(--wine);
+  box-shadow: 0 0 0 3px var(--control-focus-ring);
+}
+.control:disabled {
+  background: var(--control-bg-disabled);
+  color: var(--control-disabled-text);
+  cursor: not-allowed;
+}
+select.control {
+  padding-right: 34px;
+}
+textarea.control {
+  height: auto;
+  min-height: 88px;
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+.control--inline {
+  width: auto;
+}
+
+input.control[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input.control[type="number"]::-webkit-outer-spin-button,
+input.control[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.field-label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.field-error {
+  margin: 0;
+  color: #8a3b3b;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+.form-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(160, 72, 72, 0.35);
+  border-radius: var(--control-radius);
+  background: rgba(160, 72, 72, 0.08);
+  color: #8a3b3b;
+  font-size: 0.875rem;
+}
+
+/* Buttons: one height and radius for the actions that sit beside a
+ * control or head a form. Small in-table actions keep their own scale. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--control-radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.btn-primary {
+  background: var(--ink);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--ink-hover);
+}
+.btn-secondary {
+  background: var(--cream);
+  border-color: var(--border);
+  color: var(--ink);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #e3d5bf;
+}
+.btn-ghost {
+  background: transparent;
+  border-color: var(--control-border);
+  color: var(--ink);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--cream);
+}
+
+/* Sidebar */
+.sidebar .brand {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  column-gap: 12px;
+  align-items: center;
+}
+.brand-logo {
+  grid-row: 1 / span 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: none;
+}
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  box-sizing: border-box;
+  object-fit: contain;
+  display: block;
+}
+.brand-name {
+  font-family: Fraunces, Georgia, serif;
+  letter-spacing: normal;
+  color: #fff;
+}
+.brand-sub {
+  color: var(--muted-dark);
+}
+
+.nav-group {
+  color: var(--muted-dark);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+  color: var(--nav-text);
+  text-decoration: none;
+  background: transparent;
+}
+.nav-item:hover {
+  background: var(--ink-hover);
+  color: #fff;
+}
+.nav-item.active {
+  background: var(--wine);
+  color: #fff;
+}
+.nav-item svg {
+  stroke: currentColor;
+}
+
+/* Top bar */
+.topbar-text {
+  color: var(--muted);
+}
+
+/* Language switcher (globe icon) */
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.lang-switch:hover {
+  background: var(--cream);
+  border-color: var(--border);
+}
+.lang-switch-code {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Public auth screens: pin the switcher to the top-right corner */
+.auth-lang {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
+}
+.lang-switch--auth {
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+/* Account menu */
+.account-menu {
+  position: relative;
+}
+.account-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+.account-menu-trigger:hover {
+  background: var(--cream);
+  border-color: var(--border);
+}
+.account-menu-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--wine);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.account-menu-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+  max-width: 180px;
+}
+.account-menu-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+.account-menu-role {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.account-menu-chevron {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.account-menu-trigger[aria-expanded="true"] .account-menu-chevron {
+  transform: rotate(180deg);
+}
+
+.account-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 40;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(43, 15, 23, 0.12);
+}
+.account-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.account-menu-item:hover,
+.account-menu-item:focus-visible {
+  background: var(--cream);
+}
+.account-menu-item svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted);
+}
+.account-menu-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.account-menu-error {
+  margin: 6px 4px 2px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: #fbeaea;
+  color: #a04848;
+}
+
+/* Profile dialog */
+.account-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(43, 15, 23, 0.45);
+}
+.account-dialog {
+  width: min(400px, 100%);
+  padding: 1.25rem;
+  background: var(--card);
+  border-radius: 18px;
+  box-shadow: 0 10px 40px rgba(43, 15, 23, 0.2);
+}
+.account-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.account-dialog-head h2 {
+  margin: 0;
+  font-family: Fraunces, Georgia, serif;
+  color: var(--ink);
+}
+.account-dialog-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.account-dialog-close:hover {
+  background: var(--cream);
+  color: var(--ink);
+}
+.account-dialog-close svg {
+  width: 18px;
+  height: 18px;
+}
+.account-dialog-list {
+  margin: 0;
+}
+.account-dialog-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.account-dialog-list > div:last-child {
+  border-bottom: 0;
+}
+.account-dialog-list dt {
+  color: var(--muted);
+}
+.account-dialog-list dd {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* Page title */
+.page-title {
+  font-family: Fraunces, Georgia, serif;
+}
+.page-subtitle {
+  color: var(--muted);
+}
+
+/* Date filters.
+ *
+ * A From/To pair reads left to right: small label, its own input, a wider gap,
+ * then the next pair. The label centres on the input's line instead of sitting
+ * jammed against it, and the input is only as wide as the value it holds - a
+ * native date control sizes itself to the date, the calendar icon and the
+ * padding - rather than stretching to fill the row. Everything wraps rather
+ * than clipping when the viewport is narrow. */
+.date-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+}
+.date-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.date-field-label {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.date-input {
+  width: auto;
+  max-width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+/* KPI cards */
+.kpi {
+  background: var(--card);
+  border: 0;
+  border-radius: 28px;
+  box-shadow:
+    0 1px 2px rgba(43, 15, 23, 0.06),
+    0 10px 30px rgba(43, 15, 23, 0.05);
+}
+.kpi-label {
+  color: var(--muted);
+  margin: 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.kpi-value {
+  font-family: Fraunces, Georgia, serif;
+  color: var(--ink);
+}
+.kpi-value small {
+  font-family: "Source Sans 3", sans-serif;
+  font-size: 0.36em;
+  font-weight: 500;
+  margin-left: 8px;
+  opacity: 0.7;
+}
+.kpi.takings {
+  background: var(--wine);
+  color: #fff;
+}
+.kpi.takings .kpi-label {
+  color: var(--on-wine-muted);
+}
+.kpi.takings .kpi-value {
+  color: #fff;
+}
+
+/* Panels */
+.panel {
+  background: var(--card);
+  border: 0;
+  border-radius: 28px;
+  box-shadow:
+    0 1px 2px rgba(43, 15, 23, 0.06),
+    0 10px 30px rgba(43, 15, 23, 0.05);
+}
+.panel-title {
+  font-family: Fraunces, Georgia, serif;
+  margin: 0;
+  color: var(--ink);
+}
+.panel-sub {
+  color: var(--muted);
+}
+.panel-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.panel-row:last-child {
+  border-bottom: 0;
+}
+.panel-row dt {
+  color: var(--muted);
+}
+.panel-row dd,
+.panel-row-value {
+  font-family: Fraunces, Georgia, serif;
+  color: var(--ink);
+}
+.section-note {
+  color: var(--muted);
+}
+.empty-text {
+  text-align: center;
+  color: var(--muted);
+}
+
+/* Buttons */
+.btn-outline {
+  padding: 0.375rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--wine);
+  background: transparent;
+  color: var(--wine);
+  cursor: pointer;
+  transition: background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-outline:hover {
+  background: var(--wine);
+  color: #fff;
+}
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 2px;
+}
+.sidebar :focus-visible {
+  outline-color: var(--cream);
+}
+
+/* ------------------------------------------------------------------ *
+ * Responsive frame (mandatory 960px breakpoint).
+ *
+ * Above 960px nothing changes: the sidebar is the persistent column it
+ * has always been, and the three drawer-only controls stay out of the
+ * way. At 959px and below the sidebar becomes an off-canvas drawer that
+ * slides in over the content, with a dismissible backdrop.
+ * ------------------------------------------------------------------ */
+.nav-toggle,
+.sidebar-close,
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 959.98px) {
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    margin-left: -6px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background-color 120ms ease;
+  }
+  .nav-toggle:hover {
+    background: var(--cream);
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 50;
+    height: 100vh;
+    height: 100dvh;
+    transform: translateX(-100%);
+    visibility: hidden;
+    box-shadow: 0 0 40px rgba(43, 15, 23, 0.35);
+    /* `visibility` is delayed only when hiding, so the slide-out finishes before
+     * the drawer leaves the accessibility tree. On show the delay is dropped
+     * (below), which is what lets focus land in the drawer immediately instead
+     * of sitting on a still-`hidden` element that cannot take it. */
+    transition:
+      transform 200ms ease,
+      visibility 0s linear 200ms;
+  }
+  .sidebar.is-open {
+    transform: translateX(0);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .sidebar-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    cursor: pointer;
+  }
+  .sidebar-close:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(43, 15, 23, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+  .sidebar-backdrop.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-backdrop {
+    transition: none;
   }
 }

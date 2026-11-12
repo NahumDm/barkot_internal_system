@@ -30,7 +30,7 @@ from apps.core.enums import (
     PayrollItemStatus,
     PayrollRunStatus,
 )
-from apps.core.exceptions import InvalidStateTransition
+from apps.core.exceptions import ExcessiveDeduction, InvalidStateTransition
 from apps.core.fields import CurrencyField, MoneyField
 from apps.core.models import AllRowsManager, VoidableManager, VoidableModel
 from apps.core.money import ZERO_MONEY, sum_money
@@ -259,14 +259,14 @@ class PayrollItem(VoidableModel):
         """Recompute :attr:`net_amount` and refuse to over-deduct.
 
         Raises:
-            ValueError: If deductions exceed gross. A negative payslip is always
-                a data-entry error, and storing it would quietly flow into the
-                finance balance.
+            ExcessiveDeduction: If deductions exceed gross. A negative payslip is
+                always a data-entry error, and storing it would quietly flow into
+                the finance balance.
         """
         from apps.core.money import quantize_money
 
         if self.total_deductions > self.gross_amount:
-            raise ValueError(
+            raise ExcessiveDeduction(
                 f"Deductions ({self.total_deductions}) exceed gross pay "
                 f"({self.gross_amount}) for employee {self.employee_id}."
             )

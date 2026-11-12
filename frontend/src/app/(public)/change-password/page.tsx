@@ -20,11 +20,13 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { useAuth } from "@/features/auth/auth-provider";
+import { useT } from "@/lib/i18n/context";
 import { Field, FormError, FormShell } from "@/features/auth/form-parts";
 import { type ApiError, changePassword } from "@/lib/api";
 
 export default function ChangePasswordPage() {
   const { adoptUser, user } = useAuth();
+  const t = useT();
   const router = useRouter();
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -59,49 +61,51 @@ export default function ChangePasswordPage() {
 
   return (
     <FormShell
-      title="Set a new password"
+      title={t("auth.setTitle")}
       subtitle={
         forced
-          ? "Your password was set by somebody else. Choose your own to continue."
-          : "Choose a new password for your account."
+          ? t("auth.forcedSubtitle")
+          : t("auth.chooseSubtitle")
       }
     >
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <FormError error={error} />
+      <form onSubmit={onSubmit} className="auth-form">
+        <FormError error={error} variant="auth" />
         <Field
-          label="Current password"
+          label={t("auth.currentPassword")}
           type="password"
           value={currentPassword}
           onChange={setCurrentPassword}
           errors={fieldErrors["current_password"] ?? []}
           autoComplete="current-password"
           autoFocus
+          revealable
           disabled={busy}
+          variant="auth"
         />
         <Field
-          label="New password"
+          label={t("auth.newPassword")}
           type="password"
           value={newPassword}
           onChange={setNewPassword}
           errors={fieldErrors["new_password"] ?? []}
           autoComplete="new-password"
+          revealable
           disabled={busy}
+          variant="auth"
         />
         <Field
-          label="Confirm new password"
+          label={t("auth.confirmPassword")}
           type="password"
           value={confirmation}
           onChange={setConfirmation}
           errors={fieldErrors["new_password_confirm"] ?? []}
           autoComplete="new-password"
+          revealable
           disabled={busy}
+          variant="auth"
         />
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded bg-ink px-4 py-2 text-sm font-medium text-surface disabled:opacity-60"
-        >
-          {busy ? "Saving…" : "Set password"}
+        <button type="submit" disabled={busy}>
+          {busy ? t("auth.saving") : t("auth.setPassword")}
         </button>
       </form>
     </FormShell>

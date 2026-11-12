@@ -1,0 +1,64 @@
+'use client';
+
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { DEFAULT_LOCALE, getStoredLocale, setStoredLocale, type Locale } from './index';
+import en from './locales/en.json';
+import am from './locales/am.json';
+
+const dictionaries: Record<Locale, Record<string, string>> = { en, am };
+
+interface I18nContextValue {
+  locale: Locale;
+  setLocale: (l: Locale) => void;
+  t: (key: string, fallback?: string) => string;
+}
+
+const I18nContext = createContext<I18nContextValue>({
+  locale: DEFAULT_LOCALE,
+  setLocale: () => {},
+  t: (k, f) => f ?? k,
+});
+
+export function I18nProvider({ children }: { children: React.ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
+
+  useEffect(() => {
+    const stored = getStoredLocale();
+    setLocaleState(stored);
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = stored === 'am' ? 'am' : 'en';
+    }
+  }, []);
+
+  const setLocale = (l: Locale) => {
+    setLocaleState(l);
+    setStoredLocale(l);
+    if (typeof document !== 'undefined') document.documentElement.lang = l === 'am' ? 'am' : 'en';
+  };
+
+  const t = (key: string, fallback?: string) => {
+    const dict = dictionaries[locale] ?? dictionaries.en;
+    const translated = dict[key] ?? dictionaries.en[key];
+    if (translated === undefined && process.env.NODE_ENV !== 'production') {
+      // A missing key is a translation bug, not a runtime failure: the English
+      // dictionary (or the key itself) still renders. Log the exact key so the
+      // gap can be filled without guessing from a screenshot.
+      console.warn(`[i18n] missing ${locale} translation for "${key}"`);
+    }
+    return translated ?? fallback ?? key;
+  };
+
+  return (
+    <I18nContext.Provider value={{ locale, setLocale, t }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
+
+export function useI18n() {
+  return useContext(I18nContext);
+}
+
+export function useT() {
+  return useI18n().t;
+}

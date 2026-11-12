@@ -7,10 +7,10 @@
  * not appear before the answer arrives.
  */
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AuthProvider, useAuth } from "@/features/auth/auth-provider";
+import { AuthProvider, SESSION_CHECK_TIMEOUT_MS, useAuth } from "@/features/auth/auth-provider";
 import { RequireAuth } from "@/features/auth/require-auth";
 import { ErrorCode } from "@/lib/api/errors";
 
@@ -257,6 +257,38 @@ describe("RequireAuth", () => {
     await waitFor(() => expect(screen.getByText(/Cannot reach the server/)).toBeInTheDocument());
     expect(replace).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("gives up on a stalled session check and offers a retry instead of redirecting", async () => {
+    // The whole point of the deadline: a connection that is accepted but never
+    // answered must end in a visible, retryable state - not an eternal
+    // "Checking your session…", and never a redirect to /login.
+    vi.useFakeTimers();
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      () => new Promise<Response>(() => undefined),
+    );
+
+    render(
+      <AuthProvider>
+        <StatusProbe />
+        <RequireAuth>
+          <p>secret sales data</p>
+        </RequireAuth>
+      </AuthProvider>,
+    );
+
+    expect(screen.getByTestId("status")).toHaveTextContent("checking");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SESSION_CHECK_TIMEOUT_MS);
+    });
+
+    expect(screen.getByTestId("status")).toHaveTextContent("unavailable");
+    expect(screen.getByText(/Cannot reach the server/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
   });
 
   it("throws a legible error when used outside the provider", () => {
